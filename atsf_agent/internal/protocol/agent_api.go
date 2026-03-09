@@ -1,5 +1,11 @@
 package protocol
 
+type APIResponse[T any] struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    T      `json:"data"`
+}
+
 type NodePayload struct {
 	NodeID         string `json:"node_id"`
 	Name           string `json:"name"`
