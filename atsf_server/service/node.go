@@ -11,7 +11,8 @@ import (
 )
 
 type NodeInput struct {
-	Name string `json:"name"`
+	Name              string `json:"name"`
+	AutoUpdateEnabled bool   `json:"auto_update_enabled"`
 }
 
 type NodeBootstrapView struct {
@@ -30,11 +31,12 @@ func CreateNode(input NodeInput) (*NodeView, error) {
 		return nil, errors.New("节点名不能为空")
 	}
 	node := &model.Node{
-		Name:         name,
-		IP:           "",
-		AgentVersion: "",
-		NginxVersion: "",
-		Status:       NodeStatusPending,
+		Name:              name,
+		IP:                "",
+		AgentVersion:      "",
+		NginxVersion:      "",
+		Status:            NodeStatusPending,
+		AutoUpdateEnabled: input.AutoUpdateEnabled,
 	}
 	var err error
 	node.NodeID, err = newServerNodeID()
@@ -65,6 +67,7 @@ func UpdateNode(id uint, input NodeInput) (*NodeView, error) {
 		return nil, err
 	}
 	node.Name = name
+	node.AutoUpdateEnabled = input.AutoUpdateEnabled
 	if err = node.Update(); err != nil {
 		return nil, err
 	}
@@ -79,6 +82,19 @@ func DeleteNode(id uint) error {
 	}
 	common.SysLog("node deleted: name=" + node.Name + " node_id=" + node.NodeID)
 	return node.Delete()
+}
+
+func RequestNodeAgentUpdate(id uint) (*NodeView, error) {
+	node, err := model.GetNodeByID(id)
+	if err != nil {
+		return nil, err
+	}
+	node.UpdateRequested = true
+	if err = model.DB.Model(node).Update("update_requested", true).Error; err != nil {
+		return nil, err
+	}
+	common.SysLog("agent manual update requested: node_id=" + node.NodeID + " name=" + node.Name)
+	return buildNodeView(node), nil
 }
 
 func AuthenticateAgentToken(token string) (*model.Node, error) {
@@ -149,20 +165,22 @@ func RotateGlobalDiscoveryToken() (*NodeBootstrapView, error) {
 func buildNodeView(node *model.Node) *NodeView {
 	status := computeNodeStatus(node)
 	view := &NodeView{
-		ID:             node.ID,
-		NodeID:         node.NodeID,
-		Name:           node.Name,
-		IP:             node.IP,
-		AgentToken:     node.AgentToken,
-		AgentVersion:   node.AgentVersion,
-		NginxVersion:   node.NginxVersion,
-		Status:         status,
-		CurrentVersion: node.CurrentVersion,
-		LastSeenAt:     node.LastSeenAt,
-		LastError:      node.LastError,
-		CreatedAt:      node.CreatedAt,
-		UpdatedAt:      node.UpdatedAt,
-		Pending:        status == NodeStatusPending,
+		ID:                node.ID,
+		NodeID:            node.NodeID,
+		Name:              node.Name,
+		IP:                node.IP,
+		AgentToken:        node.AgentToken,
+		AgentVersion:      node.AgentVersion,
+		NginxVersion:      node.NginxVersion,
+		Status:            status,
+		CurrentVersion:    node.CurrentVersion,
+		LastSeenAt:        node.LastSeenAt,
+		LastError:         node.LastError,
+		CreatedAt:         node.CreatedAt,
+		UpdatedAt:         node.UpdatedAt,
+		Pending:           status == NodeStatusPending,
+		AutoUpdateEnabled: node.AutoUpdateEnabled,
+		UpdateRequested:   node.UpdateRequested,
 	}
 	return view
 }

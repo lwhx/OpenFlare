@@ -9,7 +9,14 @@ import NotFound from './pages/NotFound';
 import Setting from './pages/Setting';
 import EditUser from './pages/User/EditUser';
 import AddUser from './pages/User/AddUser';
-import { API, showError, showNotice } from './helpers';
+import {
+  API,
+  getBuildVersion,
+  hasBuildVersion,
+  normalizeVersion,
+  showError,
+  showNotice,
+} from './helpers';
 import PasswordResetForm from './components/PasswordResetForm';
 import GitHubOAuth from './components/GitHubOAuth';
 import PasswordResetConfirm from './components/PasswordResetConfirm';
@@ -47,10 +54,13 @@ function App() {
       localStorage.setItem('system_name', data.system_name);
       localStorage.setItem('footer_html', data.footer_html);
       localStorage.setItem('home_page_link', data.home_page_link);
+      const currentBuildVersion = getBuildVersion();
+      const latestServerVersion = normalizeVersion(data.version);
       if (
-        data.version !== process.env.REACT_APP_VERSION &&
-        data.version !== 'v0.0.0' &&
-        process.env.REACT_APP_VERSION !== ''
+        hasBuildVersion() &&
+        latestServerVersion !== '' &&
+        latestServerVersion !== '0.0.0' &&
+        latestServerVersion !== currentBuildVersion
       ) {
         showNotice(
           `新版本可用：${data.version}，请使用快捷键 Shift + F5 刷新页面`

@@ -3,6 +3,7 @@ package router
 import (
 	"atsflare/controller"
 	"atsflare/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -104,6 +105,7 @@ func SetApiRouter(router *gin.Engine) {
 			nodeRoute.POST("/bootstrap-token/rotate", controller.RotateNodeBootstrapToken)
 			nodeRoute.GET("/", controller.GetNodes)
 			nodeRoute.POST("/", controller.CreateNode)
+			nodeRoute.POST("/:id/agent-update", controller.RequestNodeAgentUpdate)
 			nodeRoute.PUT("/:id", controller.UpdateNode)
 			nodeRoute.DELETE("/:id", controller.DeleteNode)
 		}

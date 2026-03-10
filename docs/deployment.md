@@ -229,7 +229,14 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/insta
 
 ### 7.3 Agent 自动更新
 
-在管理端 **运维设置** 中启用「Agent 自动更新」后，Agent 会在每次心跳周期检查 GitHub Releases，发现新版本时自动下载并重启。
+Agent 自动更新默认为关闭。
+
+在管理端 **节点管理** 页面中可以：
+
+* 为单个节点开启「自动更新」
+* 为单个节点点击「立即更新」，下发一次性更新指令
+
+节点在收到对应心跳响应后，会检查 GitHub Releases，发现新版本时自动下载并重启。
 
 ---
 
@@ -252,8 +259,14 @@ GitHub Release 中的 Agent 二进制命名格式：
 | AgentHeartbeatInterval | 心跳间隔（毫秒）     | heartbeat_interval |
 | AgentSyncInterval      | 同步间隔（毫秒）     | sync_interval      |
 | NodeOfflineThreshold   | 节点离线阈值（毫秒） | -                  |
-| AgentAutoUpdate        | 是否启用自动更新     | auto_update        |
 | AgentUpdateRepo        | 自动更新仓库         | update_repo        |
+
+节点管理页下发的字段：
+
+| 参数                   | 说明               | Agent 字段  |
+| ---------------------- | ------------------ | ----------- |
+| Node.AutoUpdateEnabled | 节点是否自动更新   | auto_update |
+| Node.UpdateRequested   | 节点一次性更新请求 | update_now  |
 
 ---
 

@@ -53,7 +53,6 @@
    * `AgentHeartbeatInterval`（默认 30000ms）
    * `AgentSyncInterval`（默认 30000ms）
    * `NodeOfflineThreshold`（默认 120000ms）
-   * `AgentAutoUpdate`（默认 false）
    * `AgentUpdateRepo`（默认 `Rain-kl/ATSFlare`）
 2. 在 `model/option.go` 的 `InitOptionMap()` 注册新选项
 3. 在 `model/option.go` 的 `updateOptionMap()` 增加对新选项的同步
@@ -101,13 +100,14 @@
    * 下载对应平台二进制
    * 替换自身并重启（exec syscall）
 2. 在 `runner.go` 心跳循环中集成更新检查
-3. 更新触发条件：`auto_update=true` 且存在新版本
+3. 更新触发条件：节点 `auto_update=true` 或收到一次性 `update_now=true` 且存在新版本
 
 验收标准：
 
 * Agent 能正确检测新版本
 * 能下载并替换自身二进制
 * 更新后自动重启并恢复心跳
+ * 默认不自动更新，需由控制面板逐节点开启或手动触发
 * 更新失败不影响正常运行
 
 ### 3.4 阶段四：GitHub Actions 完善与 Agent 一键部署

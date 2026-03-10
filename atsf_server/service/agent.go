@@ -49,6 +49,7 @@ type AgentSettings struct {
 	SyncInterval      int    `json:"sync_interval"`
 	AutoUpdate        bool   `json:"auto_update"`
 	UpdateRepo        string `json:"update_repo"`
+	UpdateNow         bool   `json:"update_now"`
 }
 
 type HeartbeatResponse struct {
@@ -63,6 +64,8 @@ type NodeView struct {
 	IP                 string     `json:"ip"`
 	AgentToken         string     `json:"agent_token"`
 	Pending            bool       `json:"pending"`
+	AutoUpdateEnabled  bool       `json:"auto_update_enabled"`
+	UpdateRequested    bool       `json:"update_requested"`
 	AgentVersion       string     `json:"agent_version"`
 	NginxVersion       string     `json:"nginx_version"`
 	Status             string     `json:"status"`
@@ -87,8 +90,10 @@ func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*HeartbeatRespon
 	if err := validateAgentNodePayload(payload); err != nil {
 		return nil, err
 	}
+	updateNow := node.UpdateRequested
 	applyNodeRuntime(node, payload, true)
-	if err := model.DB.Model(node).Select("ip", "agent_version", "nginx_version", "status", "current_version", "last_seen_at", "last_error").Updates(node).Error; err != nil {
+	node.UpdateRequested = false
+	if err := model.DB.Model(node).Select("ip", "agent_version", "nginx_version", "status", "current_version", "last_seen_at", "last_error", "update_requested").Updates(node).Error; err != nil {
 		return nil, err
 	}
 	return &HeartbeatResponse{
@@ -96,8 +101,9 @@ func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*HeartbeatRespon
 		AgentSettings: &AgentSettings{
 			HeartbeatInterval: common.AgentHeartbeatInterval,
 			SyncInterval:      common.AgentSyncInterval,
-			AutoUpdate:        common.AgentAutoUpdate,
+			AutoUpdate:        node.AutoUpdateEnabled,
 			UpdateRepo:        common.AgentUpdateRepo,
+			UpdateNow:         updateNow,
 		},
 	}, nil
 }

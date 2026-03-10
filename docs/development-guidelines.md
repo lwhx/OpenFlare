@@ -205,7 +205,7 @@ Agent 必须满足：
 V3 新增行为：
 
 * 心跳响应包含 `agent_settings` 时，动态调整定时器间隔
-* `auto_update=true` 时在每次心跳后检查 GitHub Releases 更新
+* `auto_update=true` 或 `update_now=true` 时在每次心跳后检查 GitHub Releases 更新
 * 自我更新失败不影响心跳与同步
 * Server 下发的间隔值不持久化到 `agent.json`，重启后以本地为准
 * Agent 新增 `internal/updater` 模块处理自我更新逻辑

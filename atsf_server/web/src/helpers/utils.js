@@ -25,6 +25,19 @@ export function getFooterHTML() {
   return localStorage.getItem('footer_html');
 }
 
+export function normalizeVersion(value) {
+  if (!value) return '';
+  return String(value).trim().replace(/^v/i, '');
+}
+
+export function getBuildVersion() {
+  return normalizeVersion(process.env.REACT_APP_VERSION);
+}
+
+export function hasBuildVersion() {
+  return getBuildVersion() !== '';
+}
+
 export async function copy(text, label) {
   let okay = true;
   try {

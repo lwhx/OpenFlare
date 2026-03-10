@@ -35,6 +35,7 @@ type Runner struct {
 	Updater          Updater
 
 	autoUpdate bool
+	updateNow  bool
 	updateRepo string
 }
 
@@ -130,16 +131,19 @@ func (r *Runner) applySettings(settings *protocol.AgentSettings) bool {
 		}
 	}
 	r.autoUpdate = settings.AutoUpdate
-	r.updateRepo = settings.UpdateRepo
+	r.updateNow = settings.UpdateNow
+	r.updateRepo = strings.TrimSpace(settings.UpdateRepo)
 	return changed
 }
 
 func (r *Runner) tryAutoUpdate(ctx context.Context) {
-	if !r.autoUpdate || r.Updater == nil || r.updateRepo == "" {
+	shouldCheck := r.autoUpdate || r.updateNow
+	r.updateNow = false
+	if !shouldCheck || r.Updater == nil || r.updateRepo == "" {
 		return
 	}
 	if err := r.Updater.CheckAndUpdate(ctx, r.updateRepo); err != nil {
-		log.Printf("agent auto-update check failed: %v", err)
+		log.Printf("agent update check failed: %v", err)
 	}
 }
 

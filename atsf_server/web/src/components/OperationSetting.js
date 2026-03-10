@@ -17,7 +17,6 @@ const OperationSetting = () => {
     AgentHeartbeatInterval: '30000',
     AgentSyncInterval: '30000',
     NodeOfflineThreshold: '120000',
-    AgentAutoUpdate: 'false',
     AgentUpdateRepo: 'Rain-kl/ATSFlare',
     ServerAddress: '',
     AgentDiscoveryToken: '',
@@ -77,10 +76,6 @@ const OperationSetting = () => {
     setInputs((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCheckboxChange = (e, { name, checked }) => {
-    setInputs((prev) => ({ ...prev, [name]: checked ? 'true' : 'false' }));
-  };
-
   const submitAgentIntervals = async () => {
     const hb = parseInt(inputs.AgentHeartbeatInterval, 10);
     const sync = parseInt(inputs.AgentSyncInterval, 10);
@@ -102,8 +97,7 @@ const OperationSetting = () => {
     await updateOption('NodeOfflineThreshold', String(offline));
   };
 
-  const submitAutoUpdate = async () => {
-    await updateOption('AgentAutoUpdate', inputs.AgentAutoUpdate);
+  const submitUpdateRepo = async () => {
     await updateOption('AgentUpdateRepo', inputs.AgentUpdateRepo);
   };
 
@@ -178,15 +172,13 @@ const OperationSetting = () => {
           </Form.Button>
 
           <Divider />
-          <Header as='h3'>Agent 自动更新</Header>
-          <Form.Group>
-            <Form.Checkbox
-              label='启用 Agent 自动更新'
-              checked={inputs.AgentAutoUpdate === 'true'}
-              name='AgentAutoUpdate'
-              onChange={handleCheckboxChange}
-            />
-          </Form.Group>
+          <Header as='h3'>Agent 更新源</Header>
+          <Message info size='small'>
+            <p>
+              自动更新开关和手动更新由节点页单独控制，这里只配置 Agent
+              更新仓库。
+            </p>
+          </Message>
           <Form.Group widths='equal'>
             <Form.Input
               label='更新仓库'
@@ -196,7 +188,7 @@ const OperationSetting = () => {
               onChange={handleInputChange}
             />
           </Form.Group>
-          <Form.Button onClick={submitAutoUpdate} primary>
+          <Form.Button onClick={submitUpdateRepo} primary>
             保存更新设置
           </Form.Button>
 

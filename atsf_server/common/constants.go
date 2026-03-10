@@ -53,7 +53,6 @@ var NodeOfflineThreshold = 2 * time.Minute
 // V3 operational settings (hot-reloadable via Option table)
 var AgentHeartbeatInterval = 30000 // milliseconds
 var AgentSyncInterval = 30000      // milliseconds
-var AgentAutoUpdate = false
 var AgentUpdateRepo = "Rain-kl/ATSFlare"
 
 const (

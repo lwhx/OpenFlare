@@ -347,7 +347,6 @@ Agent 接口当前覆盖：
   * `AgentHeartbeatInterval`：Agent 心跳上报间隔（毫秒），默认 30000
   * `AgentSyncInterval`：Agent 配置同步间隔（毫秒），默认 30000
   * `NodeOfflineThreshold`：节点离线判定阈值（毫秒），默认 120000
-  * `AgentAutoUpdate`：是否允许 Agent 自动更新（`true`/`false`），默认 `false`
   * `AgentUpdateRepo`：Agent 自动更新 GitHub 仓库地址，默认 `Rain-kl/ATSFlare`
 * 环境变量类设置（`SESSION_SECRET`、`SQLITE_PATH`、`PORT`）不迁移，保留原有方式
 * 前端在设置页面新增「运维设置」Tab
@@ -364,8 +363,9 @@ Agent 接口当前覆盖：
 * 心跳响应新增 `agent_settings` 字段，包含 Server 端可控的运行时参数：
   * `heartbeat_interval`（毫秒）
   * `sync_interval`（毫秒）
-  * `auto_update`（布尔值）
+  * `auto_update`（节点级布尔值）
   * `update_repo`（GitHub 仓库名）
+  * `update_now`（一次性手动更新指令）
 * Agent 收到心跳响应后，动态调整本地定时器间隔
 * 当 Server 未返回 `agent_settings` 或字段为空时，Agent 保持本地值不变
 * Agent 不持久化 Server 下发的间隔值，重启后以本地 `agent.json` 为准，再由下次心跳覆盖
@@ -378,7 +378,7 @@ Agent 接口当前覆盖：
 
 第三版变更：
 
-* Agent 在收到 `auto_update=true` 时：
+ * Agent 在收到 `auto_update=true` 或 `update_now=true` 时：
   * 通过 GitHub Releases API 查询 `update_repo` 的最新 Release
   * 比较本地 `agent_version` 与远端 tag
   * 若存在更新，下载对应平台的二进制文件
@@ -387,6 +387,8 @@ Agent 接口当前覆盖：
 * 更新过程中不中断当前同步任务
 * 更新失败不影响正常心跳与同步
 * Agent 二进制文件命名约定：`atsflare-agent-{os}-{arch}`
+ * `auto_update` 默认关闭，由节点管理页逐节点开启
+ * `update_now` 由节点管理页手动触发，一次心跳消费一次
 
 ### 11.5 Agent 一键部署
 
@@ -443,13 +445,14 @@ Agent 接口当前覆盖：
   * Agent 心跳间隔
   * Agent 同步间隔
   * 节点离线阈值
-  * Agent 自动更新开关
   * Agent 更新仓库
   * 全局 Discovery Token 展示与重新生成
   * Agent 一键部署命令展示（根据当前 ServerAddress 和 DiscoveryToken 动态生成 curl 命令）
 * 节点列表页优化：
   * 时间显示改为友好的相对时间格式
   * 节点状态使用颜色标识
+  * 支持逐节点开启自动更新
+  * 支持逐节点手动触发一次 Agent 更新
 
 ---
 

@@ -18,6 +18,7 @@ type AgentSettings struct {
 	SyncInterval      int    `json:"sync_interval"`
 	AutoUpdate        bool   `json:"auto_update"`
 	UpdateRepo        string `json:"update_repo"`
+	UpdateNow         bool   `json:"update_now"`
 }
 
 type NodePayload struct {

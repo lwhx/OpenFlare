@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Divider, Form, Grid, Header, Modal } from 'semantic-ui-react';
-import { API, showError, showSuccess } from '../helpers';
+import {
+  API,
+  getBuildVersion,
+  hasBuildVersion,
+  normalizeVersion,
+  showError,
+  showSuccess,
+} from '../helpers';
 import { marked } from 'marked';
 
 const OtherSetting = () => {
@@ -86,7 +93,10 @@ const OtherSetting = () => {
       'https://api.github.com/repos/Rain-kl/ATSFlare/releases/latest'
     );
     const { tag_name, body } = res.data;
-    if (tag_name === process.env.REACT_APP_VERSION) {
+    if (
+      hasBuildVersion() &&
+      normalizeVersion(tag_name) === getBuildVersion()
+    ) {
       showSuccess(`已是最新版本：${tag_name}`);
     } else {
       setUpdateData({

@@ -54,7 +54,6 @@ func InitOptionMap() {
 	common.OptionMap["AgentHeartbeatInterval"] = strconv.Itoa(common.AgentHeartbeatInterval)
 	common.OptionMap["AgentSyncInterval"] = strconv.Itoa(common.AgentSyncInterval)
 	common.OptionMap["NodeOfflineThreshold"] = strconv.Itoa(int(common.NodeOfflineThreshold.Milliseconds()))
-	common.OptionMap["AgentAutoUpdate"] = strconv.FormatBool(common.AgentAutoUpdate)
 	common.OptionMap["AgentUpdateRepo"] = common.AgentUpdateRepo
 	common.OptionMapRWMutex.Unlock()
 	options, _ := AllOption()
@@ -162,8 +161,6 @@ func updateOptionMap(key string, value string) {
 		if v, err := strconv.Atoi(value); err == nil && v > 0 {
 			common.NodeOfflineThreshold = time.Duration(v) * time.Millisecond
 		}
-	case "AgentAutoUpdate":
-		common.AgentAutoUpdate = value == "true"
 	case "AgentUpdateRepo":
 		if value != "" {
 			common.AgentUpdateRepo = value

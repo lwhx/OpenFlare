@@ -4,6 +4,7 @@ import { API, showError, showSuccess, timeAgo } from '../../helpers';
 
 const initialForm = {
   name: '',
+  auto_update_enabled: false,
 };
 
 const renderStatus = (status) => {
@@ -24,6 +25,16 @@ const renderApply = (result) => {
     return <Label color='red'>失败</Label>;
   }
   return <Label>暂无</Label>;
+};
+
+const renderUpdateMode = (node) => {
+  if (node.update_requested) {
+    return <Label color='orange'>等待更新</Label>;
+  }
+  if (node.auto_update_enabled) {
+    return <Label color='green'>自动更新</Label>;
+  }
+  return <Label>手动更新</Label>;
 };
 
 const Node = () => {
@@ -91,6 +102,7 @@ const Node = () => {
     setSubmitting(true);
     const payload = {
       name: form.name.trim(),
+      auto_update_enabled: form.auto_update_enabled,
     };
     const res = editingId
       ? await API.put(`/api/nodes/${editingId}`, payload)
@@ -110,7 +122,19 @@ const Node = () => {
     setEditingId(node.id);
     setForm({
       name: node.name || '',
+      auto_update_enabled: !!node.auto_update_enabled,
     });
+  };
+
+  const requestAgentUpdate = async (node) => {
+    const res = await API.post(`/api/nodes/${node.id}/agent-update`);
+    const { success, message } = res.data;
+    if (success) {
+      showSuccess(`已向节点 ${node.name} 下发更新指令`);
+      await loadNodes(false);
+    } else {
+      showError(message);
+    }
   };
 
   const deleteNode = async (node) => {
@@ -163,6 +187,14 @@ const Node = () => {
             value={form.name}
             onChange={(e, { value }) => setForm({ ...form, name: value })}
           />
+          <Form.Checkbox
+            label='启用该节点自动更新'
+            checked={form.auto_update_enabled}
+            onChange={(e, { checked }) =>
+              setForm({ ...form, auto_update_enabled: !!checked })
+            }
+            style={{ alignSelf: 'flex-end', marginBottom: '0.5rem' }}
+          />
         </Form.Group>
         <Button primary type='submit' loading={submitting}>
           {editingId ? '保存修改' : '新增节点'}
@@ -182,6 +214,7 @@ const Node = () => {
             <Table.HeaderCell>Auth Token</Table.HeaderCell>
             <Table.HeaderCell>IP</Table.HeaderCell>
             <Table.HeaderCell>状态</Table.HeaderCell>
+            <Table.HeaderCell>Agent 更新</Table.HeaderCell>
             <Table.HeaderCell>Agent / Nginx</Table.HeaderCell>
             <Table.HeaderCell>当前版本</Table.HeaderCell>
             <Table.HeaderCell>最近应用</Table.HeaderCell>
@@ -216,6 +249,7 @@ const Node = () => {
               </Table.Cell>
               <Table.Cell>{node.ip}</Table.Cell>
               <Table.Cell>{renderStatus(node.status)}</Table.Cell>
+              <Table.Cell>{renderUpdateMode(node)}</Table.Cell>
               <Table.Cell>
                 {node.agent_version} / {node.nginx_version || 'unknown'}
               </Table.Cell>
@@ -231,6 +265,14 @@ const Node = () => {
               </Table.Cell>
               <Table.Cell>{node.last_error || '无'}</Table.Cell>
               <Table.Cell>
+                <Button
+                  size='small'
+                  primary
+                  disabled={node.update_requested}
+                  onClick={() => requestAgentUpdate(node)}
+                >
+                  立即更新
+                </Button>
                 <Button size='small' onClick={() => beginEdit(node)}>
                   编辑
                 </Button>
