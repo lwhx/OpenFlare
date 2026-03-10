@@ -1,797 +1,346 @@
-# ATSFlare MVP 设计文档
+# ATSFlare 设计基线（V3 准备版）
 
-## 1. 目标
+## 1. 文档目的
 
-先做一个能用的版本，不做平台化过度设计。第一版只解决 3 件事：
+本文档不再展开记录第一版、第二版的实施过程，只保留当前系统边界、稳定约束与第三版开始前必须确认的设计输入。
 
-* 配置发布与同步
-* 节点心跳检测
-* Nginx 反向代理配置下发
+当前结论：
 
-系统定位是内部自用的控制面，不是面向外部租户的 CDN SaaS。
+* 第一版、第二版已完成并进入归档状态
+* 当前代码库的可运行能力，以本文档为唯一设计基线
+* 第三版开发前，如需扩展系统边界，先更新本文档，再开始编码
 
 ---
 
-## 2. 第一版范围（已完成）
+## 2. 当前产品定位
 
-### 已做
+ATSFlare 当前仍定位为**内部自用的反向代理控制面**，不是面向外部租户的 CDN SaaS。
 
-* Web 管理端维护反代规则
-* 配置发布生成版本
-* Agent 定时同步并应用配置
-* Agent 控制本机 Nginx 校验与 reload
-* 节点注册、心跳、在线状态展示
-* 展示每个节点当前生效版本和最近一次应用结果
+当前已经具备的核心能力：
 
-### 不做（第一版）
+* 反代规则管理
+* 配置渲染、发布、激活与回滚
+* Agent 心跳、同步、应用结果上报
+* Nginx 配置写入、校验、reload 与失败回滚
+* HTTPS/TLS 路由支持
+* 证书托管与域名管理
+* 节点预创建、节点专属 `agent_token`、全局 `discovery_token`
+* 配置预览与变更摘要
+
+当前默认工作方式：
+
+* 所有节点消费同一份全局激活版本
+* 控制面保存状态与配置，不直接 SSH 管理机器
+* Agent 是节点侧唯一落地入口
+
+---
+
+## 3. 明确保持不做的范围
+
+在第三版目标明确前，以下内容仍视为范围外：
 
 * 多租户
 * WAF、限流、Bot、防刷
-* 灰度发布、节点分组、分批发布
-* 对象存储、消息队列、Redis、Prometheus
-* 复杂缓存策略管理
-* 证书托管与自动签发
-* Purge、中台审计、审批流
-* mid-tier / 分层缓存
+* 节点分组、差异化下发、灰度百分比发布
+* Redis、消息队列、对象存储、Prometheus
+* 复杂缓存策略、分层缓存、mid-tier
+* 证书自动签发与自动续期
+* 审批流、审计中台、Purge 平台化能力
+* 抽象 `zone`、`origin_pool`、`policy`、`deployment` 等平台对象
 
-第一版默认所有节点消费同一份全量配置，不做差异化下发。
-
----
-
-## 2.5 第二版范围
-
-在 MVP 闭环稳定运行的基础上，第二版聚焦以下增量能力。
-
-### 要做
-
-**2.5.1 HTTPS/TLS 支持**
-
-* `proxy_routes` 增加 HTTPS 相关字段：`enable_https`、`cert_id`、`redirect_http`
-* 渲染器根据字段生成 HTTPS `server` 块（443 端口），并可选生成 HTTP → HTTPS 重定向块
-* 控制面托管证书并下发到节点本地，支持手动导入与文件导入
-
-**2.5.2 域名管理与证书托管**
-
-* 新增 `managed_domains` 表：管理业务域名，支持精确域名与通配符域名（如 `*.example.com`）
-* 新增 `tls_certificates` 表：保存证书与私钥，支持手动粘贴导入和证书文件上传导入
-* 控制面新增证书管理与域名管理页面
-* 在反代规则编辑时，输入域名后自动匹配可用证书（包含通配符匹配）
-
-**2.5.3 Agent 管理与自动发现**
-
-* 管理端支持手工创建节点、编辑节点名、删除节点
-* 管理端手工创建节点时，直接为该节点生成专属 `agent_token`
-* 预创建节点时，持有该 `agent_token` 的 Agent 会占据该节点位，并持续以该 Token 完成后续鉴权
-* 系统同时维护一个全局 `discovery_token`，任意新节点可使用该 Token 自动接入 Server
-* Agent 使用全局 `discovery_token` 首次注册成功后，Server 会为该节点生成专属 `agent_token`，Agent 本地完成 Token 置换
-* Agent 默认自动探测主机名与 IP，也允许通过配置覆盖
-
-**2.5.4 路由增强**
-
-* `proxy_routes` 增加 `custom_headers` 字段（JSON 格式），支持每条路由追加自定义 `proxy_set_header` 指令
-* 渲染器按 `custom_headers` 内容注入到对应 `server` 块
-
-**2.5.5 配置预览与变更摘要**
-
-* 新增"配置预览"接口：在不实际发布的情况下，返回基于当前启用规则渲染的 Nginx 配置
-* 新增"变更摘要"接口：对比当前激活版本与新渲染结果，返回新增、删除、修改的域名列表
-* 前端发布页接入预览与变更摘要，让管理员在点击发布前确认变化
-
-### 仍不做（第二版）
-
-* 多租户
-* WAF、限流、Bot、防刷
-* 节点分组与差异化下发
-* 对象存储、消息队列、Redis、Prometheus
-* 证书自动签发（ACME）
-* Purge、中台审计、审批流
-* mid-tier / 分层缓存
-* 复杂缓存策略配置
+如果第三版需要引入以上任一能力，必须先补设计，再进入实现。
 
 ---
 
-## 3. 技术约束
+## 4. 技术基线
 
-### Server
+### 4.1 Server
 
-控制中心直接基于现有 `atsf_server` 的 `ATSFlare` 工程开发：
+基于 `atsf_server` 单体应用继续演进：
 
 * Web 框架：Gin
 * ORM：GORM
-* 前端：沿用现有 web 管理端
-* 鉴权：沿用 ATSFlare 登录体系
+* 数据库：SQLite
+* 管理端前端：`atsf_server/web`
+* 用户鉴权：沿用现有 ATSFlare 登录体系
 
-### 数据库
+默认不以新基础设施为前提：
 
-只使用 SQLite，不引入其他中间件：
+* 不依赖 Redis
+* 不依赖 MQ
+* 不依赖外部对象存储
 
-* 不配置 `SQL_DSN`，直接走项目现有 SQLite 初始化逻辑
-* 不配置 `REDIS_CONN_STRING`，会退化为 cookie session
+### 4.2 Agent
 
-### Agent
-
-Agent 使用 Go 单体程序：
+基于 `atsf_agent` Go 单体程序继续演进：
 
 * 单二进制
-* systemd 管理
-* 优先调用独立 Nginx，而不是依赖系统全局 Nginx
-* 显式配置 `nginx_path` 时，直接调用该路径下的 Nginx
-* 未配置 `nginx_path` 时，默认通过 Docker 运行独立 Nginx 容器
-* 管理本机 Nginx 路由配置文件和 reload
-* Agent 生成资源默认统一落在 `./data`，也允许通过单个基路径配置覆盖
-* Agent 启动时会校验本地路由文件哈希与控制面激活版本是否一致
-* Docker 模式启动时会重建独立 Nginx 容器，避免复用故障容器
+* 节点本地执行
+* 优先使用独立 Nginx
+* 显式配置 `nginx_path` 时直接调用该路径
+* 未配置 `nginx_path` 时默认使用 Docker Nginx 容器
+* 生成资源默认落在 `./data`，可由 `data_dir` 覆盖
 
-### Nginx 管理边界
+### 4.3 Nginx 管理边界
 
-第一版只管理最核心的反代映射：
+控制面当前只管理以下内容：
 
-* 重点生成独立的 Nginx 路由配置文件，例如 `/etc/nginx/conf.d/atsflare_routes.conf`
-* `nginx.conf`、TLS 证书、缓存细节、upstream 高级配置先保持节点本地静态配置
-* Agent 可以管理独立安装路径下的 Nginx，或者独立 Docker Nginx 容器
+* 反向代理路由配置
+* 控制面托管证书对应的本地证书文件
 
-也就是说，MVP 先把 Nginx 当成“可集中配置的反向代理”，不是完整网关平台。
+仍不管理以下内容：
+
+* `nginx.conf`
+* upstream 高级编排
+* 复杂缓存策略
+* 节点级系统运维逻辑
 
 ---
 
-## 4. 总体架构
+## 5. 当前总体架构
 
 ```text
-                ┌────────────────────────────┐
-                │       ATSFlare Server      │
-                │     ATSFlare + SQLite      │
-                │  Admin UI + Admin API      │
-                └──────────────┬─────────────┘
-                               │
-                     HTTP API / Config Pull
-                               │
-            ┌──────────────────┴──────────────────┐
-            │                                     │
-   ┌────────▼────────┐                   ┌────────▼────────┐
-   │ Nginx Agent 1   │                   │ Nginx Agent N   │
-   │ heartbeat/sync  │                   │ heartbeat/sync  │
-   │ nginx reload    │                   │ nginx reload    │
-   └────────┬────────┘                   └────────┬────────┘
-            │                                     │
-      ┌─────▼─────┐                         ┌─────▼─────┐
-      │   Nginx   │                         │   Nginx   │
-      │ reverse   │                         │ reverse   │
-      │  proxy    │                         │  proxy    │
-      └─────┬─────┘                         └─────┬─────┘
-            │                                     │
-            └──────────────► Origin ◄────────────┘
+ATSFlare Server (Gin + SQLite + Web UI)
+        |
+        | HTTP API / Config Pull
+        v
+ATSFlare Agent (heartbeat / sync / apply / report)
+        |
+        v
+   Local Nginx or Docker Nginx
+        |
+        v
+      Origin
 ```
 
-设计原则只有 3 条：
+设计原则保持不变：
 
-* Server 只保存配置和节点状态，不直接 SSH 改机器
-* Agent 是唯一的落地入口
-* 所有发布都是“新版本生效”，不是在线修改当前文件
+* Server 负责配置、版本、节点状态
+* Agent 负责本地落盘、校验、reload、回滚
+* 发布通过“生成新版本并激活”完成
+* 历史版本不可变
 
 ---
 
-## 5. 核心对象
+## 6. 核心对象
 
-### 5.1 proxy_routes（第一版）
+### 6.1 `proxy_routes`
 
-反代规则表，控制 `Host -> Origin` 映射。
+表示一条 `domain -> origin_url` 的反向代理规则。
 
-建议字段：
+关键字段：
 
-* `id`
 * `domain`
 * `origin_url`
 * `enabled`
+* `enable_https`
+* `cert_id`
+* `redirect_http`
+* `custom_headers`
 * `remark`
-* `created_at`
-* `updated_at`
 
 约束：
 
-* `domain` 唯一
+* 一个域名只对应一个源站
+* `domain` 必须唯一
 * `origin_url` 必须是合法的 `http://` 或 `https://`
-* 第一版一条域名只对应一个源站，不做源站池
 
-第二版新增字段：
+### 6.2 `config_versions`
 
-* `enable_https` — 是否启用 HTTPS（bool，默认 false）
-* `cert_id` — 关联托管证书 ID（nullable，未启用 HTTPS 时可为空）
-* `redirect_http` — 是否将 HTTP 重定向到 HTTPS（bool，默认 false）
-* `custom_headers` — 自定义 `proxy_set_header` 指令（JSON 格式，存字符串）
+表示一次完整发布快照。
 
-### 5.2 config_versions（第一版）
+关键字段：
 
-发布版本表，保存不可变快照。
-
-建议字段：
-
-* `id`
 * `version`
 * `snapshot_json`
 * `rendered_config`
 * `checksum`
 * `is_active`
 * `created_by`
-* `created_at`
 
-说明：
+约束：
 
-* `snapshot_json` 保存发布时的完整规则快照
-* `rendered_config` 保存渲染后的 Nginx 路由配置
-* 第一版直接存 SQLite，不单独上对象存储
+* 每个版本保存完整快照与渲染结果
+* 全局同时只能有一个激活版本
+* 回滚通过重新激活旧版本实现
 
-第二版沿用第一版字段，不新增分组字段。
+### 6.3 `nodes`
 
-### 5.3 nodes（第一版）
+表示节点运行状态与接入凭证。
 
-节点表，保存当前状态。
+关键字段：
 
-建议字段：
-
-* `id`
 * `node_id`
 * `name`
 * `ip`
-* `agent_version`
-* `nginx_version`
 * `status`
 * `current_version`
 * `last_seen_at`
 * `last_error`
-* `created_at`
-* `updated_at`
+* `agent_token`
 
-第二版沿用第一版字段，不新增分组字段。
+约束：
 
-### 5.4 apply_logs（第一版）
+* 节点专属 `agent_token` 由 Server 生成并持久化
+* 删除节点后，其凭证必须立即失效
+* 全局 `discovery_token` 不存放在 `nodes` 表中
 
-节点应用记录。
+### 6.4 `apply_logs`
 
-建议字段：
+记录节点应用版本的结果。
 
-* `id`
+关键字段：
+
 * `node_id`
 * `version`
 * `result`
 * `message`
 * `created_at`
 
-### 5.5 tls_certificates（第二版新增）
+### 6.5 `tls_certificates`
 
-证书托管表，用于保存证书与私钥内容。
+表示控制面托管的证书与私钥。
 
-建议字段：
+关键字段：
 
-* `id`
-* `name` — 证书名称（唯一）
-* `cert_pem` — 证书 PEM 内容
-* `key_pem` — 私钥 PEM 内容
-* `not_before` — 证书生效时间
-* `not_after` — 证书过期时间
+* `name`
+* `cert_pem`
+* `key_pem`
+* `not_before`
+* `not_after`
 * `remark`
-* `created_at`
-* `updated_at`
 
-### 5.6 managed_domains（第二版新增）
+### 6.6 `managed_domains`
 
-域名管理表，用于维护可选域名及其默认证书关系。
+表示域名资产及其默认证书关系。
 
-建议字段：
+关键字段：
 
-* `id`
-* `domain` — 域名（支持精确域名和 `*.example.com`）
-* `cert_id` — 关联 `tls_certificates.id`（nullable）
+* `domain`
+* `cert_id`
 * `enabled`
 * `remark`
-* `created_at`
-* `updated_at`
-
-### 5.7 nodes（第二版扩展）
-
-节点表在第二版增加节点管理与自动发现字段。
-
-新增字段建议：
-
-* `agent_token` — 节点专属 Agent Token，用于节点占位与后续正式鉴权
 
 约束：
 
-* 管理端手工创建节点时必须直接生成 `agent_token`
-* 一个节点位只对应一个 `agent_token`
-* 全局 `discovery_token` 不存放在 `nodes` 表，而由系统配置统一维护
-* 使用全局 `discovery_token` 自动接入的节点，应在注册成功后获得新的专属 `agent_token`
-* 删除节点后，该节点关联的 Token 必须立即失效
+* 支持精确域名与 `*.example.com` 通配符域名
+* 证书匹配同时支持精确匹配与通配符匹配
 
 ---
 
-## 6. 配置发布模型
+## 7. 当前发布模型
 
-第一版不做增量发布，也不做 bundle 文件仓库。
+标准链路：
 
-发布逻辑：
+```text
+修改规则 -> 预览/查看 diff -> 发布 -> 生成完整配置版本 -> 激活版本 -> Agent 拉取 -> 本地应用 -> 上报结果
+```
 
-1. 管理员在后台修改 `proxy_routes`
-2. 点击“发布”
-3. Server 校验规则
-4. Server 根据当前全部启用规则渲染出完整 Nginx 路由配置
-5. 生成新 `config_versions` 记录
-6. 将该版本标记为当前激活版本
-7. Agent 下一次心跳或轮询时发现新版本并拉取
+发布规则：
 
-### 版本原则
+1. 读取全部启用的 `proxy_routes`
+2. 渲染完整 Nginx 配置
+3. 计算 `checksum`
+4. 写入 `config_versions`
+5. 切换激活版本
+6. Agent 在下一轮同步中发现并应用
 
-* 一个版本就是一份完整快照
+版本规则：
+
+* 版本号格式：`YYYYMMDD-NNN`
 * 版本不可变
 * 节点只拉取当前激活版本
-* 回滚本质上是重新激活旧版本
-
-### 版本号建议
-
-```text
-20260309-001
-20260309-002
-```
-
-### 发布校验
-
-发布前至少做以下检查：
-
-* `domain` 不能为空
-* `origin_url` 合法
-* 不允许重复域名
-* 至少存在 1 条启用规则
 
 ---
 
-## 7. Nginx 配置策略
+## 8. 当前模块边界
 
-第一版只生成独立的 Nginx 路由配置文件，这样最简单，也最容易验证。
+### 8.1 `atsf_server`
 
-### 规则映射
+负责：
 
-```conf
-server {
-    listen 80;
-    server_name www.example.com;
+* 管理端 UI 与 API
+* Agent API
+* 数据存储
+* 配置渲染
+* 发布与激活
+* 节点状态展示
 
-    location / {
-        proxy_pass http://10.0.0.10:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+### 8.2 `atsf_agent`
 
-server {
-    listen 80;
-    server_name api.example.com;
+负责：
 
-    location / {
-        proxy_pass http://10.0.0.20:9000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-### HTTPS 处理
-
-第一版不在控制中心管理证书，第二版开始支持证书托管。
-
-约定如下：
-
-* 第一版：Nginx 的监听端口、证书、TLS 相关配置由节点本地预先准备
-* 第二版：控制中心托管证书并在配置下发时生成对应证书文件与 HTTPS 配置引用
-* 第二版：反代规则可通过 `cert_id` 绑定证书，并支持 HTTP → HTTPS 重定向
-
-### 缓存处理
-
-第一版不开放缓存策略配置：
-
-* 是否开启缓存由节点静态配置决定
-* 控制中心不管理 TTL、Header 改写、缓存规则
-
----
-
-## 8. Server 模块设计
-
-控制中心仍然是单体应用，不拆服务。
-
-### 8.1 管理端模块
-
-* 登录鉴权
-* 反代规则 CRUD
-* 发布版本管理
-* 节点状态页面
-* 应用日志查看
-
-### 8.2 Agent API 模块
-
-* 节点注册
-* 心跳上报
-* 获取当前激活版本
-* 下载指定版本配置
+* 首次注册与凭证置换
+* 周期性心跳
+* 拉取激活版本
+* 写入本地路由与证书文件
+* 执行 `nginx -t` / `nginx -s reload`
+* 失败回滚
 * 上报应用结果
 
-### 8.3 渲染模块
+### 8.3 `atsf_server/web`
 
-职责很简单：
+负责：
 
-* 从 `proxy_routes` 读取全部启用规则
-* 按固定模板拼出 Nginx 路由配置
-* 计算 checksum
-* 写入 `config_versions`
-
-这层不要引入复杂 DSL，第一版直接围绕 `domain -> origin_url` 即可。
+* 规则、版本、节点、应用记录页面
+* 证书与域名管理页面
+* 发布前预览与变更摘要展示
 
 ---
 
-## 9. Agent 模块设计
+## 9. 当前接口域
 
-Agent 做成一个 Go 单体进程即可。
+为控制文档长度，仅保留接口域，不再逐条展开历史接口清单。
 
-### 9.1 本地职责
+管理端接口当前覆盖：
 
-* 读取本地配置
-* 定时心跳
-* 拉取新版本
-* 覆盖 Nginx 路由配置文件
-* 执行 `nginx -t` 和 `nginx -s reload`
+* `proxy-routes`
+* `config-versions`
+* `nodes`
+* `apply-logs`
+* `tls-certificates`
+* `managed-domains`
+
+Agent 接口当前覆盖：
+
+* 注册
+* 心跳
+* 获取激活版本
 * 上报应用结果
-* 保存本地最近成功版本
 
-### 9.2 建议的本地文件
+统一约束：
 
-* `/etc/atsf-agent/config.yaml`
-* `/var/lib/atsf-agent/state.json`
-* `/etc/nginx/conf.d/atsflare_routes.conf`
-* `/etc/nginx/conf.d/atsflare_routes.conf.bak`
-
-### 9.3 最小工作流
-
-```text
-1. Agent 启动
-2. 读取或生成 node_id
-3. 上报 heartbeat
-4. 获取当前激活版本元数据
-5. 若版本变更，则下载 rendered_config
-6. 备份旧路由配置文件
-7. 写入新路由配置文件
-8. 调用 `nginx -t`
-9. 校验通过后执行 `nginx -s reload`
-10. 记录结果并上报
-11. 进入下一轮
-```
-
-### 9.4 失败处理
-
-第一版只做最基本的容错：
-
-* 拉取失败：继续使用本地旧配置
-* 配置校验或 reload 失败：恢复备份文件并再次校验后 reload
-* Server 不可用：不影响 Nginx 继续转发
+* 管理端与 Agent API 均使用 JSON
+* Agent API 固定放在 `/api/agent/*`
+* Agent 鉴权使用 `X-Agent-Token`
 
 ---
 
-## 10. 心跳与在线状态
+## 10. 第三版设计准备要求
 
-心跳不单独搞复杂监控系统，直接走业务表。
+第三版开始编码前，至少先在本文档补齐以下内容：
 
-### 心跳内容
+1. **目标问题**：第三版要解决什么实际痛点
+2. **范围边界**：明确要做与不做
+3. **对象变化**：是否新增表、字段、状态流转
+4. **链路影响**：是否影响发布链路、Agent 同步链路、部署方式
+5. **兼容策略**：是否影响现有节点、现有版本、现有配置
+6. **验收标准**：如何判断第三版完成
 
-Agent 每次上报：
+如果第三版包含以下变化，还必须同步更新其他文档：
 
-* `node_id`
-* `name`
-* `ip`
-* `agent_version`
-* `nginx_version`
-* `current_version`
-* `last_apply_result`
-* `timestamp`
-
-### 状态判定
-
-建议规则：
-
-* 15 秒一次心跳
-* 超过 45 秒未上报记为 `offline`
-* 最近一次应用失败但仍有心跳，记为 `warning`
-* 正常心跳且版本一致，记为 `online`
+* 技术约束变化：更新 `docs/development-guidelines.md`
+* 开发阶段与顺序变化：更新 `docs/development-plan.md`
+* 部署方式变化：更新 `docs/deployment.md`
 
 ---
 
-## 11. API 设计
+## 11. 文档策略
 
-### 11.1 管理端 API（第一版，已实现）
+第一版、第二版的详细实施过程不再在本文档中长期保留。
 
-* `GET /api/proxy-routes/`
-* `POST /api/proxy-routes/`
-* `PUT /api/proxy-routes/:id`
-* `DELETE /api/proxy-routes/:id`
-* `GET /api/config-versions/`
-* `GET /api/config-versions/active`
-* `POST /api/config-versions/publish`
-* `PUT /api/config-versions/:id/activate`
-* `GET /api/nodes/`
-* `GET /api/apply-logs/`
+后续原则：
 
-### 11.2 Agent API（第一版，已实现）
-
-* `POST /api/agent/nodes/register`
-* `POST /api/agent/nodes/heartbeat`
-* `GET /api/agent/config-versions/active`
-* `POST /api/agent/apply-logs`
-
-### 11.3 第二版新增管理端 API
-
-* `GET /api/tls-certificates/` — 证书列表
-* `POST /api/tls-certificates/` — 手动导入证书（粘贴 PEM）
-* `POST /api/tls-certificates/import-file` — 证书文件导入
-* `PUT /api/tls-certificates/:id` — 更新证书备注/状态
-* `DELETE /api/tls-certificates/:id` — 删除证书
-* `GET /api/managed-domains/` — 域名列表
-* `POST /api/managed-domains/` — 创建域名并可绑定默认证书
-* `PUT /api/managed-domains/:id` — 更新域名配置
-* `DELETE /api/managed-domains/:id` — 删除域名
-* `GET /api/tls-certificates/match?domain=` — 按输入域名返回匹配证书（支持 `*.example.com`）
-* `GET /api/agent-tokens/` — Token 列表
-* `POST /api/agent-tokens/` — 创建 Token
-* `DELETE /api/agent-tokens/:id` — 撤销 Token
-* `GET /api/config-versions/preview` — 预览当前启用规则的渲染结果（不写库）
-* `GET /api/config-versions/diff` — 对比当前激活版本与待发布的变更摘要
-
-### 11.4 鉴权方案
-
-管理端：
-
-* 直接沿用 ATSFlare 的登录态
-
-Agent（第一版）：
-
-* 预共享 Token，请求头 `X-Agent-Token`，Token 值来自环境变量
-
-Agent（第二版）：
-
-* Agent 正式鉴权改为查 `nodes.agent_token`
-* 首次注册使用 `nodes.discovery_token`
-* 不再依赖全局环境变量 Agent Token
-* 后续可升级 mTLS
-
----
-
-## 12. 页面设计
-
-### 12.1 登录页
-
-沿用 ATSFlare 现有登录。
-
-### 12.2 反代规则页（第一版，已实现）
-
-展示和编辑：
-
-* 域名
-* 源站地址
-* 是否启用
-* 备注
-
-第二版新增字段：
-
-* 是否启用 HTTPS
-* 证书选择（自动匹配候选证书，支持通配符）
-* 是否 HTTP → HTTPS 重定向
-* 自定义请求头（JSON 编辑器）
-
-### 12.3 发布版本页（第一版，已实现）
-
-展示：
-
-* 版本号
-* 发布时间
-* 发布人
-* 是否当前激活
-
-动作：
-
-* 立即发布
-* 激活旧版本
-
-第二版新增：
-
-* 发布前展示配置预览与变更摘要
-
-### 12.4 节点页（第一版，已实现）
-
-展示：
-
-* 节点名
-* IP
-* 在线状态
-* 当前版本
-* 最后心跳时间
-* 最近错误
-
-### 12.5 应用记录页（第一版，已实现）
-
-展示：
-
-* 节点
-* 版本
-* 成功/失败
-* 错误信息
-* 时间
-
-### 12.6 节点管理页（第二版增强）
-
-展示：
-
-* 节点名
-* Node ID
-* 自动发现 Token（仅待接入节点展示）
-* 在线状态
-* 当前版本
-* 最后心跳时间
-* 最近错误
-
-动作：
-
-* 创建节点
-* 编辑节点名
-* 删除节点
-
-### 12.7 证书管理页（第二版新增）
-
-展示：
-
-* 证书名称
-* 有效期（起止时间）
-* 绑定域名数量
-* 备注
-
-动作：
-
-* 手动导入证书（粘贴 PEM）
-* 文件导入证书
-* 删除证书
-
-### 12.8 域名管理页（第二版新增）
-
-展示：
-
-* 域名（支持 `*.example.com`）
-* 绑定证书
-* 是否启用
-* 备注
-
-动作：
-
-* 创建域名
-* 绑定/更换证书
-* 删除域名
-
----
-
-## 13. 代码组织建议
-
-### Server（第一版，已实现）
-
-```text
-atsf_server/
-  controller/
-    proxy_route.go
-    config_version.go
-    node.go
-    agent.go
-  model/
-    proxy_route.go
-    config_version.go
-    node.go
-    apply_log.go
-  router/
-    api-router.go
-  service/
-    proxy_route.go
-    config_version.go
-    agent.go
-```
-
-### Server（第二版新增）
-
-```text
-atsf_server/
-  controller/
-    tls_certificate.go # 证书管理
-    managed_domain.go  # 域名管理
-    node.go            # 节点管理
-  model/
-    tls_certificate.go # TLSCertificate 模型
-    managed_domain.go  # ManagedDomain 模型
-  service/
-    tls_certificate.go # 证书导入与匹配逻辑
-    managed_domain.go  # 域名管理逻辑
-    node.go            # 节点管理与自动发现逻辑
-    renderer.go        # 抽离渲染逻辑（HTTPS 支持扩展）
-  middleware/
-    agent-auth.go      # 改为查节点专属 Token 验证
-```
-
-### Agent（第一版，已实现）
-
-```text
-atsf_agent/
-  cmd/agent/main.go
-  internal/config/config.go
-  internal/heartbeat/service.go
-  internal/sync/service.go
-  internal/nginx/manager.go
-  internal/state/state.go
-  internal/httpclient/client.go
-  internal/protocol/agent_api.go
-```
-
-### Agent（第二版）
-
-第二版 Agent 无需新增模块，只需在现有模块内扩展：
-
-* `sync`: 拉取包含 HTTPS 与证书引用的渲染配置并应用
-* `nginx`: 写入控制面托管证书生成的本地文件并参与 `nginx -t` / reload
-
----
-
-## 14. 开发顺序
-
-### 第一版（已完成）
-
-1. Server 建表、AutoMigrate
-2. 反代规则 CRUD 与发布逻辑
-3. Agent API 与节点状态表
-4. Agent 同步、落盘、reload、回滚
-5. 管理端页面
-6. 联调和部署文档
-
-### 第二版（当前阶段）
-
-按以下顺序执行，前项完成后再推进下一项：
-
-1. HTTPS/TLS 支持（ProxyRoute 扩展字段 + 渲染器 + 前端表单）
-2. 域名管理与证书托管（managed_domains/tls_certificates + 证书导入 + 自动匹配）
-3. Agent 管理（节点 CRUD + discovery token + 节点专属 agent token）
-4. 路由增强（custom_headers 字段 + 渲染器注入 + 前端表单）
-5. 配置预览与变更摘要（preview 接口 + diff 接口 + 前端发布确认弹窗）
-
----
-
-## 15. 关键取舍
-
-第一版故意做这些取舍：
-
-* 不抽象 zone、origin pool、policy 这些平台概念
-* 不做复杂发布编排，所有节点统一拉当前版本
-* 不管理 Nginx 全部配置，只先管独立生成的路由配置文件
-* 不引入 Redis、MQ、对象存储，先把单机 SQLite 跑起来
-* 不为了“以后可能会用到”提前把系统拆复杂
-
-只要这版能稳定完成下面这条链路，就算成功：
-
-```text
-后台改规则 -> 点击发布 -> Agent 拉到新版本 -> Nginx reload -> 节点状态可见
-```
-
-这就是当前阶段最需要的 MVP。
-
-### 第二版取舍
-
-* HTTPS 支持由控制面托管证书，但只支持导入，不做自动签发与自动续期
-* 第二版不做节点分组，所有节点继续消费同一份激活版本
-* 节点专属 Token 不做额外权限分级，第二版仅区分 discovery token 与 agent token 两种用途
-* 路由自定义头不做模板变量，只支持静态 key-value，避免过早引入 DSL
-* 配置预览只展示渲染结果，不实际验证 Nginx 语法，真实校验仍由 Agent 完成
-
-第二版成功标准：
-
-```text
-HTTPS 路由可生效 + 控制面可托管证书并按域名自动匹配（含通配符）+ 节点可通过 discovery token 自动接入并完成 token 置换 + 发布前可预览变更
-```
+* 设计文档只保留当前有效基线
+* 已完成阶段的细节以 Git 历史为准
+* 新阶段开始前，先把设计输入写清楚，再进入实现
