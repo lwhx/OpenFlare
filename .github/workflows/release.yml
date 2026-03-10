@@ -12,6 +12,7 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     outputs:
+      should_run: ${{ steps.version.outputs.should_run }}
       version: ${{ steps.version.outputs.version }}
       is_prerelease: ${{ steps.version.outputs.is_prerelease }}
     steps:
@@ -23,11 +24,19 @@ jobs:
       - name: Resolve version metadata
         id: version
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          SHOULD_RUN=true
+          POINTED_TAG="$(git tag --points-at HEAD --list 'v*' | sort -V | tail -n1)"
+
+          if [[ "${GITHUB_REF}" == refs/heads/main ]] && [[ -n "$POINTED_TAG" ]]; then
+            SHOULD_RUN=false
+            VERSION="$POINTED_TAG"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF_NAME}"
           else
             VERSION="$(git describe --tags)"
           fi
+
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if [[ "$VERSION" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
@@ -37,6 +46,7 @@ jobs:
 
   build-frontend:
     needs: prepare
+    if: needs.prepare.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -69,6 +79,7 @@ jobs:
     needs:
       - prepare
       - build-frontend
+    if: needs.prepare.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -129,6 +140,7 @@ jobs:
 
   build-agent-binaries:
     needs: prepare
+    if: needs.prepare.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -186,12 +198,20 @@ jobs:
       - prepare
       - build-binaries
       - build-agent-binaries
+    if: needs.prepare.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Download Binary Artifacts
+      - name: Download Server Artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: "*-*"
+          pattern: "server-*"
+          path: dist
+          merge-multiple: true
+
+      - name: Download Agent Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "agent-*"
           path: dist
           merge-multiple: true
 
