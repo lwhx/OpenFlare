@@ -193,10 +193,72 @@ npm run build
 
 ---
 
-## 7. 当前已知限制
+## 7. Agent 一键部署（V3）
 
-* 暂未内置 systemd unit 文件
-* 暂未提供一键部署脚本
+### 7.1 curl 安装
+
+在目标机器上运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/install-agent.sh | bash -s -- \
+  --server-url http://your-server:3000 \
+  --discovery-token YOUR_DISCOVERY_TOKEN
+```
+
+支持参数：
+
+| 参数                | 说明                 | 默认值                |
+| ------------------- | -------------------- | --------------------- |
+| `--server-url`      | Server 地址（必填）  | -                     |
+| `--discovery-token` | 全局 Discovery Token | -                     |
+| `--agent-token`     | 节点专属 Token       | -                     |
+| `--install-dir`     | 安装目录             | `/opt/atsflare-agent` |
+| `--repo`            | GitHub Release 仓库  | `Rain-kl/ATSFlare`    |
+| `--no-service`      | 不创建 systemd 服务  | -                     |
+
+安装脚本会：
+
+1. 从 GitHub Releases 下载最新 Agent 二进制（`atsflare-agent-{os}-{arch}`）
+2. 生成 `agent.json` 配置文件
+3. 创建 systemd 服务 `atsflare-agent.service`
+4. 启动并启用自启
+
+### 7.2 管理端生成部署命令
+
+在管理端 **系统设置 → 运维设置** 中查看已生成的一键部署命令，直接复制到目标节点执行。
+
+### 7.3 Agent 自动更新
+
+在管理端 **运维设置** 中启用「Agent 自动更新」后，Agent 会在每次心跳周期检查 GitHub Releases，发现新版本时自动下载并重启。
+
+---
+
+## 8. Agent 二进制命名规则
+
+GitHub Release 中的 Agent 二进制命名格式：
+
+* `atsflare-agent-linux-amd64`
+* `atsflare-agent-linux-arm64`
+* `atsflare-agent-darwin-arm64`
+
+---
+
+## 9. 运维设置热更新（V3）
+
+以下参数可通过管理端 **运维设置** 修改，修改后通过心跳响应下发到 Agent，无需重启：
+
+| 参数                   | 说明                 | Agent 字段         |
+| ---------------------- | -------------------- | ------------------ |
+| AgentHeartbeatInterval | 心跳间隔（毫秒）     | heartbeat_interval |
+| AgentSyncInterval      | 同步间隔（毫秒）     | sync_interval      |
+| NodeOfflineThreshold   | 节点离线阈值（毫秒） | -                  |
+| AgentAutoUpdate        | 是否启用自动更新     | auto_update        |
+| AgentUpdateRepo        | 自动更新仓库         | update_repo        |
+
+---
+
+## 10. 当前已知限制
+
 * Docker 模式仍是 MVP 级封装
 * 联调以手工步骤为主
 

@@ -42,8 +42,15 @@ func (c *Client) RegisterNode(ctx context.Context, payload protocol.NodePayload)
 	return &resp.Data, nil
 }
 
-func (c *Client) Heartbeat(ctx context.Context, payload protocol.NodePayload) error {
-	return c.postJSON(ctx, "/api/agent/nodes/heartbeat", payload, nil)
+func (c *Client) Heartbeat(ctx context.Context, payload protocol.NodePayload) (*protocol.AgentSettings, error) {
+	resp := protocol.HeartbeatAPIResponse{}
+	if err := c.postJSON(ctx, "/api/agent/nodes/heartbeat", payload, &resp); err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, errors.New(resp.Message)
+	}
+	return resp.AgentSettings, nil
 }
 
 func (c *Client) GetActiveConfig(ctx context.Context) (*protocol.ActiveConfigResponse, error) {

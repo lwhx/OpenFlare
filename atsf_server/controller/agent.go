@@ -4,8 +4,9 @@ import (
 	"atsflare/model"
 	"atsflare/service"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 func AgentRegister(c *gin.Context) {
@@ -66,9 +67,10 @@ func AgentHeartbeat(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    node,
+		"success":        true,
+		"message":        "",
+		"data":           node.Node,
+		"agent_settings": node.AgentSettings,
 	})
 }
 

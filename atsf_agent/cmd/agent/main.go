@@ -14,6 +14,7 @@ import (
 	"atsflare-agent/internal/nginx"
 	"atsflare-agent/internal/state"
 	syncservice "atsflare-agent/internal/sync"
+	"atsflare-agent/internal/updater"
 )
 
 func main() {
@@ -58,6 +59,7 @@ func main() {
 				NginxCertDir:    cfg.NginxCertDir,
 			}),
 		}, stateStore),
+		Updater: updater.New(),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

@@ -14,7 +14,7 @@ import (
 
 type HeartbeatService interface {
 	Register(ctx context.Context, payload protocol.NodePayload) (*protocol.RegisterNodeResponse, error)
-	Heartbeat(ctx context.Context, payload protocol.NodePayload) error
+	Heartbeat(ctx context.Context, payload protocol.NodePayload) (*protocol.AgentSettings, error)
 	SetToken(token string)
 }
 
@@ -23,11 +23,19 @@ type SyncService interface {
 	SyncOnce(ctx context.Context) error
 }
 
+type Updater interface {
+	CheckAndUpdate(ctx context.Context, repo string) error
+}
+
 type Runner struct {
 	Config           *config.Config
 	StateStore       *state.Store
 	HeartbeatService HeartbeatService
 	SyncService      SyncService
+	Updater          Updater
+
+	autoUpdate bool
+	updateRepo string
 }
 
 func (r *Runner) Run(ctx context.Context) error {
@@ -43,10 +51,12 @@ func (r *Runner) Run(ctx context.Context) error {
 		} else {
 			log.Printf("agent startup sync completed")
 		}
-		if err = r.HeartbeatService.Heartbeat(ctx, r.nodePayload(nodeID)); err != nil {
-			log.Printf("agent startup heartbeat failed: %v", err)
+		settings, hbErr := r.HeartbeatService.Heartbeat(ctx, r.nodePayload(nodeID))
+		if hbErr != nil {
+			log.Printf("agent startup heartbeat failed: %v", hbErr)
 		} else {
 			log.Printf("agent startup heartbeat succeeded: node_id=%s", nodeID)
+			r.applySettings(settings)
 		}
 	} else if err = r.tryRegister(ctx, &nodeID); err != nil {
 		log.Printf("agent initial discovery register failed: %v", err)
@@ -69,8 +79,15 @@ func (r *Runner) Run(ctx context.Context) error {
 				}
 				continue
 			}
-			if err = r.HeartbeatService.Heartbeat(ctx, r.nodePayload(nodeID)); err != nil {
-				log.Printf("agent heartbeat failed: %v", err)
+			settings, hbErr := r.HeartbeatService.Heartbeat(ctx, r.nodePayload(nodeID))
+			if hbErr != nil {
+				log.Printf("agent heartbeat failed: %v", hbErr)
+			} else {
+				if changed := r.applySettings(settings); changed {
+					heartbeatTicker.Reset(r.Config.HeartbeatInterval.Duration())
+					syncTicker.Reset(r.Config.SyncInterval.Duration())
+				}
+				r.tryAutoUpdate(ctx)
 			}
 		case <-syncTicker.C:
 			if !r.hasAgentToken() {
@@ -89,6 +106,41 @@ func (r *Runner) Run(ctx context.Context) error {
 
 func (r *Runner) hasAgentToken() bool {
 	return strings.TrimSpace(r.Config.AgentToken) != ""
+}
+
+func (r *Runner) applySettings(settings *protocol.AgentSettings) bool {
+	if settings == nil {
+		return false
+	}
+	changed := false
+	if settings.HeartbeatInterval > 0 {
+		newInterval := config.MillisecondDuration(time.Duration(settings.HeartbeatInterval) * time.Millisecond)
+		if newInterval != r.Config.HeartbeatInterval {
+			log.Printf("agent heartbeat interval updated: %s -> %s", r.Config.HeartbeatInterval, newInterval)
+			r.Config.HeartbeatInterval = newInterval
+			changed = true
+		}
+	}
+	if settings.SyncInterval > 0 {
+		newInterval := config.MillisecondDuration(time.Duration(settings.SyncInterval) * time.Millisecond)
+		if newInterval != r.Config.SyncInterval {
+			log.Printf("agent sync interval updated: %s -> %s", r.Config.SyncInterval, newInterval)
+			r.Config.SyncInterval = newInterval
+			changed = true
+		}
+	}
+	r.autoUpdate = settings.AutoUpdate
+	r.updateRepo = settings.UpdateRepo
+	return changed
+}
+
+func (r *Runner) tryAutoUpdate(ctx context.Context) {
+	if !r.autoUpdate || r.Updater == nil || r.updateRepo == "" {
+		return
+	}
+	if err := r.Updater.CheckAndUpdate(ctx, r.updateRepo); err != nil {
+		log.Printf("agent auto-update check failed: %v", err)
+	}
 }
 
 func (r *Runner) tryRegister(ctx context.Context, nodeID *string) error {

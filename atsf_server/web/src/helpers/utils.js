@@ -25,13 +25,16 @@ export function getFooterHTML() {
   return localStorage.getItem('footer_html');
 }
 
-export async function copy(text) {
+export async function copy(text, label) {
   let okay = true;
   try {
     await navigator.clipboard.writeText(text);
   } catch (e) {
     okay = false;
     console.error(e);
+  }
+  if (okay && label) {
+    showSuccess(`${label} 已复制`);
   }
   return okay;
 }
@@ -150,4 +153,16 @@ export function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('zh-CN', { hour12: false });
+}
+
+export function timeAgo(value) {
+  if (!value) return '暂无';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diff < 0) return '刚刚';
+  if (diff < 60) return `${diff} 秒前`;
+  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+  return `${Math.floor(diff / 86400)} 天前`;
 }

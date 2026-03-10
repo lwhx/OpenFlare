@@ -32,7 +32,7 @@ func (f *fakeHeartbeatService) Register(ctx context.Context, payload protocol.No
 	return f.registerResp, f.registerErr
 }
 
-func (f *fakeHeartbeatService) Heartbeat(ctx context.Context, payload protocol.NodePayload) error {
+func (f *fakeHeartbeatService) Heartbeat(ctx context.Context, payload protocol.NodePayload) (*protocol.AgentSettings, error) {
 	f.mu.Lock()
 	f.heartbeatCalls++
 	callIndex := f.heartbeatCalls
@@ -45,7 +45,7 @@ func (f *fakeHeartbeatService) Heartbeat(ctx context.Context, payload protocol.N
 	if onHeartbeat != nil {
 		onHeartbeat(callIndex)
 	}
-	return err
+	return nil, err
 }
 
 func (f *fakeHeartbeatService) SetToken(token string) {

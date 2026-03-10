@@ -44,6 +44,18 @@ type AgentConfigResponse struct {
 	CreatedAt      time.Time     `json:"created_at"`
 }
 
+type AgentSettings struct {
+	HeartbeatInterval int    `json:"heartbeat_interval"`
+	SyncInterval      int    `json:"sync_interval"`
+	AutoUpdate        bool   `json:"auto_update"`
+	UpdateRepo        string `json:"update_repo"`
+}
+
+type HeartbeatResponse struct {
+	Node          *model.Node    `json:"node"`
+	AgentSettings *AgentSettings `json:"agent_settings"`
+}
+
 type NodeView struct {
 	ID                 uint       `json:"id"`
 	NodeID             string     `json:"node_id"`
@@ -68,7 +80,7 @@ func RegisterNode(node *model.Node, payload AgentNodePayload) (*AgentRegistratio
 	return RegisterNodeWithAgentToken(node, payload)
 }
 
-func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*model.Node, error) {
+func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*HeartbeatResponse, error) {
 	common.SysLog("agent heartbeat received: node_id=" + node.NodeID + " current_version=" + strings.TrimSpace(payload.CurrentVersion))
 	payload.NodeID = node.NodeID
 	payload = normalizeAgentNodePayload(payload)
@@ -79,7 +91,15 @@ func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*model.Node, err
 	if err := model.DB.Model(node).Select("ip", "agent_version", "nginx_version", "status", "current_version", "last_seen_at", "last_error").Updates(node).Error; err != nil {
 		return nil, err
 	}
-	return node, nil
+	return &HeartbeatResponse{
+		Node: node,
+		AgentSettings: &AgentSettings{
+			HeartbeatInterval: common.AgentHeartbeatInterval,
+			SyncInterval:      common.AgentSyncInterval,
+			AutoUpdate:        common.AgentAutoUpdate,
+			UpdateRepo:        common.AgentUpdateRepo,
+		},
+	}, nil
 }
 
 func GetActiveConfigForAgent() (*AgentConfigResponse, error) {

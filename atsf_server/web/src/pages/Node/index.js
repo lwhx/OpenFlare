@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Form, Header, Label, Segment, Table } from 'semantic-ui-react';
-import { API, formatDateTime, showError, showSuccess } from '../../helpers';
+import { API, showError, showSuccess, timeAgo } from '../../helpers';
 
 const initialForm = {
   name: '',
@@ -33,9 +33,11 @@ const Node = () => {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
+  const [, setTick] = useState(0);
+  const refreshTimer = useRef(null);
 
-  const loadNodes = async () => {
-    setLoading(true);
+  const loadNodes = useCallback(async (silent) => {
+    if (!silent) setLoading(true);
     const res = await API.get('/api/nodes/');
     const { success, message, data } = res.data;
     if (success) {
@@ -43,8 +45,8 @@ const Node = () => {
     } else {
       showError(message);
     }
-    setLoading(false);
-  };
+    if (!silent) setLoading(false);
+  }, []);
 
   const loadBootstrapToken = async () => {
     const res = await API.get('/api/nodes/bootstrap-token');
@@ -71,8 +73,14 @@ const Node = () => {
 
   useEffect(() => {
     loadBootstrapToken().then();
-    loadNodes().then();
-  }, []);
+    loadNodes(false).then();
+    // Refresh node list and relative time every 30s
+    refreshTimer.current = setInterval(() => {
+      loadNodes(true);
+      setTick((t) => t + 1);
+    }, 30000);
+    return () => clearInterval(refreshTimer.current);
+  }, [loadNodes]);
 
   const resetForm = () => {
     setForm(initialForm);
@@ -91,7 +99,7 @@ const Node = () => {
     if (success) {
       showSuccess(editingId ? '节点已更新' : '节点已创建');
       resetForm();
-      await loadNodes();
+      await loadNodes(false);
     } else {
       showError(message);
     }
@@ -106,7 +114,11 @@ const Node = () => {
   };
 
   const deleteNode = async (node) => {
-    if (!window.confirm(`确认删除节点“${node.name}”吗？删除后该节点需要重新创建并重新接入。`)) {
+    if (
+      !window.confirm(
+        `确认删除节点“${node.name}”吗？删除后该节点需要重新创建并重新接入。`
+      )
+    ) {
       return;
     }
     const res = await API.delete(`/api/nodes/${node.id}`);
@@ -116,7 +128,7 @@ const Node = () => {
       if (editingId === node.id) {
         resetForm();
       }
-      await loadNodes();
+      await loadNodes(false);
     } else {
       showError(message);
     }
@@ -125,7 +137,10 @@ const Node = () => {
   return (
     <Segment loading={loading}>
       <Header as='h3'>节点管理</Header>
-      <p className='page-subtitle'>创建节点后会直接生成节点专属 auth token；批量部署时可复用全局 discovery token 自动注册。</p>
+      <p className='page-subtitle'>
+        创建节点后会直接生成节点专属 auth token；批量部署时可复用全局 discovery
+        token 自动注册。
+      </p>
 
       <Form>
         <Form.Group widths='equal'>
@@ -183,20 +198,37 @@ const Node = () => {
               <Table.Cell>
                 {node.agent_token ? (
                   <>
-                    {node.pending ? <Label color='orange'>未占用</Label> : <Label color='green'>已绑定</Label>}
-                    <div className='table-meta' style={{ wordBreak: 'break-all' }}>{node.agent_token}</div>
+                    {node.pending ? (
+                      <Label color='orange'>未占用</Label>
+                    ) : (
+                      <Label color='green'>已绑定</Label>
+                    )}
+                    <div
+                      className='table-meta'
+                      style={{ wordBreak: 'break-all' }}
+                    >
+                      {node.agent_token}
+                    </div>
                   </>
-                ) : '暂无'}
+                ) : (
+                  '暂无'
+                )}
               </Table.Cell>
               <Table.Cell>{node.ip}</Table.Cell>
               <Table.Cell>{renderStatus(node.status)}</Table.Cell>
-              <Table.Cell>{node.agent_version} / {node.nginx_version || 'unknown'}</Table.Cell>
+              <Table.Cell>
+                {node.agent_version} / {node.nginx_version || 'unknown'}
+              </Table.Cell>
               <Table.Cell>{node.current_version || '未应用'}</Table.Cell>
               <Table.Cell>
                 {renderApply(node.latest_apply_result)}
-                <div className='table-meta'>{node.latest_apply_message || '暂无记录'}</div>
+                <div className='table-meta'>
+                  {node.latest_apply_message || '暂无记录'}
+                </div>
               </Table.Cell>
-              <Table.Cell>{node.last_seen_at ? formatDateTime(node.last_seen_at) : '暂无'}</Table.Cell>
+              <Table.Cell title={node.last_seen_at}>
+                {node.last_seen_at ? timeAgo(node.last_seen_at) : '暂无'}
+              </Table.Cell>
               <Table.Cell>{node.last_error || '无'}</Table.Cell>
               <Table.Cell>
                 <Button size='small' onClick={() => beginEdit(node)}>

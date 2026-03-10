@@ -6,6 +6,20 @@ type APIResponse[T any] struct {
 	Data    T      `json:"data"`
 }
 
+type HeartbeatAPIResponse struct {
+	Success       bool           `json:"success"`
+	Message       string         `json:"message"`
+	Data          any            `json:"data"`
+	AgentSettings *AgentSettings `json:"agent_settings,omitempty"`
+}
+
+type AgentSettings struct {
+	HeartbeatInterval int    `json:"heartbeat_interval"`
+	SyncInterval      int    `json:"sync_interval"`
+	AutoUpdate        bool   `json:"auto_update"`
+	UpdateRepo        string `json:"update_repo"`
+}
+
 type NodePayload struct {
 	NodeID         string `json:"node_id"`
 	Name           string `json:"name"`
