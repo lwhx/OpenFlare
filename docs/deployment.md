@@ -219,9 +219,16 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/insta
 安装脚本会：
 
 1. 从 GitHub Releases 下载最新 Agent 二进制（`atsflare-agent-{os}-{arch}`）
-2. 生成 `agent.json` 配置文件
-3. 创建 systemd 服务 `atsflare-agent.service`
-4. 启动并启用自启
+2. 先下载到临时文件，再替换安装目录中的 Agent 二进制，避免覆盖运行中进程导致写入失败
+3. 生成 `agent.json` 配置文件
+4. 创建 systemd 服务 `atsflare-agent.service`
+5. 启动并启用自启
+
+说明：
+
+* 脚本可重复执行，用于升级到最新 Release
+* 若检测到已运行的 `atsflare-agent` systemd 服务，会先停止服务、替换二进制，再重新启动
+* 已存在的 `agent.json` 不会被覆盖
 
 ### 7.2 管理端生成部署命令
 

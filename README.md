@@ -56,14 +56,44 @@ _✨ control plane for reverse proxy management ✨_
 
 ## 快速开始
 
-- [docs/deployment.md](/Users/ryan/DEV/Go/ATSFlare/docs/deployment.md)
+### 1. 启动 Server
+
+先按部署文档启动控制面，默认访问地址为 `http://localhost:3000`。
+
+- [docs/deployment.md](./docs/deployment.md)
+
+### 2. 使用 Discovery Token 一键部署 Agent
+
+适用于新节点首次接入，Agent 会使用全局 `discovery_token` 自动注册并换取节点专属 `agent_token`。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/install-agent.sh | bash -s -- \
+  --server-url http://your-server:3000 \
+  --discovery-token YOUR_DISCOVERY_TOKEN
+```
+
+### 3. 使用 Agent Token 一键部署 Agent
+
+适用于已经在管理端预创建节点、并拿到节点专属 `agent_token` 的场景。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/install-agent.sh | bash -s -- \
+  --server-url http://your-server:3000 \
+  --agent-token YOUR_AGENT_TOKEN
+```
+
+说明：
+
+* `--server-url` 替换为实际控制面地址，例如 `http://192.168.1.10:3000`
+* Linux 默认安装到 `/opt/atsflare-agent`，并创建 `atsflare-agent` systemd 服务
+* 重复执行相同命令可用于升级 Agent 到最新 Release
 
 
 ## 贡献
 
 参与开发请先阅读：
 
-1. [docs/design.md](/Users/ryan/DEV/Go/ATSFlare/docs/design.md)
-2. [docs/development-guidelines.md](/Users/ryan/DEV/Go/ATSFlare/docs/development-guidelines.md)
-3. [docs/development-plan.md](/Users/ryan/DEV/Go/ATSFlare/docs/development-plan.md)
+1. [docs/design.md](./docs/design.md)
+2. [docs/development-guidelines.md](./docs/development-guidelines.md)
+3. [docs/development-plan.md](./docs/development-plan.md)
 

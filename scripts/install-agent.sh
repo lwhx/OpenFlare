@@ -13,6 +13,7 @@ SERVER_URL=""
 DISCOVERY_TOKEN=""
 AGENT_TOKEN=""
 CREATE_SERVICE="true"
+SERVICE_NAME="atsflare-agent"
 
 usage() {
   cat <<EOF
@@ -80,6 +81,11 @@ fi
 ASSET_NAME="atsflare-agent-${OS}-${ARCH}"
 echo "Detected platform: ${OS}/${ARCH}"
 
+SYSTEMCTL_AVAILABLE="false"
+if command -v systemctl >/dev/null 2>&1; then
+  SYSTEMCTL_AVAILABLE="true"
+fi
+
 # Get latest release download URL
 echo "Fetching latest release from ${REPO}..."
 RELEASE_INFO=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")
@@ -99,8 +105,24 @@ mkdir -p "${INSTALL_DIR}/data"
 
 # Download binary
 echo "Downloading ${ASSET_NAME}..."
-curl -fsSL -o "${INSTALL_DIR}/atsflare-agent" "$DOWNLOAD_URL"
-chmod +x "${INSTALL_DIR}/atsflare-agent"
+TMP_BINARY="$(mktemp "${INSTALL_DIR}/atsflare-agent.tmp.XXXXXX")"
+cleanup() {
+  rm -f "$TMP_BINARY"
+}
+trap cleanup EXIT
+
+curl -fsSL -o "$TMP_BINARY" "$DOWNLOAD_URL"
+chmod +x "$TMP_BINARY"
+
+SERVICE_WAS_ACTIVE="false"
+if [[ "$OS" == "linux" && "$SYSTEMCTL_AVAILABLE" == "true" ]] && systemctl is-active --quiet "$SERVICE_NAME"; then
+  SERVICE_WAS_ACTIVE="true"
+  echo "Stopping running service before upgrade..."
+  systemctl stop "$SERVICE_NAME"
+fi
+
+mv -f "$TMP_BINARY" "${INSTALL_DIR}/atsflare-agent"
+trap - EXIT
 
 # Generate config
 CONFIG_FILE="${INSTALL_DIR}/agent.json"
@@ -134,7 +156,7 @@ else
 fi
 
 # Create systemd service
-if [[ "$CREATE_SERVICE" == "true" && "$OS" == "linux" && -d /etc/systemd/system ]]; then
+if [[ "$CREATE_SERVICE" == "true" && "$OS" == "linux" && -d /etc/systemd/system && "$SYSTEMCTL_AVAILABLE" == "true" ]]; then
   echo "Creating systemd service..."
   cat > /etc/systemd/system/atsflare-agent.service <<SVCEOF
 [Unit]
@@ -153,9 +175,13 @@ WantedBy=multi-user.target
 SVCEOF
 
   systemctl daemon-reload
-  systemctl enable atsflare-agent
-  systemctl start atsflare-agent
-  echo "Service created and started: atsflare-agent"
+  systemctl enable "$SERVICE_NAME"
+  systemctl start "$SERVICE_NAME"
+  if [[ "$SERVICE_WAS_ACTIVE" == "true" ]]; then
+    echo "Service restarted with updated binary: ${SERVICE_NAME}"
+  else
+    echo "Service created and started: ${SERVICE_NAME}"
+  fi
 else
   echo ""
   echo "To start the agent manually:"
