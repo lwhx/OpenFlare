@@ -21,6 +21,7 @@ import ConfigVersion from './pages/ConfigVersion';
 import Node from './pages/Node';
 import ApplyLog from './pages/ApplyLog';
 import TLSCertificate from './pages/TLSCertificate';
+import ManagedDomain from './pages/ManagedDomain';
 
 const Home = lazy(() => import('./pages/Home'));
 const About = lazy(() => import('./pages/About'));
@@ -106,6 +107,14 @@ function App() {
         element={
           <PrivateRoute>
             <ApplyLog />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path='/managed-domain'
+        element={
+          <PrivateRoute>
+            <ManagedDomain />
           </PrivateRoute>
         }
       />

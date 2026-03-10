@@ -27,6 +27,8 @@ const ProxyRoute = () => {
   const [certificates, setCertificates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [matchResult, setMatchResult] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
 
@@ -57,9 +59,45 @@ const ProxyRoute = () => {
     loadCertificates().then();
   }, []);
 
+  useEffect(() => {
+  if (!form.enable_https) {
+    setMatchResult(null);
+    return undefined;
+  }
+  const domain = form.domain.trim().toLowerCase();
+  if (!domain) {
+    setMatchResult(null);
+    return undefined;
+  }
+  const timer = setTimeout(async () => {
+    setMatching(true);
+    const res = await API.get('/api/managed-domains/match', {
+    params: { domain },
+    });
+    const { success, message, data } = res.data;
+    if (success) {
+    setMatchResult(data || null);
+    if (data?.matched && data?.candidate?.certificate_id) {
+      setForm((current) => {
+      if (!current.enable_https || current.domain.trim().toLowerCase() !== domain || current.cert_id) {
+        return current;
+      }
+      return { ...current, cert_id: data.candidate.certificate_id };
+      });
+    }
+    } else {
+    setMatchResult(null);
+    showError(message);
+    }
+    setMatching(false);
+  }, 400);
+  return () => clearTimeout(timer);
+  }, [form.domain, form.enable_https]);
+
   const resetForm = () => {
     setForm(initialForm);
     setEditingId(null);
+    setMatchResult(null);
   };
 
   const submitRoute = async () => {
@@ -117,6 +155,7 @@ const ProxyRoute = () => {
       redirect_http: route.redirect_http || false,
       remark: route.remark || '',
     });
+    setMatchResult(null);
   };
 
   const certificateOptions = certificates.map((certificate) => ({
@@ -180,6 +219,17 @@ const ProxyRoute = () => {
             onChange={(e, { value }) => setForm({ ...form, cert_id: value || '' })}
           />
         </Form.Group>
+        {form.enable_https ? (
+          <p className='page-subtitle' style={{ marginTop: '-0.5rem' }}>
+            {matching
+              ? '正在按域名自动匹配证书...'
+              : matchResult?.matched
+                ? `已匹配${matchResult.candidate?.match_type === 'exact' ? '精确' : '通配符'}规则 ${matchResult.candidate?.domain}，推荐证书：${matchResult.candidate?.certificate_name}`
+                : form.domain.trim()
+                  ? '未找到匹配证书，可继续手动选择。'
+                  : '输入域名后会自动匹配托管证书。'}
+          </p>
+        ) : null}
         <Form.Group widths='equal'>
           <Form.Field
             control={TextArea}

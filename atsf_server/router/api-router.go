@@ -70,6 +70,15 @@ func SetApiRouter(router *gin.Engine) {
 			proxyRoute.PUT("/:id", controller.UpdateProxyRoute)
 			proxyRoute.DELETE("/:id", controller.DeleteProxyRoute)
 		}
+		managedDomainRoute := apiRouter.Group("/managed-domains")
+		managedDomainRoute.Use(middleware.AdminAuth())
+		{
+			managedDomainRoute.GET("/", controller.GetManagedDomains)
+			managedDomainRoute.GET("/match", controller.MatchManagedDomainCertificate)
+			managedDomainRoute.POST("/", controller.CreateManagedDomain)
+			managedDomainRoute.PUT("/:id", controller.UpdateManagedDomain)
+			managedDomainRoute.DELETE("/:id", controller.DeleteManagedDomain)
+		}
 		tlsCertificateRoute := apiRouter.Group("/tls-certificates")
 		tlsCertificateRoute.Use(middleware.AdminAuth())
 		{

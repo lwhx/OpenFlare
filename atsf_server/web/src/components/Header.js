@@ -51,6 +51,12 @@ const headerButtons = [
     admin: true,
   },
   {
+    name: '域名',
+    to: '/managed-domain',
+    icon: 'globe',
+    admin: true,
+  },
+  {
     name: '文件',
     to: '/file',
     icon: 'file',

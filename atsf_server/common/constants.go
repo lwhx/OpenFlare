@@ -1,9 +1,10 @@
 package common
 
 import (
-	"github.com/google/uuid"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 var StartTime = time.Now().Unix() // unit: second
@@ -16,7 +17,7 @@ var HomePageLink = ""
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
 
 var SessionSecret = uuid.New().String()
-var SQLitePath = "gin-template.db"
+var SQLitePath = "atsflare.db"
 
 var OptionMap map[string]string
 var OptionMapRWMutex sync.RWMutex

@@ -1,8 +1,8 @@
 package model
 
 import (
-	"github.com/glebarez/sqlite"
 	"gin-template/common"
+	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"os"
@@ -81,6 +81,10 @@ func InitDB() (err error) {
 			return err
 		}
 		err = db.AutoMigrate(&TLSCertificate{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&ManagedDomain{})
 		if err != nil {
 			return err
 		}
