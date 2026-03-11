@@ -21,6 +21,7 @@ func TestPhase2RateLimitOptionsHotReload(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	common.RedisEnabled = false
 	setupTestDB(t)
+	model.InitOptionMap()
 
 	oldGlobalApiRateLimitNum := common.GlobalApiRateLimitNum
 	oldGlobalApiRateLimitDuration := common.GlobalApiRateLimitDuration
@@ -37,21 +38,21 @@ func TestPhase2RateLimitOptionsHotReload(t *testing.T) {
 	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("test-secret"))))
 	router.SetApiRouter(engine)
 
-	token := prepareRootToken(t)
+	loginCookie := loginAsRoot(t, engine)
 
-	performJSONRequest(t, engine, token, http.MethodPut, "/api/option/", map[string]any{
+	performSessionJSONRequest(t, engine, loginCookie, http.MethodPut, "/api/option/", map[string]any{
 		"key":   "GlobalApiRateLimitNum",
 		"value": "450",
 	})
-	performJSONRequest(t, engine, token, http.MethodPut, "/api/option/", map[string]any{
+	performSessionJSONRequest(t, engine, loginCookie, http.MethodPut, "/api/option/", map[string]any{
 		"key":   "GlobalApiRateLimitDuration",
 		"value": "240",
 	})
-	performJSONRequest(t, engine, token, http.MethodPut, "/api/option/", map[string]any{
+	performSessionJSONRequest(t, engine, loginCookie, http.MethodPut, "/api/option/", map[string]any{
 		"key":   "CriticalRateLimitNum",
 		"value": "150",
 	})
-	performJSONRequest(t, engine, token, http.MethodPut, "/api/option/", map[string]any{
+	performSessionJSONRequest(t, engine, loginCookie, http.MethodPut, "/api/option/", map[string]any{
 		"key":   "CriticalRateLimitDuration",
 		"value": "900",
 	})
@@ -69,7 +70,7 @@ func TestPhase2RateLimitOptionsHotReload(t *testing.T) {
 		t.Fatalf("expected CriticalRateLimitDuration to be hot reloaded, got %d", common.CriticalRateLimitDuration)
 	}
 
-	resp := performJSONRequest(t, engine, token, http.MethodGet, "/api/option/", nil)
+	resp := performSessionJSONRequest(t, engine, loginCookie, http.MethodGet, "/api/option/", nil)
 	var options []model.Option
 	decodeResponseData(t, resp, &options)
 
@@ -84,6 +85,74 @@ func TestPhase2RateLimitOptionsHotReload(t *testing.T) {
 	if optionMap["CriticalRateLimitDuration"] != "900" {
 		t.Fatalf("expected option payload to include CriticalRateLimitDuration=900, got %q", optionMap["CriticalRateLimitDuration"])
 	}
+}
+
+func loginAsRoot(t *testing.T, engine http.Handler) *http.Cookie {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{
+		"username": "root",
+		"password": "123456",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal login payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/user/login", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected login status %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var resp apiResponse
+	if err = json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("root login failed: %s", resp.Message)
+	}
+
+	for _, cookie := range recorder.Result().Cookies() {
+		if cookie.Name == "session" {
+			return cookie
+		}
+	}
+	t.Fatal("expected session cookie after root login")
+	return nil
+}
+
+func performSessionJSONRequest(t *testing.T, engine http.Handler, sessionCookie *http.Cookie, method string, path string, body any) apiResponse {
+	t.Helper()
+	var payload []byte
+	var err error
+	if body != nil {
+		payload, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("failed to marshal request body: %v", err)
+		}
+	}
+
+	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.AddCookie(sessionCookie)
+
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("unexpected status %d for %s %s: %s", recorder.Code, method, path, recorder.Body.String())
+	}
+
+	var resp apiResponse
+	if err = json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("request %s %s failed: %s", method, path, resp.Message)
+	}
+	return resp
 }
 
 func TestPhase2AgentLifecycle(t *testing.T) {
