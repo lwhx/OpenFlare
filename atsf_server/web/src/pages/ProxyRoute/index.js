@@ -119,7 +119,9 @@ const ProxyRoute = () => {
     setMatchResult(null);
   };
 
-  const submitRoute = async () => {
+  const submitRoute = async (event) => {
+    event?.preventDefault?.();
+
     const payload = {
       ...form,
       domain: form.domain.trim(),

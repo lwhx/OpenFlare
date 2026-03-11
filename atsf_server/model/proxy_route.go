@@ -37,7 +37,16 @@ func (route *ProxyRoute) Insert() error {
 }
 
 func (route *ProxyRoute) Update() error {
-	return DB.Model(route).Select("domain", "origin_url", "enabled", "enable_https", "cert_id", "redirect_http", "custom_headers", "remark").Updates(route).Error
+	return DB.Model(&ProxyRoute{}).Where("id = ?", route.ID).Updates(map[string]any{
+		"domain":         route.Domain,
+		"origin_url":     route.OriginURL,
+		"enabled":        route.Enabled,
+		"enable_https":   route.EnableHTTPS,
+		"cert_id":        route.CertID,
+		"redirect_http":  route.RedirectHTTP,
+		"custom_headers": route.CustomHeaders,
+		"remark":         route.Remark,
+	}).Error
 }
 
 func (route *ProxyRoute) Delete() error {

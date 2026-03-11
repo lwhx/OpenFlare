@@ -5,8 +5,8 @@ import "time"
 type TLSCertificate struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	Name      string    `json:"name" gorm:"uniqueIndex;size:255;not null"`
-	CertPEM   string    `json:"cert_pem" gorm:"type:text;not null"`
-	KeyPEM    string    `json:"key_pem" gorm:"type:text;not null"`
+	CertPEM   string    `json:"-" gorm:"type:text;not null"`
+	KeyPEM    string    `json:"-" gorm:"type:text;not null"`
 	NotBefore time.Time `json:"not_before"`
 	NotAfter  time.Time `json:"not_after"`
 	Remark    string    `json:"remark" gorm:"size:255"`

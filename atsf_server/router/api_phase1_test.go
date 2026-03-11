@@ -188,6 +188,54 @@ func TestPhase1HTTPSAndCertificateImportLifecycle(t *testing.T) {
 		t.Fatal("expected route to persist https certificate binding")
 	}
 
+	updateResp := performJSONRequest(t, engine, token, http.MethodPut, "/api/proxy-routes/"+toString(route.ID), map[string]any{
+		"domain":        "secure.example.com",
+		"origin_url":    "http://origin-secure.internal",
+		"enabled":       true,
+		"enable_https":  false,
+		"cert_id":       nil,
+		"redirect_http": false,
+		"remark":        "downgraded route",
+	})
+	decodeResponseData(t, updateResp, &route)
+	if route.EnableHTTPS || route.CertID != nil || route.RedirectHTTP {
+		t.Fatalf("expected route to disable https flags, got %+v", route)
+	}
+
+	updateResp = performJSONRequest(t, engine, token, http.MethodPut, "/api/proxy-routes/"+toString(route.ID), map[string]any{
+		"domain":        "secure.example.com",
+		"origin_url":    "https://origin-secure.internal",
+		"enabled":       true,
+		"enable_https":  true,
+		"cert_id":       manualCertificate.ID,
+		"redirect_http": true,
+		"remark":        "re-enabled https route",
+	})
+	decodeResponseData(t, updateResp, &route)
+	if !route.EnableHTTPS || route.CertID == nil || *route.CertID != manualCertificate.ID || !route.RedirectHTTP {
+		t.Fatalf("expected route update to persist https fields, got %+v", route)
+	}
+
+	listResp := performJSONRequest(t, engine, token, http.MethodGet, "/api/proxy-routes/", nil)
+	var routes []model.ProxyRoute
+	decodeResponseData(t, listResp, &routes)
+	if len(routes) != 1 || !routes[0].EnableHTTPS || routes[0].CertID == nil || *routes[0].CertID != manualCertificate.ID || !routes[0].RedirectHTTP {
+		t.Fatalf("expected route list to reflect https update, got %+v", routes)
+	}
+
+	certificateListResp := performJSONRequest(t, engine, token, http.MethodGet, "/api/tls-certificates/", nil)
+	var certificateList []map[string]any
+	decodeResponseData(t, certificateListResp, &certificateList)
+	if len(certificateList) == 0 {
+		t.Fatal("expected certificate list to return records")
+	}
+	if _, exists := certificateList[0]["cert_pem"]; exists {
+		t.Fatal("expected certificate list to omit cert_pem")
+	}
+	if _, exists := certificateList[0]["key_pem"]; exists {
+		t.Fatal("expected certificate list to omit key_pem")
+	}
+
 	resp = performJSONRequest(t, engine, token, http.MethodPost, "/api/config-versions/publish", nil)
 	var version model.ConfigVersion
 	decodeResponseData(t, resp, &version)
