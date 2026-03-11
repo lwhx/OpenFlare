@@ -43,11 +43,11 @@
 
 ### 2.3 前端
 
-前端继续基于现有 React 管理端：
+前端改造专项以 `atsf_server/web` 新版工程为基线：
 
-* 保持现有目录结构
-* 继续复用现有 UI 与 helper 组织方式
-* 不为第三版提前引入新的大型框架或状态管理方案
+* 使用 Next.js App Router + TypeScript + Tailwind CSS
+* 按 [docs/frontend-development-guidelines.md](./frontend-development-guidelines.md) 执行目录分层与组件规范
+* 首期仍以静态导出产物交由 Go Server 托管为前提
 
 ---
 
@@ -216,15 +216,15 @@ V3 新增行为：
 
 要求：
 
-* 只为当前版本主链路增加页面与交互
-* API 请求统一放在已有 helper 体系
-* 页面状态优先保持简单
-* 沿用现有组件与样式体系，不大规模重构后台 UI
+* 新前端页面、组件与请求层统一遵循 [docs/frontend-development-guidelines.md](./frontend-development-guidelines.md)
+* API 请求统一收敛到 `atsf_server/web/lib/api/`
+* 页面路由与布局放在 `app/`，业务逻辑放在 `features/`
+* 构建产物必须保持可被 Go Server 静态托管
 
 如果第三版要新增页面，优先原则：
 
-* 能复用现有页面结构就不新增一套页面框架
-* 能复用已有表单模式就不自造 DSL 编辑器
+* 能复用现有 feature 结构就不平行再造一套页面逻辑
+* 能复用统一表单、反馈与布局组件就不在页面中重复实现
 
 ---
 

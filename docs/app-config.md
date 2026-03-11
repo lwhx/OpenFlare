@@ -94,6 +94,20 @@ volumes:
 * `REDIS_CONN_STRING` 未配置时，相关能力将回退为进程内实现
 * `UPLOAD_PATH` 目录在启动时若不存在会自动创建
 
+### 1.3 前端构建环境变量
+
+新版管理端位于 `atsf_server/web`，构建时支持以下公开环境变量：
+
+| 环境变量 | 作用 | 默认值 | 示例 |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_API_BASE_URL` | 前端请求后端 API 的基础路径；默认走同源 `/api` | `/api` | `NEXT_PUBLIC_API_BASE_URL=https://demo.example.com/api` |
+| `NEXT_PUBLIC_APP_VERSION` | 构建时注入前端展示版本号 | `dev` | `NEXT_PUBLIC_APP_VERSION=v0.4.0` |
+
+说明：
+
+* 以上变量在前端构建阶段读取，并会被打包进静态资源
+* 推荐生产环境继续使用同源部署，优先保持 `NEXT_PUBLIC_API_BASE_URL=/api`
+
 ---
 
 ## 2. Agent 配置

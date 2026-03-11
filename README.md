@@ -137,3 +137,9 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/insta
 2. [docs/development-guidelines.md](./docs/development-guidelines.md)
 3. [docs/development-plan.md](./docs/development-plan.md)
 
+前端开发补充：
+
+* 新版管理端位于 `atsf_server/web`
+* 前端包管理器统一使用 `pnpm`
+* 构建命令为 `pnpm build`，产物输出到 `atsf_server/web/build`
+

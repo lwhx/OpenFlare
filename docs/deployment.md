@@ -27,9 +27,16 @@
 
 ```bash
 cd atsf_server/web
-npm install
-npm run build
+corepack enable
+pnpm install
+pnpm build
 ```
+
+说明：
+
+* 前端使用 Next.js 静态导出模式构建
+* `pnpm build` 会生成供 Go Server 托管的 `atsf_server/web/build` 目录
+* 如需覆盖默认接口地址，可在构建前设置 `NEXT_PUBLIC_API_BASE_URL`
 
 ### 2.2 启动服务
 
@@ -226,7 +233,7 @@ GOCACHE=/tmp/atsflare-go-cache go test ./...
 
 ```bash
 cd atsf_server/web
-npm run build
+pnpm build
 ```
 
 ### 6.4 发布工作流

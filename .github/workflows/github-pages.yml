@@ -18,12 +18,13 @@ jobs:
           CI: ""
         run: |
           cd atsf_server/web
-          npm install
-          npm run build
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm build
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@releases/v3
         with:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           BRANCH: gh-pages # The branch the action should deploy to.
-          FOLDER: web/build # The folder the action should deploy.
+          FOLDER: atsf_server/web/build # The folder the action should deploy.

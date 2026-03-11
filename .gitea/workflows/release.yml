@@ -42,7 +42,7 @@ jobs:
         if: steps.version.outputs.should_run == 'true'
         uses: https://github.com/actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Build Frontend
         if: steps.version.outputs.should_run == 'true'
@@ -51,8 +51,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           cd atsf_server/web
-          npm install
-          REACT_APP_VERSION="$VERSION" npm run build
+          corepack enable
+          pnpm install --frozen-lockfile
+          NEXT_PUBLIC_APP_VERSION="$VERSION" pnpm build
 
       - name: Set up Go
         if: steps.version.outputs.should_run == 'true'

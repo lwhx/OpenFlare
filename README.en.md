@@ -135,3 +135,9 @@ See:
 2. [docs/design.md](./docs/design.md)
 3. [docs/development-guidelines.md](./docs/development-guidelines.md)
 4. [docs/development-plan.md](./docs/development-plan.md)
+
+Frontend notes:
+
+* The new admin frontend lives in `atsf_server/web`
+* `pnpm` is the default package manager
+* `pnpm build` exports static assets into `atsf_server/web/build`

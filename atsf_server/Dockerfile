@@ -1,14 +1,15 @@
 ARG VERSION=dev
 
-FROM node:18 AS builder
+FROM node:20 AS builder
 
 ARG VERSION
 
 WORKDIR /build
-COPY ./web/package*.json ./
-RUN npm install
+COPY ./web/package.json ./
+COPY ./web/pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
 COPY ./web ./
-RUN REACT_APP_VERSION="$VERSION" npm run build
+RUN NEXT_PUBLIC_APP_VERSION="$VERSION" pnpm build
 
 FROM golang:1.22 AS builder2
 
