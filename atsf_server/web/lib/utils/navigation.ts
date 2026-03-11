@@ -1,12 +1,22 @@
 import { dashboardNavigation } from '@/lib/constants/navigation';
 import type { NavigationItem } from '@/types/navigation';
 
+const navigationPathAliases: Record<string, string> = {
+  '/apply-log': '/node',
+};
+
+function normalizeNavigationPath(pathname: string) {
+  return navigationPathAliases[pathname] ?? pathname;
+}
+
 export function isPathActive(pathname: string, href: string) {
+  const normalizedPathname = normalizeNavigationPath(pathname);
+
   if (href === '/') {
-    return pathname === '/';
+    return normalizedPathname === '/';
   }
 
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return normalizedPathname === href || normalizedPathname.startsWith(`${href}/`);
 }
 
 export function isNavigationItemActive(pathname: string, item: NavigationItem): boolean {

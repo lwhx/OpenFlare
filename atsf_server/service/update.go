@@ -124,8 +124,9 @@ func fetchLatestRelease(ctx context.Context) (*githubReleaseResponse, error) {
 
 func buildLatestServerReleaseView(release *githubReleaseResponse) *LatestServerRelease {
 	currentVersion := strings.TrimSpace(common.Version)
+	isDevBuild := currentVersion == "" || strings.EqualFold(currentVersion, "dev")
 	hasUpdate := false
-	if release != nil {
+	if release != nil && !isDevBuild {
 		hasUpdate = isVersionNewer(currentVersion, release.TagName)
 	}
 
@@ -136,7 +137,7 @@ func buildLatestServerReleaseView(release *githubReleaseResponse) *LatestServerR
 	view := &LatestServerRelease{
 		CurrentVersion:   currentVersion,
 		HasUpdate:        hasUpdate,
-		UpgradeSupported: runtime.GOOS != "windows",
+		UpgradeSupported: !isDevBuild && runtime.GOOS != "windows",
 		InProgress:       inProgress,
 	}
 	if release != nil {

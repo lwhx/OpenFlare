@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -88,6 +89,14 @@ export function ApplyLogsPage() {
       <PageHeader
         title='应用记录'
         description='查看节点应用版本的成功或失败记录，支持按 node_id 过滤并查看单条详情。'
+        action={
+          <Link
+            href='/node'
+            className='inline-flex items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[var(--control-background)] px-4 py-3 text-sm font-medium text-[var(--foreground-primary)] transition hover:bg-[var(--control-background-hover)]'
+          >
+            返回节点页
+          </Link>
+        }
       />
 
       {feedback ? <InlineMessage tone='info' message={feedback} /> : null}

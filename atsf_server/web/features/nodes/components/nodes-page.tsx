@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { AppModal } from '@/components/ui/app-modal';
 import { AppCard } from '@/components/ui/app-card';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { getPublicStatus } from '@/features/auth/api/public';
 import {
   createNode,
   deleteNode,
@@ -134,6 +135,56 @@ function getUpdateMode(node: NodeItem) {
   return { label: '手动更新', variant: 'info' as const };
 }
 
+function parseVersionParts(version: string) {
+  const normalized = version.trim().replace(/^v/i, '');
+  if (!normalized || normalized.toLowerCase() === 'unknown') {
+    return null;
+  }
+
+  return normalized.split('.').map((segment) => {
+    const matched = segment.trim().match(/^\d+/);
+    return matched ? Number.parseInt(matched[0], 10) : 0;
+  });
+}
+
+function isOlderVersion(current: string, target: string) {
+  const currentParts = parseVersionParts(current);
+  const targetParts = parseVersionParts(target);
+  if (!currentParts || !targetParts) {
+    return false;
+  }
+
+  const maxLength = Math.max(currentParts.length, targetParts.length);
+  for (let index = 0; index < maxLength; index += 1) {
+    const currentPart = currentParts[index] ?? 0;
+    const targetPart = targetParts[index] ?? 0;
+    if (currentPart < targetPart) {
+      return true;
+    }
+    if (currentPart > targetPart) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+function shouldShowManualUpdate(agentVersion: string, serverVersion: string) {
+  const normalizedServerVersion = serverVersion.trim();
+  const normalizedAgentVersion = agentVersion.trim();
+
+  if (
+    !normalizedServerVersion ||
+    normalizedServerVersion.toLowerCase() === 'dev' ||
+    !normalizedAgentVersion ||
+    normalizedAgentVersion.toLowerCase() === 'unknown'
+  ) {
+    return false;
+  }
+
+  return isOlderVersion(normalizedAgentVersion, normalizedServerVersion);
+}
+
 function getServerUrl(value: string) {
   return value.trim().replace(/\/+$/, '');
 }
@@ -173,6 +224,11 @@ export function NodesPage() {
   const nodesQuery = useQuery({
     queryKey: nodesQueryKey,
     queryFn: getNodes,
+  });
+
+  const publicStatusQuery = useQuery({
+    queryKey: ['public-status'],
+    queryFn: getPublicStatus,
   });
 
   useEffect(() => {
@@ -246,6 +302,7 @@ export function NodesPage() {
 
   const nodes = useMemo(() => nodesQuery.data ?? [], [nodesQuery.data]);
   const normalizedServerUrl = getServerUrl(serverUrl);
+  const serverVersion = publicStatusQuery.data?.version ?? '';
 
   const selectedNodeFromList = useMemo(() => {
     if (!selectedNode) {
@@ -348,7 +405,6 @@ export function NodesPage() {
 
         <AppCard
           title="节点列表"
-          description="展示心跳、最近应用结果、版本信息与更新状态，可直接执行管理动作。"
           action={
             <SecondaryButton
               type="button"
@@ -391,6 +447,10 @@ export function NodesPage() {
                 <tbody className="divide-y divide-[var(--border-default)]">
                   {nodes.map((node) => {
                     const updateMode = getUpdateMode(node);
+                    const showManualUpdate = shouldShowManualUpdate(
+                      node.agent_version || '',
+                      serverVersion,
+                    );
 
                     return (
                       <tr key={node.id} className="align-top">
@@ -465,19 +525,21 @@ export function NodesPage() {
                         </td>
                         <td className="px-3 py-4">
                           <div className="flex flex-wrap gap-2">
-                            <PrimaryButton
-                              type="button"
-                              onClick={() =>
-                                updateAgentMutation.mutate(node.id)
-                              }
-                              disabled={
-                                updateAgentMutation.isPending ||
-                                node.update_requested
-                              }
-                              className="px-3 py-2 text-xs"
-                            >
-                              立即更新
-                            </PrimaryButton>
+                            {showManualUpdate ? (
+                              <PrimaryButton
+                                type="button"
+                                onClick={() =>
+                                  updateAgentMutation.mutate(node.id)
+                                }
+                                disabled={
+                                  updateAgentMutation.isPending ||
+                                  node.update_requested
+                                }
+                                className="px-3 py-2 text-xs"
+                              >
+                                升级
+                              </PrimaryButton>
+                            ) : null}
                             <SecondaryButton
                               type="button"
                               onClick={() => handleOpenDeployModal(node)}

@@ -6,7 +6,7 @@ export default function DashboardPage() {
     <div className='space-y-6'>
       <PageHeader
         title='ATSFlare 管理端'
-        description='新版前端已统一承接全部页面入口和迁移期兼容路由，当前可继续推进联调与回归。'
+        description='集中展示系统核心数据概览，快速导航至各功能模块进行管理和配置。'
       />
       <DashboardOverview />
     </div>

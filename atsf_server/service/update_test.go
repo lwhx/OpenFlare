@@ -63,3 +63,25 @@ func TestBuildLatestServerReleaseView(t *testing.T) {
 		t.Fatalf("unexpected tag name: %s", view.TagName)
 	}
 }
+
+func TestBuildLatestServerReleaseViewDevBuild(t *testing.T) {
+	originalVersion := common.Version
+	common.Version = "dev"
+	t.Cleanup(func() {
+		common.Version = originalVersion
+		serverUpgradeState.Lock()
+		serverUpgradeState.inProgress = false
+		serverUpgradeState.Unlock()
+	})
+
+	view := buildLatestServerReleaseView(&githubReleaseResponse{
+		TagName: "v0.5.0",
+	})
+
+	if view.HasUpdate {
+		t.Fatal("expected dev build not to report update availability")
+	}
+	if view.UpgradeSupported {
+		t.Fatal("expected dev build not to support self-upgrade")
+	}
+}
