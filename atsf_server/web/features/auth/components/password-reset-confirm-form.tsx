@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
@@ -67,6 +68,13 @@ export function PasswordResetConfirmForm() {
               再次复制密码
             </SecondaryButton>
           ) : null}
+        </div>
+
+        <div className='text-sm text-[var(--foreground-secondary)]'>
+          处理完成后可返回
+          <Link href='/login' className='ml-2 text-[var(--brand-primary)] transition hover:opacity-80'>
+            登录页
+          </Link>
         </div>
       </div>
     </AppCard>

@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
 
 import { LoadingState } from '@/components/feedback/loading-state';
-import { PasswordResetRequestForm } from '@/features/auth/components/password-reset-request-form';
+import { PasswordResetFlow } from '@/features/auth/components/password-reset-flow';
 
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={<LoadingState />}>
-      <PasswordResetRequestForm />
+      <PasswordResetFlow />
     </Suspense>
   );
 }
