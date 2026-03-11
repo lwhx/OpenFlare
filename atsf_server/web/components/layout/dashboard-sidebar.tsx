@@ -66,7 +66,7 @@ export function DashboardSidebar() {
 
         {!isSidebarCollapsed ? (
           <div className='rounded-2xl border border-[var(--status-success-border)] bg-[var(--status-success-soft)] px-4 py-4 text-xs leading-6 text-[var(--status-success-foreground)]'>
-            阶段 4 已接入设置、用户、文件等边缘模块，旧前端仅保留少量兼容兜底价值。
+            新版管理端已覆盖认证、核心链路和边缘模块，旧版前端代码已完成移除。
           </div>
         ) : null}
       </div>

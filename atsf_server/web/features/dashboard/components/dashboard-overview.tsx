@@ -23,9 +23,9 @@ export function DashboardOverview() {
   return (
     <div className='space-y-6'>
       <AppCard
-        title='阶段 4 进行中'
-        description='当前已完成新版管理端基础工程、核心模块和大部分边缘模块迁移，可继续推进联调与回归。'
-        action={<StatusBadge label='准备联调回归' variant='success' />}
+        title='前端迁移完成'
+        description='新版管理端已承接全部页面入口、旧路由兼容和核心交互，当前可继续推进联调与测试补齐。'
+        action={<StatusBadge label='统一 Next.js 前端' variant='success' />}
       >
         <div className='grid gap-4 lg:grid-cols-3'>
           {readinessItems.map((item) => (
@@ -60,11 +60,11 @@ export function DashboardOverview() {
           </div>
         </AppCard>
 
-        <AppCard title='下一步建议' description='按前端改造计划，当前可以开始阶段 5 的联调、回归与默认入口切换准备。'>
+        <AppCard title='下一步建议' description='当前重点转向联调回归、测试覆盖和发布验收。'>
           <ol className='space-y-3 text-sm leading-6 text-[var(--foreground-secondary)]'>
-            <li>1. 对照旧前端完成设置、用户、文件与关于页的联调回归。</li>
+            <li>1. 对照后端接口完成设置、节点、证书和用户链路联调。</li>
             <li>2. 补齐关键页面的测试覆盖与构建验收。</li>
-            <li>3. 评估默认入口切换与旧前端回滚预案。</li>
+            <li>3. 清理迁移期文档和发布说明中的旧前端表述。</li>
           </ol>
         </AppCard>
       </div>

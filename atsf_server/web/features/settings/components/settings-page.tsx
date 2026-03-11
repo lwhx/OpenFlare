@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
 import { InlineMessage } from '@/components/feedback/inline-message';
 import { LoadingState } from '@/components/feedback/loading-state';
+import { TurnstileWidget } from '@/components/forms/turnstile-widget';
 import { useAuth } from '@/components/providers/auth-provider';
 import { PageHeader } from '@/components/layout/page-header';
 import { AppCard } from '@/components/ui/app-card';
@@ -159,6 +160,7 @@ export function SettingsPage() {
   const [wechatCode, setWeChatCode] = useState('');
   const [emailAddress, setEmailAddress] = useState('');
   const [emailCode, setEmailCode] = useState('');
+  const [emailTurnstileToken, setEmailTurnstileToken] = useState('');
   const [latestRelease, setLatestRelease] = useState<LatestReleaseInfo | null>(null);
 
   const isRoot = (user?.role ?? 0) >= 100;
@@ -361,8 +363,13 @@ export function SettingsPage() {
       return;
     }
 
+    if (publicStatusQuery.data?.turnstile_check && !emailTurnstileToken) {
+      setFeedback({ tone: 'info', message: '请先完成人机验证。' });
+      return;
+    }
+
     void runBusyAction('email-send', async () => {
-      await sendEmailVerification(emailAddress.trim());
+      await sendEmailVerification(emailAddress.trim(), emailTurnstileToken || undefined);
       setFeedback({ tone: 'success', message: '验证码已发送，请检查邮箱。' });
     });
   };
@@ -591,37 +598,45 @@ export function SettingsPage() {
                     当前状态：{profile.email ? `已绑定 ${profile.email}` : '未绑定'}
                   </p>
                 </div>
-                {publicStatus.turnstile_check ? (
-                  <EmptyState
-                    title='当前已启用 Turnstile'
-                    description='邮箱绑定在旧版前端依赖人机校验组件。若需要绑定邮箱，请暂时使用旧前端作为兼容兜底。'
-                  />
-                ) : (
-                  <div className='space-y-4'>
-                    <ResourceField label='邮箱地址'>
-                      <ResourceInput
-                        value={emailAddress}
-                        onChange={(event) => setEmailAddress(event.target.value)}
-                        placeholder='请输入邮箱地址'
+                <div className='space-y-4'>
+                  <ResourceField label='邮箱地址'>
+                    <ResourceInput
+                      value={emailAddress}
+                      onChange={(event) => setEmailAddress(event.target.value)}
+                      placeholder='请输入邮箱地址'
+                    />
+                  </ResourceField>
+                  <ResourceField label='验证码'>
+                    <ResourceInput
+                      value={emailCode}
+                      onChange={(event) => setEmailCode(event.target.value)}
+                      placeholder='请输入邮箱验证码'
+                    />
+                  </ResourceField>
+                  {publicStatus.turnstile_check ? (
+                    publicStatus.turnstile_site_key ? (
+                      <TurnstileWidget
+                        siteKey={publicStatus.turnstile_site_key}
+                        onVerify={(token) => setEmailTurnstileToken(token)}
+                        onExpire={() => setEmailTurnstileToken('')}
+                        onError={() => setEmailTurnstileToken('')}
                       />
-                    </ResourceField>
-                    <ResourceField label='验证码'>
-                      <ResourceInput
-                        value={emailCode}
-                        onChange={(event) => setEmailCode(event.target.value)}
-                        placeholder='请输入邮箱验证码'
+                    ) : (
+                      <EmptyState
+                        title='Turnstile 配置不完整'
+                        description='当前系统已启用 Turnstile，但未配置 Site Key，邮箱绑定暂不可用。'
                       />
-                    </ResourceField>
-                    <div className='flex flex-wrap gap-2'>
-                      <SecondaryButton type='button' onClick={handleEmailVerification} disabled={busyKey === 'email-send'}>
-                        {busyKey === 'email-send' ? '发送中...' : '发送验证码'}
-                      </SecondaryButton>
-                      <PrimaryButton type='button' onClick={handleBindEmail} disabled={busyKey === 'email-bind'}>
-                        {busyKey === 'email-bind' ? '绑定中...' : '绑定邮箱'}
-                      </PrimaryButton>
-                    </div>
+                    )
+                  ) : null}
+                  <div className='flex flex-wrap gap-2'>
+                    <SecondaryButton type='button' onClick={handleEmailVerification} disabled={busyKey === 'email-send'}>
+                      {busyKey === 'email-send' ? '发送中...' : '发送验证码'}
+                    </SecondaryButton>
+                    <PrimaryButton type='button' onClick={handleBindEmail} disabled={busyKey === 'email-bind'}>
+                      {busyKey === 'email-bind' ? '绑定中...' : '绑定邮箱'}
+                    </PrimaryButton>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </AppCard>
