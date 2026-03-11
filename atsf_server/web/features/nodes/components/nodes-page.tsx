@@ -252,7 +252,7 @@ export function NodesPage() {
                             {node.name}
                           </p>
                           <p className="text-xs text-[var(--foreground-secondary)]">
-                            IP：{node.ip || '暂无'}
+                            IP：{node.ip || 'null'}
                           </p>
                         </div>
                       </td>
@@ -275,13 +275,6 @@ export function NodesPage() {
                             label={getApplyLabel(node.latest_apply_result)}
                             variant={getApplyVariant(node.latest_apply_result)}
                           />
-                          <p className="text-xs text-[var(--foreground-secondary)]">
-                            {isMeaningfulTime(node.latest_apply_at)
-                              ? `${formatRelativeTime(
-                                  node.latest_apply_at,
-                                )} · ${formatDateTime(node.latest_apply_at)}`
-                              : '暂无'}
-                          </p>
                         </div>
                       </td>
                       <td className="px-3 py-4 text-[var(--foreground-secondary)]">

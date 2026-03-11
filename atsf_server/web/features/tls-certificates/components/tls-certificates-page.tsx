@@ -369,7 +369,6 @@ export function TlsCertificatesPage() {
 
           {importMode === 'manual' ? (
             <AppCard
-              title="手动导入"
               description="直接粘贴 PEM 证书和私钥内容，适合快速录入已有证书。"
             >
               <form className="space-y-5" onSubmit={handleManualSubmit}>
@@ -427,7 +426,6 @@ export function TlsCertificatesPage() {
             </AppCard>
           ) : (
             <AppCard
-              title="文档导入"
               description="上传证书文件和私钥文件，适合直接复用现有 PEM 文件。"
             >
               <form className="space-y-5" onSubmit={handleFileSubmit}>
@@ -446,7 +444,6 @@ export function TlsCertificatesPage() {
                   </ResourceField>
                   <ResourceField
                     label="备注"
-                    hint="可选，用于记录部署环境或域名范围。"
                   >
                     <ResourceInput
                       value={fileForm.remark}
