@@ -102,17 +102,18 @@ func validateOpenRestyOption(key string, value string) error {
 			return fmt.Errorf("%s 仅支持 epoll、kqueue、poll、select、rtsig、/dev/poll、eventport 或留空", key)
 		}
 	case "OpenRestyEventsMultiAcceptEnabled",
+		"OpenRestyProxyRequestBufferingEnabled",
 		"OpenRestyProxyBufferingEnabled",
 		"OpenRestyGzipEnabled",
 		"OpenRestyCacheEnabled",
 		"OpenRestyCacheLockEnabled":
 		return validateBooleanOption(key, trimmed)
-	case "OpenRestyProxyBuffers":
+	case "OpenRestyProxyBuffers", "OpenRestyLargeClientHeaderBuffers":
 		if openRestyProxyBuffersPattern.MatchString(trimmed) {
 			return nil
 		}
 		return fmt.Errorf("%s 格式必须类似 \"16 16k\"", key)
-	case "OpenRestyProxyBufferSize", "OpenRestyProxyBusyBuffersSize", "OpenRestyCacheMaxSize":
+	case "OpenRestyProxyBufferSize", "OpenRestyProxyBusyBuffersSize", "OpenRestyCacheMaxSize", "OpenRestyClientMaxBodySize":
 		if openRestySizePattern.MatchString(trimmed) {
 			return nil
 		}

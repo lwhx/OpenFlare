@@ -72,10 +72,13 @@ type openRestyConfigSnapshot struct {
 	KeepaliveRequests        int    `json:"keepalive_requests"`
 	ClientHeaderTimeout      int    `json:"client_header_timeout"`
 	ClientBodyTimeout        int    `json:"client_body_timeout"`
+	ClientMaxBodySize        string `json:"client_max_body_size"`
+	LargeClientHeaderBuffers string `json:"large_client_header_buffers"`
 	SendTimeout              int    `json:"send_timeout"`
 	ProxyConnectTimeout      int    `json:"proxy_connect_timeout"`
 	ProxySendTimeout         int    `json:"proxy_send_timeout"`
 	ProxyReadTimeout         int    `json:"proxy_read_timeout"`
+	ProxyRequestBuffering    bool   `json:"proxy_request_buffering"`
 	ProxyBufferingEnabled    bool   `json:"proxy_buffering_enabled"`
 	ProxyBuffers             string `json:"proxy_buffers"`
 	ProxyBufferSize          string `json:"proxy_buffer_size"`
@@ -126,10 +129,13 @@ var requiredMainConfigTemplatePlaceholders = []string{
 	"{{OpenRestyKeepaliveRequests}}",
 	"{{OpenRestyClientHeaderTimeout}}",
 	"{{OpenRestyClientBodyTimeout}}",
+	"{{OpenRestyClientMaxBodySize}}",
+	"{{OpenRestyLargeClientHeaderBuffers}}",
 	"{{OpenRestySendTimeout}}",
 	"{{OpenRestyProxyConnectTimeout}}",
 	"{{OpenRestyProxySendTimeout}}",
 	"{{OpenRestyProxyReadTimeout}}",
+	"{{OpenRestyProxyRequestBuffering}}",
 	"{{OpenRestyProxyBuffering}}",
 	"{{OpenRestyProxyBuffers}}",
 	"{{OpenRestyProxyBufferSize}}",
@@ -437,10 +443,13 @@ func buildOpenRestyConfigSnapshot() openRestyConfigSnapshot {
 		KeepaliveRequests:        common.OpenRestyKeepaliveRequests,
 		ClientHeaderTimeout:      common.OpenRestyClientHeaderTimeout,
 		ClientBodyTimeout:        common.OpenRestyClientBodyTimeout,
+		ClientMaxBodySize:        common.OpenRestyClientMaxBodySize,
+		LargeClientHeaderBuffers: common.OpenRestyLargeClientHeaderBuffers,
 		SendTimeout:              common.OpenRestySendTimeout,
 		ProxyConnectTimeout:      common.OpenRestyProxyConnectTimeout,
 		ProxySendTimeout:         common.OpenRestyProxySendTimeout,
 		ProxyReadTimeout:         common.OpenRestyProxyReadTimeout,
+		ProxyRequestBuffering:    common.OpenRestyProxyRequestBufferingEnabled,
 		ProxyBufferingEnabled:    common.OpenRestyProxyBufferingEnabled,
 		ProxyBuffers:             common.OpenRestyProxyBuffers,
 		ProxyBufferSize:          common.OpenRestyProxyBufferSize,
@@ -494,10 +503,13 @@ func diffOpenRestyOptionDetails(left openRestyConfigSnapshot, right openRestyCon
 	appendIfChanged("OpenRestyKeepaliveRequests", fmt.Sprintf("%d", left.KeepaliveRequests), fmt.Sprintf("%d", right.KeepaliveRequests))
 	appendIfChanged("OpenRestyClientHeaderTimeout", fmt.Sprintf("%d", left.ClientHeaderTimeout), fmt.Sprintf("%d", right.ClientHeaderTimeout))
 	appendIfChanged("OpenRestyClientBodyTimeout", fmt.Sprintf("%d", left.ClientBodyTimeout), fmt.Sprintf("%d", right.ClientBodyTimeout))
+	appendIfChanged("OpenRestyClientMaxBodySize", left.ClientMaxBodySize, right.ClientMaxBodySize)
+	appendIfChanged("OpenRestyLargeClientHeaderBuffers", left.LargeClientHeaderBuffers, right.LargeClientHeaderBuffers)
 	appendIfChanged("OpenRestySendTimeout", fmt.Sprintf("%d", left.SendTimeout), fmt.Sprintf("%d", right.SendTimeout))
 	appendIfChanged("OpenRestyProxyConnectTimeout", fmt.Sprintf("%d", left.ProxyConnectTimeout), fmt.Sprintf("%d", right.ProxyConnectTimeout))
 	appendIfChanged("OpenRestyProxySendTimeout", fmt.Sprintf("%d", left.ProxySendTimeout), fmt.Sprintf("%d", right.ProxySendTimeout))
 	appendIfChanged("OpenRestyProxyReadTimeout", fmt.Sprintf("%d", left.ProxyReadTimeout), fmt.Sprintf("%d", right.ProxyReadTimeout))
+	appendIfChanged("OpenRestyProxyRequestBufferingEnabled", fmt.Sprintf("%t", left.ProxyRequestBuffering), fmt.Sprintf("%t", right.ProxyRequestBuffering))
 	appendIfChanged("OpenRestyProxyBufferingEnabled", fmt.Sprintf("%t", left.ProxyBufferingEnabled), fmt.Sprintf("%t", right.ProxyBufferingEnabled))
 	appendIfChanged("OpenRestyProxyBuffers", left.ProxyBuffers, right.ProxyBuffers)
 	appendIfChanged("OpenRestyProxyBufferSize", left.ProxyBufferSize, right.ProxyBufferSize)
@@ -536,10 +548,13 @@ func openRestyOptionKeys() []string {
 		"OpenRestyKeepaliveRequests",
 		"OpenRestyClientHeaderTimeout",
 		"OpenRestyClientBodyTimeout",
+		"OpenRestyClientMaxBodySize",
+		"OpenRestyLargeClientHeaderBuffers",
 		"OpenRestySendTimeout",
 		"OpenRestyProxyConnectTimeout",
 		"OpenRestyProxySendTimeout",
 		"OpenRestyProxyReadTimeout",
+		"OpenRestyProxyRequestBufferingEnabled",
 		"OpenRestyProxyBufferingEnabled",
 		"OpenRestyProxyBuffers",
 		"OpenRestyProxyBufferSize",
@@ -629,10 +644,13 @@ func renderMainConfigTemplate(templateText string, cfg openRestyConfigSnapshot) 
 		"{{OpenRestyKeepaliveRequests}}", fmt.Sprintf("%d", cfg.KeepaliveRequests),
 		"{{OpenRestyClientHeaderTimeout}}", fmt.Sprintf("%d", cfg.ClientHeaderTimeout),
 		"{{OpenRestyClientBodyTimeout}}", fmt.Sprintf("%d", cfg.ClientBodyTimeout),
+		"{{OpenRestyClientMaxBodySize}}", cfg.ClientMaxBodySize,
+		"{{OpenRestyLargeClientHeaderBuffers}}", cfg.LargeClientHeaderBuffers,
 		"{{OpenRestySendTimeout}}", fmt.Sprintf("%d", cfg.SendTimeout),
 		"{{OpenRestyProxyConnectTimeout}}", fmt.Sprintf("%d", cfg.ProxyConnectTimeout),
 		"{{OpenRestyProxySendTimeout}}", fmt.Sprintf("%d", cfg.ProxySendTimeout),
 		"{{OpenRestyProxyReadTimeout}}", fmt.Sprintf("%d", cfg.ProxyReadTimeout),
+		"{{OpenRestyProxyRequestBuffering}}", onOff(cfg.ProxyRequestBuffering),
 		"{{OpenRestyProxyBuffering}}", onOff(cfg.ProxyBufferingEnabled),
 		"{{OpenRestyProxyBuffers}}", cfg.ProxyBuffers,
 		"{{OpenRestyProxyBufferSize}}", cfg.ProxyBufferSize,

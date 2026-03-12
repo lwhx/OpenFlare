@@ -290,6 +290,34 @@ func TestOpenRestyMainConfigTemplateRenderAndValidate(t *testing.T) {
 	}
 }
 
+func TestOpenRestyCommonRequestOptionsRender(t *testing.T) {
+	setupServiceTestDB(t)
+
+	if err := model.UpdateOption("OpenRestyClientMaxBodySize", "128m"); err != nil {
+		t.Fatalf("UpdateOption OpenRestyClientMaxBodySize failed: %v", err)
+	}
+	if err := model.UpdateOption("OpenRestyLargeClientHeaderBuffers", "8 32k"); err != nil {
+		t.Fatalf("UpdateOption OpenRestyLargeClientHeaderBuffers failed: %v", err)
+	}
+	if err := model.UpdateOption("OpenRestyProxyRequestBufferingEnabled", "false"); err != nil {
+		t.Fatalf("UpdateOption OpenRestyProxyRequestBufferingEnabled failed: %v", err)
+	}
+
+	preview, err := PreviewConfigVersion()
+	if err != nil {
+		t.Fatalf("PreviewConfigVersion failed: %v", err)
+	}
+	if !strings.Contains(preview.MainConfig, "client_max_body_size 128m;") {
+		t.Fatal("expected preview main config to include client_max_body_size")
+	}
+	if !strings.Contains(preview.MainConfig, "large_client_header_buffers 8 32k;") {
+		t.Fatal("expected preview main config to include large_client_header_buffers")
+	}
+	if !strings.Contains(preview.MainConfig, "proxy_request_buffering off;") {
+		t.Fatal("expected preview main config to include proxy_request_buffering off")
+	}
+}
+
 func setupServiceTestDB(t *testing.T) {
 	t.Helper()
 	common.SQLitePath = filepath.Join(t.TempDir(), "service.db")

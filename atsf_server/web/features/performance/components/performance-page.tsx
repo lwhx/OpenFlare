@@ -38,10 +38,13 @@ const defaultPerformanceFields = {
   OpenRestyKeepaliveRequests: '1000',
   OpenRestyClientHeaderTimeout: '15',
   OpenRestyClientBodyTimeout: '15',
+  OpenRestyClientMaxBodySize: '64m',
+  OpenRestyLargeClientHeaderBuffers: '4 16k',
   OpenRestySendTimeout: '30',
   OpenRestyProxyConnectTimeout: '5',
   OpenRestyProxySendTimeout: '60',
   OpenRestyProxyReadTimeout: '60',
+  OpenRestyProxyRequestBufferingEnabled: true,
   OpenRestyProxyBufferingEnabled: true,
   OpenRestyProxyBuffers: '16 16k',
   OpenRestyProxyBufferSize: '8k',
@@ -76,10 +79,16 @@ const performanceFieldTooltips: Record<string, string> = {
   keepalive_requests: '单个长连接允许复用的最大请求数。',
   client_header_timeout: '读取客户端请求头的超时时间，单位秒。',
   client_body_timeout: '读取客户端请求体的超时时间，单位秒。',
+  client_max_body_size:
+    '限制客户端请求体大小，常用于上传文件大小控制，例如 64m、128m。',
+  large_client_header_buffers:
+    '控制大请求头使用的缓冲区数量和大小，例如 4 16k。',
   send_timeout: '向客户端发送响应时的超时时间，单位秒。',
   proxy_connect_timeout: '连接上游源站的超时时间，单位秒。',
   proxy_send_timeout: '向上游发送请求的超时时间，单位秒。',
   proxy_read_timeout: '等待上游返回响应的超时时间，单位秒。',
+  proxy_request_buffering:
+    '控制请求体是否先在 Nginx 侧缓冲后再转发给上游，上传和流式场景经常会用到。',
   proxy_buffering:
     '控制是否启用代理响应缓冲。开启后通常有更平滑的吞吐，但会增加内存占用。',
   proxy_buffers: '设置代理响应缓冲区的数量和大小，例如 16 16k。',
@@ -207,11 +216,18 @@ export function PerformancePage() {
       OpenRestyClientHeaderTimeout:
         optionMap.OpenRestyClientHeaderTimeout ?? '15',
       OpenRestyClientBodyTimeout: optionMap.OpenRestyClientBodyTimeout ?? '15',
+      OpenRestyClientMaxBodySize: optionMap.OpenRestyClientMaxBodySize ?? '64m',
+      OpenRestyLargeClientHeaderBuffers:
+        optionMap.OpenRestyLargeClientHeaderBuffers ?? '4 16k',
       OpenRestySendTimeout: optionMap.OpenRestySendTimeout ?? '30',
       OpenRestyProxyConnectTimeout:
         optionMap.OpenRestyProxyConnectTimeout ?? '5',
       OpenRestyProxySendTimeout: optionMap.OpenRestyProxySendTimeout ?? '60',
       OpenRestyProxyReadTimeout: optionMap.OpenRestyProxyReadTimeout ?? '60',
+      OpenRestyProxyRequestBufferingEnabled: toBoolean(
+        optionMap.OpenRestyProxyRequestBufferingEnabled,
+        true,
+      ),
       OpenRestyProxyBufferingEnabled: toBoolean(
         optionMap.OpenRestyProxyBufferingEnabled,
         true,
@@ -298,6 +314,18 @@ export function PerformancePage() {
           throw new Error(`${label} 必须为大于 0 的整数。`);
         }
       }
+      if (!isSizeValue(performanceFields.OpenRestyClientMaxBodySize)) {
+        throw new Error(
+          'client_max_body_size 必须为整数或带 k/m/g 单位的大小值。',
+        );
+      }
+      if (
+        !isProxyBuffersValue(
+          performanceFields.OpenRestyLargeClientHeaderBuffers,
+        )
+      ) {
+        throw new Error('large_client_header_buffers 格式必须类似 "4 16k"。');
+      }
 
       await saveOptionEntries(
         [
@@ -335,6 +363,14 @@ export function PerformancePage() {
             performanceFields.OpenRestyClientBodyTimeout.trim(),
           ],
           [
+            'OpenRestyClientMaxBodySize',
+            performanceFields.OpenRestyClientMaxBodySize.trim(),
+          ],
+          [
+            'OpenRestyLargeClientHeaderBuffers',
+            performanceFields.OpenRestyLargeClientHeaderBuffers.trim(),
+          ],
+          [
             'OpenRestySendTimeout',
             performanceFields.OpenRestySendTimeout.trim(),
           ],
@@ -357,6 +393,7 @@ export function PerformancePage() {
           throw new Error('代理超时参数必须为大于 0 的整数秒。');
         }
       }
+
       if (!isProxyBuffersValue(performanceFields.OpenRestyProxyBuffers)) {
         throw new Error('proxy_buffers 格式必须类似 "16 16k"。');
       }
@@ -380,6 +417,10 @@ export function PerformancePage() {
           [
             'OpenRestyProxyReadTimeout',
             performanceFields.OpenRestyProxyReadTimeout.trim(),
+          ],
+          [
+            'OpenRestyProxyRequestBufferingEnabled',
+            String(performanceFields.OpenRestyProxyRequestBufferingEnabled),
           ],
           [
             'OpenRestyProxyBufferingEnabled',
@@ -789,6 +830,36 @@ export function PerformancePage() {
                 />
               </ResourceField>
               <ResourceField
+                label="client_max_body_size"
+                tooltip={performanceFieldTooltips.client_max_body_size}
+              >
+                <ResourceInput
+                  value={performanceFields.OpenRestyClientMaxBodySize}
+                  onChange={(event) =>
+                    setPerformanceFields((previous) => ({
+                      ...previous,
+                      OpenRestyClientMaxBodySize: event.target.value,
+                    }))
+                  }
+                  placeholder="64m"
+                />
+              </ResourceField>
+              <ResourceField
+                label="large_client_header_buffers"
+                tooltip={performanceFieldTooltips.large_client_header_buffers}
+              >
+                <ResourceInput
+                  value={performanceFields.OpenRestyLargeClientHeaderBuffers}
+                  onChange={(event) =>
+                    setPerformanceFields((previous) => ({
+                      ...previous,
+                      OpenRestyLargeClientHeaderBuffers: event.target.value,
+                    }))
+                  }
+                  placeholder="4 16k"
+                />
+              </ResourceField>
+              <ResourceField
                 label="send_timeout (秒)"
                 tooltip={performanceFieldTooltips.send_timeout}
               >
@@ -868,6 +939,20 @@ export function PerformancePage() {
                     }
                   />
                 </ResourceField>
+                <ToggleField
+                  label="proxy_request_buffering"
+                  description="是否先缓冲请求体再转发给上游。"
+                  tooltip={performanceFieldTooltips.proxy_request_buffering}
+                  checked={
+                    performanceFields.OpenRestyProxyRequestBufferingEnabled
+                  }
+                  onChange={(checked) =>
+                    setPerformanceFields((previous) => ({
+                      ...previous,
+                      OpenRestyProxyRequestBufferingEnabled: checked,
+                    }))
+                  }
+                />
                 <ToggleField
                   label="proxy_buffering"
                   description="是否启用 proxy_buffering。"
