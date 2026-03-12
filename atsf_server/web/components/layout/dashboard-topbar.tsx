@@ -47,6 +47,7 @@ export function DashboardTopbar() {
     useState<UploadedServerBinaryInfo | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const isRoot = (user?.role ?? 0) >= 100;
+  const upgradeStatusPollInterval = 3000;
 
   const publicStatusQuery = useQuery({
     queryKey: ['public-status'],
@@ -57,13 +58,26 @@ export function DashboardTopbar() {
     queryKey: ['update', 'latest-release', 'stable'],
     queryFn: () => getLatestRelease('stable'),
     enabled: isRoot,
-    refetchInterval: 60 * 60 * 1000,
+    refetchInterval: (query) => {
+      const release = query.state.data;
+      if (isVersionModalOpen && release?.in_progress) {
+        return upgradeStatusPollInterval;
+      }
+      return 60 * 60 * 1000;
+    },
   });
 
   const previewReleaseQuery = useQuery({
     queryKey: ['update', 'latest-release', 'preview'],
     queryFn: () => getLatestRelease('preview'),
     enabled: false,
+    refetchInterval: (query) => {
+      const release = query.state.data;
+      if (isVersionModalOpen && release?.in_progress) {
+        return upgradeStatusPollInterval;
+      }
+      return false;
+    },
   });
 
   const upgradeMutation = useMutation({

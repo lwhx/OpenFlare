@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -173,6 +174,13 @@ func TestUploadManualServerBinary(t *testing.T) {
 	}
 	if candidate.UploadToken != info.UploadToken {
 		t.Fatalf("unexpected stored upload token: %s", candidate.UploadToken)
+	}
+	execPath, err := os.Executable()
+	if err != nil {
+		t.Fatalf("failed to get executable path: %v", err)
+	}
+	if filepath.Dir(candidate.TempPath) != filepath.Dir(execPath) {
+		t.Fatalf("expected temporary binary in executable dir, got %s want %s", filepath.Dir(candidate.TempPath), filepath.Dir(execPath))
 	}
 }
 

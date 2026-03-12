@@ -161,7 +161,15 @@ func UploadManualServerBinary(ctx context.Context, fileName string, reader io.Re
 		return nil, fmt.Errorf("缺少上传文件内容")
 	}
 
-	tempPath, err := persistUploadedServerBinary(fileName, reader)
+	execPath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("获取当前服务程序路径失败: %v", err)
+	}
+	if err = verifyExecutableDirectoryWritable(execPath); err != nil {
+		return nil, err
+	}
+
+	tempPath, err := persistUploadedServerBinary(filepath.Dir(execPath), fileName, reader)
 	if err != nil {
 		return nil, err
 	}
@@ -178,16 +186,6 @@ func UploadManualServerBinary(ctx context.Context, fileName string, reader io.Re
 	if !info.ReadyToUpgrade {
 		_ = os.Remove(tempPath)
 		return info, nil
-	}
-
-	execPath, err := os.Executable()
-	if err != nil {
-		_ = os.Remove(tempPath)
-		return nil, fmt.Errorf("获取当前服务程序路径失败: %v", err)
-	}
-	if err = verifyExecutableDirectoryWritable(execPath); err != nil {
-		_ = os.Remove(tempPath)
-		return nil, err
 	}
 
 	uploadToken, err := newUpgradeToken()
@@ -712,12 +710,16 @@ func isManualServerUpgradeSupported(currentVersion string) bool {
 	return normalized != "" && !strings.EqualFold(normalized, "dev")
 }
 
-func persistUploadedServerBinary(fileName string, reader io.Reader) (string, error) {
+func persistUploadedServerBinary(tempDir string, fileName string, reader io.Reader) (string, error) {
 	suffix := filepath.Ext(strings.TrimSpace(fileName))
 	if runtime.GOOS == "windows" && suffix == "" {
 		suffix = ".exe"
 	}
-	tempFile, err := os.CreateTemp("", "atsflare-server-manual-upgrade-*"+suffix)
+	tempDir = strings.TrimSpace(tempDir)
+	if tempDir == "" {
+		tempDir = os.TempDir()
+	}
+	tempFile, err := os.CreateTemp(tempDir, "atsflare-server-manual-upgrade-*"+suffix)
 	if err != nil {
 		return "", fmt.Errorf("创建临时升级文件失败: %v", err)
 	}
