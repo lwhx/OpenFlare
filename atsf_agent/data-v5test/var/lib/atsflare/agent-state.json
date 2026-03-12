@@ -1,8 +1,0 @@
-{
-  "node_id": "node-f79896cc731413b3",
-  "current_version": "",
-  "current_checksum": "",
-  "last_error": "docker openresty -t failed: exit status 1: 2026/03/12 14:59:57 [emerg] 1#1: open() \"/usr/local/openresty/nginx/conf/data-v5test/etc/nginx/conf.d/atsflare_routes.conf\" failed (2: No such file or directory) in /usr/local/openresty/nginx/conf/nginx.conf:31\nnginx: [emerg] open() \"/usr/local/openresty/nginx/conf/data-v5test/etc/nginx/conf.d/atsflare_routes.conf\" failed (2: No such file or directory) in /usr/local/openresty/nginx/conf/nginx.conf:31\nnginx: configuration file /usr/local/openresty/nginx/conf/nginx.conf test failed\n",
-  "openresty_status": "unhealthy",
-  "openresty_message": "docker openresty -t failed: exit status 1: 2026/03/12 14:59:57 [emerg] 1#1: open() \"/usr/local/openresty/nginx/conf/data-v5test/etc/nginx/conf.d/atsflare_routes.conf\" failed (2: No such file or directory) in /usr/local/openresty/nginx/conf/nginx.conf:31\nnginx: [emerg] open() \"/usr/local/openresty/nginx/conf/data-v5test/etc/nginx/conf.d/atsflare_routes.conf\" failed (2: No such file or directory) in /usr/local/openresty/nginx/conf/nginx.conf:31\nnginx: configuration file /usr/local/openresty/nginx/conf/nginx.conf test failed\n"
-}

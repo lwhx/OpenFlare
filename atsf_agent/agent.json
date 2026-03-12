@@ -1,7 +1,7 @@
 {
   "server_url": "http://127.0.0.1:3000",
   "agent_token": "d873f8084cb7539a2d2f6273ba7fbebe",
-  "data_dir": "./data-v5test",
+  "data_dir": "./data",
   "openresty_container_name": "atsflare-openresty",
   "openresty_docker_image": "openresty/openresty:alpine",
   "heartbeat_interval": 30000,
