@@ -84,6 +84,7 @@ func InitOptionMap() {
 	common.OptionMap["OpenRestyCacheLockEnabled"] = strconv.FormatBool(common.OpenRestyCacheLockEnabled)
 	common.OptionMap["OpenRestyCacheLockTimeout"] = common.OpenRestyCacheLockTimeout
 	common.OptionMap["OpenRestyCacheUseStale"] = common.OpenRestyCacheUseStale
+	common.OptionMap["OpenRestyMainConfigTemplate"] = common.OpenRestyMainConfigTemplate
 	common.OptionMap["GlobalApiRateLimitNum"] = strconv.Itoa(common.GlobalApiRateLimitNum)
 	common.OptionMap["GlobalApiRateLimitDuration"] = strconv.FormatInt(common.GlobalApiRateLimitDuration, 10)
 	common.OptionMap["GlobalWebRateLimitNum"] = strconv.Itoa(common.GlobalWebRateLimitNum)
@@ -308,6 +309,10 @@ func updateOptionMap(key string, value string) {
 	case "OpenRestyCacheUseStale":
 		if strings.TrimSpace(value) != "" {
 			common.OpenRestyCacheUseStale = value
+		}
+	case "OpenRestyMainConfigTemplate":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyMainConfigTemplate = value
 		}
 	case "GlobalApiRateLimitNum":
 		if v, err := strconv.Atoi(value); err == nil && v > 0 {

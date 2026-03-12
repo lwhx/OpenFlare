@@ -251,6 +251,45 @@ func TestCreateTLSCertificateRejectsInvalidPEM(t *testing.T) {
 	}
 }
 
+func TestOpenRestyMainConfigTemplateRenderAndValidate(t *testing.T) {
+	setupServiceTestDB(t)
+
+	customTemplate := strings.ReplaceAll(
+		common.OpenRestyMainConfigTemplate,
+		"pid logs/nginx.pid;",
+		"pid logs/nginx.pid;\nworker_shutdown_timeout 10s;",
+	)
+	if err := ValidateOpenRestyMainConfigTemplate(customTemplate); err != nil {
+		t.Fatalf("ValidateOpenRestyMainConfigTemplate failed: %v", err)
+	}
+	if err := model.UpdateOption("OpenRestyMainConfigTemplate", customTemplate); err != nil {
+		t.Fatalf("UpdateOption OpenRestyMainConfigTemplate failed: %v", err)
+	}
+
+	preview, err := PreviewConfigVersion()
+	if err != nil {
+		t.Fatalf("PreviewConfigVersion failed: %v", err)
+	}
+	if !strings.Contains(preview.MainConfig, "worker_shutdown_timeout 10s;") {
+		t.Fatal("expected preview main config to include custom template content")
+	}
+	if strings.Contains(preview.MainConfig, "{{OpenRestyWorkerProcesses}}") {
+		t.Fatal("expected preview main config placeholders to be rendered")
+	}
+	if !strings.Contains(preview.MainConfig, "include __ATSF_ROUTE_CONFIG__;") {
+		t.Fatal("expected preview main config to preserve managed route include")
+	}
+
+	invalidTemplate := strings.ReplaceAll(
+		common.OpenRestyMainConfigTemplate,
+		"{{OpenRestyRouteConfigInclude}}",
+		"",
+	)
+	if err := ValidateOpenRestyMainConfigTemplate(invalidTemplate); err == nil {
+		t.Fatal("expected template without managed route placeholder to fail validation")
+	}
+}
+
 func setupServiceTestDB(t *testing.T) {
 	t.Helper()
 	common.SQLitePath = filepath.Join(t.TempDir(), "service.db")

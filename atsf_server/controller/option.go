@@ -3,6 +3,7 @@ package controller
 import (
 	"atsflare/common"
 	"atsflare/model"
+	"atsflare/service"
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -154,6 +155,8 @@ func validateOpenRestyOption(key string, value string) error {
 			}
 		}
 		return nil
+	case "OpenRestyMainConfigTemplate":
+		return service.ValidateOpenRestyMainConfigTemplate(value)
 	default:
 		return nil
 	}
