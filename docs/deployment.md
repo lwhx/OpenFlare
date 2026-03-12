@@ -183,7 +183,7 @@ swag init -g main.go -o docs
 * `node_name` 与 `node_ip` 可省略，未填写时自动探测
 * 未配置 `openresty_path` 时，默认使用 Docker OpenResty 容器
 
-z### 3.3 第五版新增部署约束
+### 3.3 第五版新增部署约束
 
 第五版开发完成后，OpenResty 主配置将进入 Agent 受管范围。部署与联调时应满足：
 
@@ -240,6 +240,62 @@ go build -o atsflare-agent ./cmd/agent
 6. 执行 `openresty -s reload`
 7. 上报应用结果
 
+### 5.3.1 Docker OpenResty 模式最小验证
+
+建议使用最小 `agent.json`：
+
+```json
+{
+  "server_url": "http://127.0.0.1:3000",
+  "discovery_token": "replace-with-global-discovery-token",
+  "data_dir": "./data",
+  "openresty_container_name": "atsflare-openresty",
+  "openresty_docker_image": "openresty/openresty:alpine"
+}
+```
+
+验证点：
+
+1. 首次启动后确认 `data/etc/nginx/nginx.conf`、`data/etc/nginx/conf.d/atsflare_routes.conf` 与 `data/etc/nginx/certs` 已由 Agent 创建
+2. 确认容器实际挂载了主配置、路由目录和证书目录
+3. 在管理端发布一次新版本后，确认节点 `current_version` 追平激活版本
+4. 在节点详情查看“当前目标版本”与“最近应用”，确认主配置/路由配置快照和 checksum 已可见
+
+推荐检查命令：
+
+```bash
+docker inspect atsflare-openresty
+docker exec atsflare-openresty openresty -t
+```
+
+说明：
+
+* `docker inspect` 重点确认主配置文件、`conf.d` 目录和证书目录都来自 Agent 受管路径
+* 若容器名使用默认值，请将上述命令中的名称替换为 `atsflare-openresty`
+
+### 5.3.2 本机 OpenResty 模式最小验证
+
+建议显式提供以下路径：
+
+```json
+{
+  "server_url": "http://127.0.0.1:3000",
+  "agent_token": "replace-with-node-auth-token",
+  "openresty_path": "/usr/local/openresty/nginx/sbin/openresty",
+  "main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
+  "route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
+  "cert_dir": "/usr/local/openresty/nginx/conf/certs",
+  "openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs"
+}
+```
+
+验证点：
+
+1. 发布前先备份 `main_config_path` 与 `route_config_path`
+2. 首次发布后执行 `openresty -t`，确认主配置已由 Server 模板接管且 include 指向 Agent 写入的路由文件
+3. 再次发布修改后的规则或 OpenResty 参数，确认 `openresty -s reload` 成功且节点版本更新
+4. 在节点详情与应用记录页确认主配置 checksum、路由配置 checksum 和支持文件数已上报
+
 ### 5.4 验证管理端状态
 
 管理端应能看到：
@@ -257,6 +313,29 @@ go build -o atsflare-agent ./cmd/agent
 * 主配置与路由配置一起回滚
 * 节点 `last_error` 更新
 * 应用记录中出现失败记录
+
+### 5.5.1 建议的失败演练方式
+
+建议只在测试节点进行，避免直接污染生产节点。
+
+本机 OpenResty 模式：
+
+1. 先备份当前 `agent.json`
+2. 将 `openresty_path` 临时改为一个包装脚本，在收到 `-t` 时固定返回非零，其余参数转发到真实 `openresty`
+3. 触发一次新版本发布，确认应用失败、主配置与路由配置回滚、节点 `last_error` 更新
+4. 恢复真实 `openresty_path` 后再次发布，确认节点重新追平版本
+
+Docker OpenResty 模式：
+
+1. 在测试节点上保留默认受管路径
+2. 临时将 `openresty_docker_image` 指向一个不包含 `openresty` 运行时的错误镜像标签，或在测试环境用包装镜像让 `openresty -t` 固定失败
+3. 再次发布，确认节点应用失败但 `data/etc/nginx/nginx.conf` 与 `data/etc/nginx/conf.d/atsflare_routes.conf` 已回滚为旧版本
+4. 恢复正确镜像后重新发布，确认节点恢复健康
+
+说明：
+
+* 第五版的失败演练重点不在“如何制造错误”，而在确认失败后旧主配置、旧路由配置和支持文件都会被一起恢复
+* 若不方便做真实环境演练，至少应运行 Agent 回归测试，覆盖主配置写入、Docker 挂载与失败回滚
 
 ---
 

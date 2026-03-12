@@ -137,6 +137,15 @@ func TestSyncOnceSuccess(t *testing.T) {
 	if len(client.reports) != 1 || client.reports[0].Result != ApplyResultSuccess {
 		t.Fatal("expected successful apply report to be sent")
 	}
+	if client.reports[0].Checksum != "checksum-1" {
+		t.Fatalf("expected config checksum to be reported, got %q", client.reports[0].Checksum)
+	}
+	if client.reports[0].MainConfigChecksum == "" || client.reports[0].RouteConfigChecksum == "" {
+		t.Fatal("expected main and route config checksums to be reported")
+	}
+	if client.reports[0].SupportFileCount != 1 {
+		t.Fatalf("expected support file count to be reported, got %d", client.reports[0].SupportFileCount)
+	}
 }
 
 func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
@@ -211,6 +220,15 @@ func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 	}
 	if len(client.reports) != 1 || client.reports[0].Result != ApplyResultFailed {
 		t.Fatal("expected failed apply report to be sent")
+	}
+	if client.reports[0].Checksum != "checksum-2" {
+		t.Fatalf("expected failed report to retain target checksum, got %q", client.reports[0].Checksum)
+	}
+	if client.reports[0].MainConfigChecksum == "" || client.reports[0].RouteConfigChecksum == "" {
+		t.Fatal("expected failed report to include main and route config checksums")
+	}
+	if client.reports[0].SupportFileCount != 1 {
+		t.Fatalf("expected failed report to include support file count, got %d", client.reports[0].SupportFileCount)
 	}
 }
 

@@ -203,6 +203,42 @@ func TestDockerExecutorStartsStoppedContainer(t *testing.T) {
 	}
 }
 
+func TestDockerExecutorRunContainerMountsManagedFiles(t *testing.T) {
+	runner := &fakeRunner{}
+	executor := &DockerExecutor{
+		DockerBinary:   "docker",
+		ContainerName:  "atsflare-openresty",
+		Image:          "openresty/openresty:alpine",
+		MainConfigPath: filepath.Clean("/tmp/managed/nginx.conf"),
+		RouteConfigDir: filepath.Clean("/tmp/managed/conf.d"),
+		CertDir:        filepath.Clean("/tmp/managed/certs"),
+		NginxCertDir:   "/etc/nginx/atsflare-certs",
+		Runner:         runner,
+	}
+
+	if err := executor.runContainer(context.Background()); err != nil {
+		t.Fatalf("runContainer failed: %v", err)
+	}
+
+	if len(runner.calls) != 1 {
+		t.Fatalf("expected one docker run call, got %d", len(runner.calls))
+	}
+
+	expectedArgs := []string{
+		"run", "-d",
+		"--name", "atsflare-openresty",
+		"-p", "80:80",
+		"-p", "443:443",
+		"-v", "/tmp/managed/nginx.conf:" + DockerMainConfigPath,
+		"-v", "/tmp/managed/conf.d:/etc/nginx/conf.d",
+		"-v", "/tmp/managed/certs:/etc/nginx/atsflare-certs",
+		"openresty/openresty:alpine",
+	}
+	if !reflect.DeepEqual(runner.calls[0].args, expectedArgs) {
+		t.Fatalf("unexpected docker run args: %#v", runner.calls[0].args)
+	}
+}
+
 func TestDockerExecutorRecreatesContainerOnStartup(t *testing.T) {
 	runner := &fakeRunner{
 		runFn: func(name string, args ...string) ([]byte, error) {
