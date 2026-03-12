@@ -55,6 +55,35 @@ func InitOptionMap() {
 	common.OptionMap["AgentSyncInterval"] = strconv.Itoa(common.AgentSyncInterval)
 	common.OptionMap["NodeOfflineThreshold"] = strconv.Itoa(int(common.NodeOfflineThreshold.Milliseconds()))
 	common.OptionMap["AgentUpdateRepo"] = common.AgentUpdateRepo
+	common.OptionMap["OpenRestyWorkerProcesses"] = common.OpenRestyWorkerProcesses
+	common.OptionMap["OpenRestyWorkerConnections"] = strconv.Itoa(common.OpenRestyWorkerConnections)
+	common.OptionMap["OpenRestyWorkerRlimitNofile"] = strconv.Itoa(common.OpenRestyWorkerRlimitNofile)
+	common.OptionMap["OpenRestyEventsUse"] = common.OpenRestyEventsUse
+	common.OptionMap["OpenRestyEventsMultiAcceptEnabled"] = strconv.FormatBool(common.OpenRestyEventsMultiAcceptEnabled)
+	common.OptionMap["OpenRestyKeepaliveTimeout"] = strconv.Itoa(common.OpenRestyKeepaliveTimeout)
+	common.OptionMap["OpenRestyKeepaliveRequests"] = strconv.Itoa(common.OpenRestyKeepaliveRequests)
+	common.OptionMap["OpenRestyClientHeaderTimeout"] = strconv.Itoa(common.OpenRestyClientHeaderTimeout)
+	common.OptionMap["OpenRestyClientBodyTimeout"] = strconv.Itoa(common.OpenRestyClientBodyTimeout)
+	common.OptionMap["OpenRestySendTimeout"] = strconv.Itoa(common.OpenRestySendTimeout)
+	common.OptionMap["OpenRestyProxyConnectTimeout"] = strconv.Itoa(common.OpenRestyProxyConnectTimeout)
+	common.OptionMap["OpenRestyProxySendTimeout"] = strconv.Itoa(common.OpenRestyProxySendTimeout)
+	common.OptionMap["OpenRestyProxyReadTimeout"] = strconv.Itoa(common.OpenRestyProxyReadTimeout)
+	common.OptionMap["OpenRestyProxyBufferingEnabled"] = strconv.FormatBool(common.OpenRestyProxyBufferingEnabled)
+	common.OptionMap["OpenRestyProxyBuffers"] = common.OpenRestyProxyBuffers
+	common.OptionMap["OpenRestyProxyBufferSize"] = common.OpenRestyProxyBufferSize
+	common.OptionMap["OpenRestyProxyBusyBuffersSize"] = common.OpenRestyProxyBusyBuffersSize
+	common.OptionMap["OpenRestyGzipEnabled"] = strconv.FormatBool(common.OpenRestyGzipEnabled)
+	common.OptionMap["OpenRestyGzipMinLength"] = strconv.Itoa(common.OpenRestyGzipMinLength)
+	common.OptionMap["OpenRestyGzipCompLevel"] = strconv.Itoa(common.OpenRestyGzipCompLevel)
+	common.OptionMap["OpenRestyCacheEnabled"] = strconv.FormatBool(common.OpenRestyCacheEnabled)
+	common.OptionMap["OpenRestyCachePath"] = common.OpenRestyCachePath
+	common.OptionMap["OpenRestyCacheLevels"] = common.OpenRestyCacheLevels
+	common.OptionMap["OpenRestyCacheInactive"] = common.OpenRestyCacheInactive
+	common.OptionMap["OpenRestyCacheMaxSize"] = common.OpenRestyCacheMaxSize
+	common.OptionMap["OpenRestyCacheKeyTemplate"] = common.OpenRestyCacheKeyTemplate
+	common.OptionMap["OpenRestyCacheLockEnabled"] = strconv.FormatBool(common.OpenRestyCacheLockEnabled)
+	common.OptionMap["OpenRestyCacheLockTimeout"] = common.OpenRestyCacheLockTimeout
+	common.OptionMap["OpenRestyCacheUseStale"] = common.OpenRestyCacheUseStale
 	common.OptionMap["GlobalApiRateLimitNum"] = strconv.Itoa(common.GlobalApiRateLimitNum)
 	common.OptionMap["GlobalApiRateLimitDuration"] = strconv.FormatInt(common.GlobalApiRateLimitDuration, 10)
 	common.OptionMap["GlobalWebRateLimitNum"] = strconv.Itoa(common.GlobalWebRateLimitNum)
@@ -174,6 +203,108 @@ func updateOptionMap(key string, value string) {
 	case "AgentUpdateRepo":
 		if value != "" {
 			common.AgentUpdateRepo = value
+		}
+	case "OpenRestyWorkerProcesses":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyWorkerProcesses = value
+		}
+	case "OpenRestyWorkerConnections":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyWorkerConnections = v
+		}
+	case "OpenRestyWorkerRlimitNofile":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyWorkerRlimitNofile = v
+		}
+	case "OpenRestyEventsUse":
+		common.OpenRestyEventsUse = value
+	case "OpenRestyEventsMultiAcceptEnabled":
+		common.OpenRestyEventsMultiAcceptEnabled = value == "true"
+	case "OpenRestyKeepaliveTimeout":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyKeepaliveTimeout = v
+		}
+	case "OpenRestyKeepaliveRequests":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyKeepaliveRequests = v
+		}
+	case "OpenRestyClientHeaderTimeout":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyClientHeaderTimeout = v
+		}
+	case "OpenRestyClientBodyTimeout":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyClientBodyTimeout = v
+		}
+	case "OpenRestySendTimeout":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestySendTimeout = v
+		}
+	case "OpenRestyProxyConnectTimeout":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyProxyConnectTimeout = v
+		}
+	case "OpenRestyProxySendTimeout":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyProxySendTimeout = v
+		}
+	case "OpenRestyProxyReadTimeout":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyProxyReadTimeout = v
+		}
+	case "OpenRestyProxyBufferingEnabled":
+		common.OpenRestyProxyBufferingEnabled = value == "true"
+	case "OpenRestyProxyBuffers":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyProxyBuffers = value
+		}
+	case "OpenRestyProxyBufferSize":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyProxyBufferSize = value
+		}
+	case "OpenRestyProxyBusyBuffersSize":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyProxyBusyBuffersSize = value
+		}
+	case "OpenRestyGzipEnabled":
+		common.OpenRestyGzipEnabled = value == "true"
+	case "OpenRestyGzipMinLength":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyGzipMinLength = v
+		}
+	case "OpenRestyGzipCompLevel":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.OpenRestyGzipCompLevel = v
+		}
+	case "OpenRestyCacheEnabled":
+		common.OpenRestyCacheEnabled = value == "true"
+	case "OpenRestyCachePath":
+		common.OpenRestyCachePath = value
+	case "OpenRestyCacheLevels":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyCacheLevels = value
+		}
+	case "OpenRestyCacheInactive":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyCacheInactive = value
+		}
+	case "OpenRestyCacheMaxSize":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyCacheMaxSize = value
+		}
+	case "OpenRestyCacheKeyTemplate":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyCacheKeyTemplate = value
+		}
+	case "OpenRestyCacheLockEnabled":
+		common.OpenRestyCacheLockEnabled = value == "true"
+	case "OpenRestyCacheLockTimeout":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyCacheLockTimeout = value
+		}
+	case "OpenRestyCacheUseStale":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyCacheUseStale = value
 		}
 	case "GlobalApiRateLimitNum":
 		if v, err := strconv.Atoi(value); err == nil && v > 0 {

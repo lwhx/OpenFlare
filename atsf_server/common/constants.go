@@ -55,6 +55,37 @@ var AgentHeartbeatInterval = 30000 // milliseconds
 var AgentSyncInterval = 30000      // milliseconds
 var AgentUpdateRepo = "Rain-kl/ATSFlare"
 
+// V5 OpenResty performance settings (hot-reloadable via Option table)
+var OpenRestyWorkerProcesses = "auto"
+var OpenRestyWorkerConnections = 4096
+var OpenRestyWorkerRlimitNofile = 65535
+var OpenRestyEventsUse = ""
+var OpenRestyEventsMultiAcceptEnabled = false
+var OpenRestyKeepaliveTimeout = 65
+var OpenRestyKeepaliveRequests = 1000
+var OpenRestyClientHeaderTimeout = 15
+var OpenRestyClientBodyTimeout = 15
+var OpenRestySendTimeout = 30
+var OpenRestyProxyConnectTimeout = 5
+var OpenRestyProxySendTimeout = 60
+var OpenRestyProxyReadTimeout = 60
+var OpenRestyProxyBufferingEnabled = true
+var OpenRestyProxyBuffers = "16 16k"
+var OpenRestyProxyBufferSize = "8k"
+var OpenRestyProxyBusyBuffersSize = "64k"
+var OpenRestyGzipEnabled = true
+var OpenRestyGzipMinLength = 1024
+var OpenRestyGzipCompLevel = 5
+var OpenRestyCacheEnabled = false
+var OpenRestyCachePath = ""
+var OpenRestyCacheLevels = "1:2"
+var OpenRestyCacheInactive = "30m"
+var OpenRestyCacheMaxSize = "1g"
+var OpenRestyCacheKeyTemplate = "$scheme$proxy_host$request_uri"
+var OpenRestyCacheLockEnabled = true
+var OpenRestyCacheLockTimeout = "5s"
+var OpenRestyCacheUseStale = "error timeout updating http_500 http_502 http_503 http_504"
+
 const (
 	RoleGuestUser  = 0
 	RoleCommonUser = 1

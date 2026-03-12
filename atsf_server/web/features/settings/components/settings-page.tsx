@@ -35,6 +35,7 @@ import {
   PrimaryButton,
   ResourceField,
   ResourceInput,
+  ResourceSelect,
   ResourceTextarea,
   SecondaryButton,
   ToggleField,
@@ -72,6 +73,36 @@ const defaultOperationFields = {
   AgentSyncInterval: '30000',
   NodeOfflineThreshold: '120000',
   AgentUpdateRepo: 'Rain-kl/ATSFlare',
+  OpenRestyWorkerProcesses: 'auto',
+  OpenRestyWorkerConnections: '4096',
+  OpenRestyWorkerRlimitNofile: '65535',
+  OpenRestyEventsUse: '',
+  OpenRestyEventsMultiAcceptEnabled: false,
+  OpenRestyKeepaliveTimeout: '65',
+  OpenRestyKeepaliveRequests: '1000',
+  OpenRestyClientHeaderTimeout: '15',
+  OpenRestyClientBodyTimeout: '15',
+  OpenRestySendTimeout: '30',
+  OpenRestyProxyConnectTimeout: '5',
+  OpenRestyProxySendTimeout: '60',
+  OpenRestyProxyReadTimeout: '60',
+  OpenRestyProxyBufferingEnabled: true,
+  OpenRestyProxyBuffers: '16 16k',
+  OpenRestyProxyBufferSize: '8k',
+  OpenRestyProxyBusyBuffersSize: '64k',
+  OpenRestyGzipEnabled: true,
+  OpenRestyGzipMinLength: '1024',
+  OpenRestyGzipCompLevel: '5',
+  OpenRestyCacheEnabled: false,
+  OpenRestyCachePath: '',
+  OpenRestyCacheLevels: '1:2',
+  OpenRestyCacheInactive: '30m',
+  OpenRestyCacheMaxSize: '1g',
+  OpenRestyCacheKeyTemplate: '$scheme$proxy_host$request_uri',
+  OpenRestyCacheLockEnabled: true,
+  OpenRestyCacheLockTimeout: '5s',
+  OpenRestyCacheUseStale:
+    'error timeout updating http_500 http_502 http_503 http_504',
   GlobalApiRateLimitNum: '300',
   GlobalApiRateLimitDuration: '180',
   GlobalWebRateLimitNum: '300',
@@ -168,6 +199,27 @@ function formatSecondsLabel(value: string) {
   }
 
   return `${seconds} 秒`;
+}
+
+function isPositiveInteger(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  return !Number.isNaN(parsed) && parsed > 0;
+}
+
+function isSizeValue(value: string) {
+  return /^\d+[kKmMgG]?$/.test(value.trim());
+}
+
+function isProxyBuffersValue(value: string) {
+  return /^\d+\s+\d+[kKmMgG]?$/.test(value.trim());
+}
+
+function isDurationToken(value: string) {
+  return /^\d+[smhdwSMHDW]$/.test(value.trim());
+}
+
+function isCacheLevelsValue(value: string) {
+  return /^\d{1,2}(?::\d{1,2}){0,2}$/.test(value.trim());
 }
 
 function buildDiscoveryCommand(serverUrl: string, discoveryToken: string) {
@@ -309,6 +361,53 @@ export function SettingsPage() {
       AgentSyncInterval: optionMap.AgentSyncInterval ?? '30000',
       NodeOfflineThreshold: optionMap.NodeOfflineThreshold ?? '120000',
       AgentUpdateRepo: optionMap.AgentUpdateRepo ?? 'Rain-kl/ATSFlare',
+      OpenRestyWorkerProcesses: optionMap.OpenRestyWorkerProcesses ?? 'auto',
+      OpenRestyWorkerConnections:
+        optionMap.OpenRestyWorkerConnections ?? '4096',
+      OpenRestyWorkerRlimitNofile:
+        optionMap.OpenRestyWorkerRlimitNofile ?? '65535',
+      OpenRestyEventsUse: optionMap.OpenRestyEventsUse ?? '',
+      OpenRestyEventsMultiAcceptEnabled: toBoolean(
+        optionMap.OpenRestyEventsMultiAcceptEnabled,
+        false,
+      ),
+      OpenRestyKeepaliveTimeout: optionMap.OpenRestyKeepaliveTimeout ?? '65',
+      OpenRestyKeepaliveRequests:
+        optionMap.OpenRestyKeepaliveRequests ?? '1000',
+      OpenRestyClientHeaderTimeout:
+        optionMap.OpenRestyClientHeaderTimeout ?? '15',
+      OpenRestyClientBodyTimeout: optionMap.OpenRestyClientBodyTimeout ?? '15',
+      OpenRestySendTimeout: optionMap.OpenRestySendTimeout ?? '30',
+      OpenRestyProxyConnectTimeout:
+        optionMap.OpenRestyProxyConnectTimeout ?? '5',
+      OpenRestyProxySendTimeout: optionMap.OpenRestyProxySendTimeout ?? '60',
+      OpenRestyProxyReadTimeout: optionMap.OpenRestyProxyReadTimeout ?? '60',
+      OpenRestyProxyBufferingEnabled: toBoolean(
+        optionMap.OpenRestyProxyBufferingEnabled,
+        true,
+      ),
+      OpenRestyProxyBuffers: optionMap.OpenRestyProxyBuffers ?? '16 16k',
+      OpenRestyProxyBufferSize: optionMap.OpenRestyProxyBufferSize ?? '8k',
+      OpenRestyProxyBusyBuffersSize:
+        optionMap.OpenRestyProxyBusyBuffersSize ?? '64k',
+      OpenRestyGzipEnabled: toBoolean(optionMap.OpenRestyGzipEnabled, true),
+      OpenRestyGzipMinLength: optionMap.OpenRestyGzipMinLength ?? '1024',
+      OpenRestyGzipCompLevel: optionMap.OpenRestyGzipCompLevel ?? '5',
+      OpenRestyCacheEnabled: toBoolean(optionMap.OpenRestyCacheEnabled, false),
+      OpenRestyCachePath: optionMap.OpenRestyCachePath ?? '',
+      OpenRestyCacheLevels: optionMap.OpenRestyCacheLevels ?? '1:2',
+      OpenRestyCacheInactive: optionMap.OpenRestyCacheInactive ?? '30m',
+      OpenRestyCacheMaxSize: optionMap.OpenRestyCacheMaxSize ?? '1g',
+      OpenRestyCacheKeyTemplate:
+        optionMap.OpenRestyCacheKeyTemplate ?? '$scheme$proxy_host$request_uri',
+      OpenRestyCacheLockEnabled: toBoolean(
+        optionMap.OpenRestyCacheLockEnabled,
+        true,
+      ),
+      OpenRestyCacheLockTimeout: optionMap.OpenRestyCacheLockTimeout ?? '5s',
+      OpenRestyCacheUseStale:
+        optionMap.OpenRestyCacheUseStale ??
+        'error timeout updating http_500 http_502 http_503 http_504',
       GlobalApiRateLimitNum: optionMap.GlobalApiRateLimitNum ?? '300',
       GlobalApiRateLimitDuration: optionMap.GlobalApiRateLimitDuration ?? '180',
       GlobalWebRateLimitNum: optionMap.GlobalWebRateLimitNum ?? '300',
@@ -988,6 +1087,249 @@ export function SettingsPage() {
               </ResourceField>
             </AppCard>
             <AppCard
+              title="OpenResty 连接与事件"
+              description="第五版第一批结构化性能项。保存后进入统一发布链路，不会在节点即时生效。"
+              action={
+                <PrimaryButton
+                  type="button"
+                  onClick={() =>
+                    void runBusyAction(
+                      'operation-openresty-runtime',
+                      async () => {
+                        if (
+                          operationFields.OpenRestyWorkerProcesses !== 'auto' &&
+                          !isPositiveInteger(
+                            operationFields.OpenRestyWorkerProcesses,
+                          )
+                        ) {
+                          throw new Error(
+                            'worker_processes 必须为 auto 或大于 0 的整数。',
+                          );
+                        }
+
+                        const integerFields = [
+                          [
+                            'worker_connections',
+                            operationFields.OpenRestyWorkerConnections,
+                          ],
+                          [
+                            'worker_rlimit_nofile',
+                            operationFields.OpenRestyWorkerRlimitNofile,
+                          ],
+                          [
+                            'keepalive_timeout',
+                            operationFields.OpenRestyKeepaliveTimeout,
+                          ],
+                          [
+                            'keepalive_requests',
+                            operationFields.OpenRestyKeepaliveRequests,
+                          ],
+                          [
+                            'client_header_timeout',
+                            operationFields.OpenRestyClientHeaderTimeout,
+                          ],
+                          [
+                            'client_body_timeout',
+                            operationFields.OpenRestyClientBodyTimeout,
+                          ],
+                          [
+                            'send_timeout',
+                            operationFields.OpenRestySendTimeout,
+                          ],
+                        ] as const;
+
+                        for (const [label, value] of integerFields) {
+                          if (!isPositiveInteger(value)) {
+                            throw new Error(`${label} 必须为大于 0 的整数。`);
+                          }
+                        }
+
+                        await saveOptionEntries(
+                          [
+                            [
+                              'OpenRestyWorkerProcesses',
+                              operationFields.OpenRestyWorkerProcesses.trim(),
+                            ],
+                            [
+                              'OpenRestyWorkerConnections',
+                              operationFields.OpenRestyWorkerConnections.trim(),
+                            ],
+                            [
+                              'OpenRestyWorkerRlimitNofile',
+                              operationFields.OpenRestyWorkerRlimitNofile.trim(),
+                            ],
+                            [
+                              'OpenRestyEventsUse',
+                              operationFields.OpenRestyEventsUse.trim(),
+                            ],
+                            [
+                              'OpenRestyEventsMultiAcceptEnabled',
+                              String(
+                                operationFields.OpenRestyEventsMultiAcceptEnabled,
+                              ),
+                            ],
+                            [
+                              'OpenRestyKeepaliveTimeout',
+                              operationFields.OpenRestyKeepaliveTimeout.trim(),
+                            ],
+                            [
+                              'OpenRestyKeepaliveRequests',
+                              operationFields.OpenRestyKeepaliveRequests.trim(),
+                            ],
+                            [
+                              'OpenRestyClientHeaderTimeout',
+                              operationFields.OpenRestyClientHeaderTimeout.trim(),
+                            ],
+                            [
+                              'OpenRestyClientBodyTimeout',
+                              operationFields.OpenRestyClientBodyTimeout.trim(),
+                            ],
+                            [
+                              'OpenRestySendTimeout',
+                              operationFields.OpenRestySendTimeout.trim(),
+                            ],
+                          ],
+                          'OpenResty 运行参数已保存。',
+                        );
+                      },
+                    )
+                  }
+                  disabled={busyKey === 'operation-openresty-runtime'}
+                >
+                  {busyKey === 'operation-openresty-runtime'
+                    ? '保存中...'
+                    : '保存运行调优'}
+                </PrimaryButton>
+              }
+            >
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                <ResourceField label="worker_processes">
+                  <ResourceInput
+                    value={operationFields.OpenRestyWorkerProcesses}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyWorkerProcesses: event.target.value,
+                      }))
+                    }
+                    placeholder="auto"
+                  />
+                </ResourceField>
+                <ResourceField label="worker_connections">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyWorkerConnections}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyWorkerConnections: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ResourceField label="worker_rlimit_nofile">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyWorkerRlimitNofile}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyWorkerRlimitNofile: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ResourceField label="events use" hint="留空表示不显式渲染。">
+                  <ResourceSelect
+                    value={operationFields.OpenRestyEventsUse}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyEventsUse: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">默认</option>
+                    <option value="epoll">epoll</option>
+                    <option value="kqueue">kqueue</option>
+                    <option value="poll">poll</option>
+                    <option value="select">select</option>
+                  </ResourceSelect>
+                </ResourceField>
+                <ToggleField
+                  label="multi_accept"
+                  description="是否启用 multi_accept on。"
+                  checked={operationFields.OpenRestyEventsMultiAcceptEnabled}
+                  onChange={(checked) =>
+                    setOperationFields((previous) => ({
+                      ...previous,
+                      OpenRestyEventsMultiAcceptEnabled: checked,
+                    }))
+                  }
+                />
+                <ResourceField label="keepalive_timeout (秒)">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyKeepaliveTimeout}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyKeepaliveTimeout: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ResourceField label="keepalive_requests">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyKeepaliveRequests}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyKeepaliveRequests: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ResourceField label="client_header_timeout (秒)">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyClientHeaderTimeout}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyClientHeaderTimeout: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ResourceField label="client_body_timeout (秒)">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyClientBodyTimeout}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyClientBodyTimeout: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ResourceField label="send_timeout (秒)">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestySendTimeout}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestySendTimeout: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+              </div>
+            </AppCard>
+            <AppCard
               title="Discovery Token 与部署命令"
               description="适用于新节点首次接入。可直接复制一键安装命令。"
               action={
@@ -1036,10 +1378,10 @@ export function SettingsPage() {
                     />
                   </ResourceField>
                   <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-muted)]">
+                    <p className="text-xs tracking-[0.2em] text-[var(--foreground-muted)] uppercase">
                       Discovery Token
                     </p>
-                    <p className="mt-2 break-all text-sm text-[var(--foreground-primary)]">
+                    <p className="mt-2 text-sm break-all text-[var(--foreground-primary)]">
                       {discoveryToken || '未生成'}
                     </p>
                   </div>
@@ -1425,6 +1767,462 @@ export function SettingsPage() {
                         setSystemFields((previous) => ({
                           ...previous,
                           TurnstileSecretKey: event.target.value,
+                        }))
+                      }
+                    />
+                  </ResourceField>
+                </div>
+              </div>
+            </AppCard>
+          </div>
+          <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+            <AppCard
+              title="OpenResty 反代缓冲与超时"
+              description="用于控制 upstream 连接、发送、读取超时，以及常用代理缓冲参数。"
+              action={
+                <PrimaryButton
+                  type="button"
+                  onClick={() =>
+                    void runBusyAction(
+                      'operation-openresty-proxy',
+                      async () => {
+                        const timeoutFields = [
+                          operationFields.OpenRestyProxyConnectTimeout,
+                          operationFields.OpenRestyProxySendTimeout,
+                          operationFields.OpenRestyProxyReadTimeout,
+                        ];
+
+                        for (const value of timeoutFields) {
+                          if (!isPositiveInteger(value)) {
+                            throw new Error(
+                              '代理超时参数必须为大于 0 的整数秒。',
+                            );
+                          }
+                        }
+                        if (
+                          !isProxyBuffersValue(
+                            operationFields.OpenRestyProxyBuffers,
+                          )
+                        ) {
+                          throw new Error(
+                            'proxy_buffers 格式必须类似 "16 16k"。',
+                          );
+                        }
+                        if (
+                          !isSizeValue(
+                            operationFields.OpenRestyProxyBufferSize,
+                          ) ||
+                          !isSizeValue(
+                            operationFields.OpenRestyProxyBusyBuffersSize,
+                          )
+                        ) {
+                          throw new Error(
+                            '缓冲大小必须为整数或带 k/m/g 单位的值。',
+                          );
+                        }
+
+                        await saveOptionEntries(
+                          [
+                            [
+                              'OpenRestyProxyConnectTimeout',
+                              operationFields.OpenRestyProxyConnectTimeout.trim(),
+                            ],
+                            [
+                              'OpenRestyProxySendTimeout',
+                              operationFields.OpenRestyProxySendTimeout.trim(),
+                            ],
+                            [
+                              'OpenRestyProxyReadTimeout',
+                              operationFields.OpenRestyProxyReadTimeout.trim(),
+                            ],
+                            [
+                              'OpenRestyProxyBufferingEnabled',
+                              String(
+                                operationFields.OpenRestyProxyBufferingEnabled,
+                              ),
+                            ],
+                            [
+                              'OpenRestyProxyBuffers',
+                              operationFields.OpenRestyProxyBuffers.trim(),
+                            ],
+                            [
+                              'OpenRestyProxyBufferSize',
+                              operationFields.OpenRestyProxyBufferSize.trim(),
+                            ],
+                            [
+                              'OpenRestyProxyBusyBuffersSize',
+                              operationFields.OpenRestyProxyBusyBuffersSize.trim(),
+                            ],
+                          ],
+                          'OpenResty 反代缓冲参数已保存。',
+                        );
+                      },
+                    )
+                  }
+                  disabled={busyKey === 'operation-openresty-proxy'}
+                >
+                  {busyKey === 'operation-openresty-proxy'
+                    ? '保存中...'
+                    : '保存代理调优'}
+                </PrimaryButton>
+              }
+            >
+              <div className="grid gap-5 md:grid-cols-2">
+                <ResourceField label="proxy_connect_timeout (秒)">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyProxyConnectTimeout}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyProxyConnectTimeout: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ResourceField label="proxy_send_timeout (秒)">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyProxySendTimeout}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyProxySendTimeout: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ResourceField label="proxy_read_timeout (秒)">
+                  <ResourceInput
+                    type="number"
+                    value={operationFields.OpenRestyProxyReadTimeout}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyProxyReadTimeout: event.target.value,
+                      }))
+                    }
+                  />
+                </ResourceField>
+                <ToggleField
+                  label="proxy_buffering"
+                  description="是否启用 proxy_buffering。"
+                  checked={operationFields.OpenRestyProxyBufferingEnabled}
+                  onChange={(checked) =>
+                    setOperationFields((previous) => ({
+                      ...previous,
+                      OpenRestyProxyBufferingEnabled: checked,
+                    }))
+                  }
+                />
+                <ResourceField label="proxy_buffers">
+                  <ResourceInput
+                    value={operationFields.OpenRestyProxyBuffers}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyProxyBuffers: event.target.value,
+                      }))
+                    }
+                    placeholder="16 16k"
+                  />
+                </ResourceField>
+                <ResourceField label="proxy_buffer_size">
+                  <ResourceInput
+                    value={operationFields.OpenRestyProxyBufferSize}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyProxyBufferSize: event.target.value,
+                      }))
+                    }
+                    placeholder="8k"
+                  />
+                </ResourceField>
+                <ResourceField label="proxy_busy_buffers_size">
+                  <ResourceInput
+                    value={operationFields.OpenRestyProxyBusyBuffersSize}
+                    onChange={(event) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyProxyBusyBuffersSize: event.target.value,
+                      }))
+                    }
+                    placeholder="64k"
+                  />
+                </ResourceField>
+              </div>
+            </AppCard>
+            <AppCard
+              title="OpenResty 压缩与缓存"
+              description="缓存能力仍限定在单节点反代优化场景，不扩展为独立缓存产品。"
+              action={
+                <PrimaryButton
+                  type="button"
+                  onClick={() =>
+                    void runBusyAction(
+                      'operation-openresty-cache',
+                      async () => {
+                        if (
+                          !isPositiveInteger(
+                            operationFields.OpenRestyGzipMinLength,
+                          )
+                        ) {
+                          throw new Error(
+                            'gzip_min_length 必须为大于 0 的整数。',
+                          );
+                        }
+                        const gzipLevel = Number.parseInt(
+                          operationFields.OpenRestyGzipCompLevel,
+                          10,
+                        );
+                        if (
+                          Number.isNaN(gzipLevel) ||
+                          gzipLevel < 1 ||
+                          gzipLevel > 9
+                        ) {
+                          throw new Error(
+                            'gzip_comp_level 必须在 1 到 9 之间。',
+                          );
+                        }
+                        if (operationFields.OpenRestyCacheEnabled) {
+                          if (!operationFields.OpenRestyCachePath.trim()) {
+                            throw new Error(
+                              '启用缓存时必须填写 proxy_cache_path 目录。',
+                            );
+                          }
+                          if (
+                            !isCacheLevelsValue(
+                              operationFields.OpenRestyCacheLevels,
+                            ) ||
+                            !isDurationToken(
+                              operationFields.OpenRestyCacheInactive,
+                            ) ||
+                            !isSizeValue(
+                              operationFields.OpenRestyCacheMaxSize,
+                            ) ||
+                            !isDurationToken(
+                              operationFields.OpenRestyCacheLockTimeout,
+                            )
+                          ) {
+                            throw new Error(
+                              '缓存 levels、inactive、max_size 或 lock_timeout 格式不合法。',
+                            );
+                          }
+                          if (
+                            !operationFields.OpenRestyCacheKeyTemplate.trim()
+                          ) {
+                            throw new Error(
+                              '启用缓存时必须填写缓存 Key 模板。',
+                            );
+                          }
+                        }
+
+                        await saveOptionEntries(
+                          [
+                            [
+                              'OpenRestyGzipEnabled',
+                              String(operationFields.OpenRestyGzipEnabled),
+                            ],
+                            [
+                              'OpenRestyGzipMinLength',
+                              operationFields.OpenRestyGzipMinLength.trim(),
+                            ],
+                            [
+                              'OpenRestyGzipCompLevel',
+                              operationFields.OpenRestyGzipCompLevel.trim(),
+                            ],
+                            [
+                              'OpenRestyCachePath',
+                              operationFields.OpenRestyCachePath.trim(),
+                            ],
+                            [
+                              'OpenRestyCacheLevels',
+                              operationFields.OpenRestyCacheLevels.trim(),
+                            ],
+                            [
+                              'OpenRestyCacheInactive',
+                              operationFields.OpenRestyCacheInactive.trim(),
+                            ],
+                            [
+                              'OpenRestyCacheMaxSize',
+                              operationFields.OpenRestyCacheMaxSize.trim(),
+                            ],
+                            [
+                              'OpenRestyCacheKeyTemplate',
+                              operationFields.OpenRestyCacheKeyTemplate.trim(),
+                            ],
+                            [
+                              'OpenRestyCacheLockEnabled',
+                              String(operationFields.OpenRestyCacheLockEnabled),
+                            ],
+                            [
+                              'OpenRestyCacheLockTimeout',
+                              operationFields.OpenRestyCacheLockTimeout.trim(),
+                            ],
+                            [
+                              'OpenRestyCacheUseStale',
+                              operationFields.OpenRestyCacheUseStale.trim(),
+                            ],
+                            [
+                              'OpenRestyCacheEnabled',
+                              String(operationFields.OpenRestyCacheEnabled),
+                            ],
+                          ],
+                          'OpenResty 压缩与缓存参数已保存。',
+                        );
+                      },
+                    )
+                  }
+                  disabled={busyKey === 'operation-openresty-cache'}
+                >
+                  {busyKey === 'operation-openresty-cache'
+                    ? '保存中...'
+                    : '保存压缩与缓存'}
+                </PrimaryButton>
+              }
+            >
+              <div className="space-y-5">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <ToggleField
+                    label="gzip"
+                    description="是否启用 gzip on。"
+                    checked={operationFields.OpenRestyGzipEnabled}
+                    onChange={(checked) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyGzipEnabled: checked,
+                      }))
+                    }
+                  />
+                  <ToggleField
+                    label="proxy cache"
+                    description="是否启用单节点代理缓存。"
+                    checked={operationFields.OpenRestyCacheEnabled}
+                    onChange={(checked) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyCacheEnabled: checked,
+                      }))
+                    }
+                  />
+                  <ResourceField label="gzip_min_length">
+                    <ResourceInput
+                      type="number"
+                      value={operationFields.OpenRestyGzipMinLength}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyGzipMinLength: event.target.value,
+                        }))
+                      }
+                    />
+                  </ResourceField>
+                  <ResourceField label="gzip_comp_level">
+                    <ResourceInput
+                      type="number"
+                      min="1"
+                      max="9"
+                      value={operationFields.OpenRestyGzipCompLevel}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyGzipCompLevel: event.target.value,
+                        }))
+                      }
+                    />
+                  </ResourceField>
+                </div>
+                <div className="grid gap-5 md:grid-cols-2">
+                  <ResourceField label="proxy_cache_path">
+                    <ResourceInput
+                      value={operationFields.OpenRestyCachePath}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyCachePath: event.target.value,
+                        }))
+                      }
+                      placeholder="/var/cache/openresty/atsflare"
+                    />
+                  </ResourceField>
+                  <ResourceField label="levels">
+                    <ResourceInput
+                      value={operationFields.OpenRestyCacheLevels}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyCacheLevels: event.target.value,
+                        }))
+                      }
+                      placeholder="1:2"
+                    />
+                  </ResourceField>
+                  <ResourceField label="inactive">
+                    <ResourceInput
+                      value={operationFields.OpenRestyCacheInactive}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyCacheInactive: event.target.value,
+                        }))
+                      }
+                      placeholder="30m"
+                    />
+                  </ResourceField>
+                  <ResourceField label="max_size">
+                    <ResourceInput
+                      value={operationFields.OpenRestyCacheMaxSize}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyCacheMaxSize: event.target.value,
+                        }))
+                      }
+                      placeholder="1g"
+                    />
+                  </ResourceField>
+                  <ResourceField label="cache key template">
+                    <ResourceInput
+                      value={operationFields.OpenRestyCacheKeyTemplate}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyCacheKeyTemplate: event.target.value,
+                        }))
+                      }
+                    />
+                  </ResourceField>
+                  <ToggleField
+                    label="proxy_cache_lock"
+                    description="是否启用 proxy_cache_lock。"
+                    checked={operationFields.OpenRestyCacheLockEnabled}
+                    onChange={(checked) =>
+                      setOperationFields((previous) => ({
+                        ...previous,
+                        OpenRestyCacheLockEnabled: checked,
+                      }))
+                    }
+                  />
+                  <ResourceField label="proxy_cache_lock_timeout">
+                    <ResourceInput
+                      value={operationFields.OpenRestyCacheLockTimeout}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyCacheLockTimeout: event.target.value,
+                        }))
+                      }
+                      placeholder="5s"
+                    />
+                  </ResourceField>
+                  <ResourceField label="proxy_cache_use_stale">
+                    <ResourceInput
+                      value={operationFields.OpenRestyCacheUseStale}
+                      onChange={(event) =>
+                        setOperationFields((previous) => ({
+                          ...previous,
+                          OpenRestyCacheUseStale: event.target.value,
                         }))
                       }
                     />
@@ -1819,7 +2617,7 @@ export function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="设置"
-        description="阶段 4 已迁移个人设置、系统设置与运维设置入口，并补齐运行参数、限流和品牌内容配置。"
+        description="第五版从这里开始补齐 OpenResty 性能参数、Agent 运行参数和系统级运维配置。"
       />
 
       {feedback ? (
