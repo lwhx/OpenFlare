@@ -1175,101 +1175,122 @@ export function SettingsPage() {
 
           <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
             <AppCard
-              title="通用与 SMTP 设置"
+              title="通用设置"
               description="服务器地址会影响邮件链接、OAuth 回调和部署命令展示。"
               action={
                 <PrimaryButton
                   type="button"
                   onClick={() =>
-                    void runBusyAction('system-core', async () => {
+                    void runBusyAction('system-general', async () => {
                       await saveOptionEntries(
                         [
                           [
                             'ServerAddress',
                             normalizeServerUrl(systemFields.ServerAddress),
                           ],
+                        ],
+                        '通用设置已保存。',
+                      );
+                    })
+                  }
+                  disabled={busyKey === 'system-general'}
+                >
+                  {busyKey === 'system-general' ? '保存中...' : '保存通用设置'}
+                </PrimaryButton>
+              }
+            >
+              <ResourceField label="服务器地址">
+                <ResourceInput
+                  value={systemFields.ServerAddress}
+                  onChange={(event) =>
+                    setSystemFields((previous) => ({
+                      ...previous,
+                      ServerAddress: event.target.value,
+                    }))
+                  }
+                  placeholder="https://yourdomain.com"
+                />
+              </ResourceField>
+            </AppCard>
+
+            <AppCard
+              title="SMTP 设置"
+              description="用于邮件验证码、密码重置和其他邮件通知发送。"
+              action={
+                <PrimaryButton
+                  type="button"
+                  onClick={() =>
+                    void runBusyAction('system-smtp', async () => {
+                      await saveOptionEntries(
+                        [
                           ['SMTPServer', systemFields.SMTPServer.trim()],
                           ['SMTPPort', systemFields.SMTPPort.trim()],
                           ['SMTPAccount', systemFields.SMTPAccount.trim()],
                           ['SMTPToken', systemFields.SMTPToken.trim()],
                         ],
-                        '通用与 SMTP 设置已保存。',
+                        'SMTP 设置已保存。',
                       );
                     })
                   }
-                  disabled={busyKey === 'system-core'}
+                  disabled={busyKey === 'system-smtp'}
                 >
-                  {busyKey === 'system-core' ? '保存中...' : '保存通用设置'}
+                  {busyKey === 'system-smtp' ? '保存中...' : '保存 SMTP 设置'}
                 </PrimaryButton>
               }
             >
-              <div className="space-y-5">
-                <ResourceField label="服务器地址">
+              <div className="grid gap-5 md:grid-cols-2">
+                <ResourceField label="SMTP 服务器">
                   <ResourceInput
-                    value={systemFields.ServerAddress}
+                    value={systemFields.SMTPServer}
                     onChange={(event) =>
                       setSystemFields((previous) => ({
                         ...previous,
-                        ServerAddress: event.target.value,
+                        SMTPServer: event.target.value,
                       }))
                     }
-                    placeholder="https://yourdomain.com"
+                    placeholder="smtp.qq.com"
                   />
                 </ResourceField>
-                <div className="grid gap-5 md:grid-cols-2">
-                  <ResourceField label="SMTP 服务器">
-                    <ResourceInput
-                      value={systemFields.SMTPServer}
-                      onChange={(event) =>
-                        setSystemFields((previous) => ({
-                          ...previous,
-                          SMTPServer: event.target.value,
-                        }))
-                      }
-                      placeholder="smtp.qq.com"
-                    />
-                  </ResourceField>
-                  <ResourceField label="SMTP 端口">
-                    <ResourceInput
-                      value={systemFields.SMTPPort}
-                      onChange={(event) =>
-                        setSystemFields((previous) => ({
-                          ...previous,
-                          SMTPPort: event.target.value,
-                        }))
-                      }
-                      placeholder="587"
-                    />
-                  </ResourceField>
-                  <ResourceField label="SMTP 账户">
-                    <ResourceInput
-                      value={systemFields.SMTPAccount}
-                      onChange={(event) =>
-                        setSystemFields((previous) => ({
-                          ...previous,
-                          SMTPAccount: event.target.value,
-                        }))
-                      }
-                      placeholder="name@example.com"
-                    />
-                  </ResourceField>
-                  <ResourceField
-                    label="SMTP 凭证"
-                    hint="因安全原因不会回显历史密钥，留空表示不更新。"
-                  >
-                    <ResourceInput
-                      type="password"
-                      value={systemFields.SMTPToken}
-                      onChange={(event) =>
-                        setSystemFields((previous) => ({
-                          ...previous,
-                          SMTPToken: event.target.value,
-                        }))
-                      }
-                      placeholder="请输入新的 SMTP 凭证"
-                    />
-                  </ResourceField>
-                </div>
+                <ResourceField label="SMTP 端口">
+                  <ResourceInput
+                    value={systemFields.SMTPPort}
+                    onChange={(event) =>
+                      setSystemFields((previous) => ({
+                        ...previous,
+                        SMTPPort: event.target.value,
+                      }))
+                    }
+                    placeholder="587"
+                  />
+                </ResourceField>
+                <ResourceField label="SMTP 账户">
+                  <ResourceInput
+                    value={systemFields.SMTPAccount}
+                    onChange={(event) =>
+                      setSystemFields((previous) => ({
+                        ...previous,
+                        SMTPAccount: event.target.value,
+                      }))
+                    }
+                    placeholder="name@example.com"
+                  />
+                </ResourceField>
+                <ResourceField
+                  label="SMTP 凭证"
+                  hint="因安全原因不会回显历史密钥，留空表示不更新。"
+                >
+                  <ResourceInput
+                    type="password"
+                    value={systemFields.SMTPToken}
+                    onChange={(event) =>
+                      setSystemFields((previous) => ({
+                        ...previous,
+                        SMTPToken: event.target.value,
+                      }))
+                    }
+                    placeholder="请输入新的 SMTP 凭证"
+                  />
+                </ResourceField>
               </div>
             </AppCard>
 
