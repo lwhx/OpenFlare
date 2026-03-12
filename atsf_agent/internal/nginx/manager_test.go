@@ -291,8 +291,14 @@ func TestNewExecutorUsesAbsoluteDockerMountPath(t *testing.T) {
 	if !filepath.IsAbs(dockerExecutor.RouteConfigDir) {
 		t.Fatalf("expected absolute route config dir, got %s", dockerExecutor.RouteConfigDir)
 	}
+	if !filepath.IsAbs(dockerExecutor.MainConfigPath) {
+		t.Fatalf("expected absolute main config path, got %s", dockerExecutor.MainConfigPath)
+	}
 	if !strings.HasSuffix(dockerExecutor.RouteConfigDir, filepath.Clean("data/etc/nginx/conf.d")) {
 		t.Fatalf("unexpected route config dir: %s", dockerExecutor.RouteConfigDir)
+	}
+	if !strings.HasSuffix(dockerExecutor.MainConfigPath, filepath.Clean("data/etc/nginx/nginx.conf")) {
+		t.Fatalf("unexpected main config path: %s", dockerExecutor.MainConfigPath)
 	}
 }
 

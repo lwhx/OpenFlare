@@ -315,6 +315,10 @@ func NewExecutor(options ExecutorOptions) Executor {
 			Runner: runner,
 		}
 	}
+	mainConfigPath := options.MainConfigPath
+	if absPath, err := filepath.Abs(mainConfigPath); err == nil {
+		mainConfigPath = absPath
+	}
 	routeConfigDir := filepath.Dir(options.RouteConfigPath)
 	if absDir, err := filepath.Abs(routeConfigDir); err == nil {
 		routeConfigDir = absDir
@@ -327,7 +331,7 @@ func NewExecutor(options ExecutorOptions) Executor {
 		DockerBinary:   options.DockerBinary,
 		ContainerName:  options.ContainerName,
 		Image:          options.Image,
-		MainConfigPath: options.MainConfigPath,
+		MainConfigPath: mainConfigPath,
 		RouteConfigDir: routeConfigDir,
 		CertDir:        certDir,
 		NginxCertDir:   options.NginxCertDir,
