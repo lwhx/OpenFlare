@@ -64,10 +64,13 @@ func InitOptionMap() {
 	common.OptionMap["OpenRestyKeepaliveRequests"] = strconv.Itoa(common.OpenRestyKeepaliveRequests)
 	common.OptionMap["OpenRestyClientHeaderTimeout"] = strconv.Itoa(common.OpenRestyClientHeaderTimeout)
 	common.OptionMap["OpenRestyClientBodyTimeout"] = strconv.Itoa(common.OpenRestyClientBodyTimeout)
+	common.OptionMap["OpenRestyClientMaxBodySize"] = common.OpenRestyClientMaxBodySize
+	common.OptionMap["OpenRestyLargeClientHeaderBuffers"] = common.OpenRestyLargeClientHeaderBuffers
 	common.OptionMap["OpenRestySendTimeout"] = strconv.Itoa(common.OpenRestySendTimeout)
 	common.OptionMap["OpenRestyProxyConnectTimeout"] = strconv.Itoa(common.OpenRestyProxyConnectTimeout)
 	common.OptionMap["OpenRestyProxySendTimeout"] = strconv.Itoa(common.OpenRestyProxySendTimeout)
 	common.OptionMap["OpenRestyProxyReadTimeout"] = strconv.Itoa(common.OpenRestyProxyReadTimeout)
+	common.OptionMap["OpenRestyProxyRequestBufferingEnabled"] = strconv.FormatBool(common.OpenRestyProxyRequestBufferingEnabled)
 	common.OptionMap["OpenRestyProxyBufferingEnabled"] = strconv.FormatBool(common.OpenRestyProxyBufferingEnabled)
 	common.OptionMap["OpenRestyProxyBuffers"] = common.OpenRestyProxyBuffers
 	common.OptionMap["OpenRestyProxyBufferSize"] = common.OpenRestyProxyBufferSize
@@ -240,6 +243,14 @@ func updateOptionMap(key string, value string) {
 		if v, err := strconv.Atoi(value); err == nil && v > 0 {
 			common.OpenRestyClientBodyTimeout = v
 		}
+	case "OpenRestyClientMaxBodySize":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyClientMaxBodySize = value
+		}
+	case "OpenRestyLargeClientHeaderBuffers":
+		if strings.TrimSpace(value) != "" {
+			common.OpenRestyLargeClientHeaderBuffers = value
+		}
 	case "OpenRestySendTimeout":
 		if v, err := strconv.Atoi(value); err == nil && v > 0 {
 			common.OpenRestySendTimeout = v
@@ -256,6 +267,8 @@ func updateOptionMap(key string, value string) {
 		if v, err := strconv.Atoi(value); err == nil && v > 0 {
 			common.OpenRestyProxyReadTimeout = v
 		}
+	case "OpenRestyProxyRequestBufferingEnabled":
+		common.OpenRestyProxyRequestBufferingEnabled = value == "true"
 	case "OpenRestyProxyBufferingEnabled":
 		common.OpenRestyProxyBufferingEnabled = value == "true"
 	case "OpenRestyProxyBuffers":

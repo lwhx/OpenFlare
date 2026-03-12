@@ -65,10 +65,13 @@ var OpenRestyKeepaliveTimeout = 65
 var OpenRestyKeepaliveRequests = 1000
 var OpenRestyClientHeaderTimeout = 15
 var OpenRestyClientBodyTimeout = 15
+var OpenRestyClientMaxBodySize = "64m"
+var OpenRestyLargeClientHeaderBuffers = "4 16k"
 var OpenRestySendTimeout = 30
 var OpenRestyProxyConnectTimeout = 5
 var OpenRestyProxySendTimeout = 60
 var OpenRestyProxyReadTimeout = 60
+var OpenRestyProxyRequestBufferingEnabled = true
 var OpenRestyProxyBufferingEnabled = true
 var OpenRestyProxyBuffers = "16 16k"
 var OpenRestyProxyBufferSize = "8k"
@@ -104,10 +107,13 @@ http {
     keepalive_requests {{OpenRestyKeepaliveRequests}};
     client_header_timeout {{OpenRestyClientHeaderTimeout}};
     client_body_timeout {{OpenRestyClientBodyTimeout}};
+    client_max_body_size {{OpenRestyClientMaxBodySize}};
+    large_client_header_buffers {{OpenRestyLargeClientHeaderBuffers}};
     send_timeout {{OpenRestySendTimeout}};
     proxy_connect_timeout {{OpenRestyProxyConnectTimeout}};
     proxy_send_timeout {{OpenRestyProxySendTimeout}};
     proxy_read_timeout {{OpenRestyProxyReadTimeout}};
+    proxy_request_buffering {{OpenRestyProxyRequestBuffering}};
     proxy_buffering {{OpenRestyProxyBuffering}};
     proxy_buffers {{OpenRestyProxyBuffers}};
     proxy_buffer_size {{OpenRestyProxyBufferSize}};

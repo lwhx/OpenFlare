@@ -61,6 +61,47 @@ const defaultPerformanceFields = {
     'error timeout updating http_500 http_502 http_503 http_504',
 };
 
+const performanceFieldTooltips: Record<string, string> = {
+  worker_processes:
+    'Nginx worker 进程数。通常建议保持 auto，让 OpenResty 按 CPU 核数自动分配。',
+  worker_connections:
+    '每个 worker 可同时处理的最大连接数。值越大，可承载的并发连接越多。',
+  worker_rlimit_nofile:
+    '提升 worker 可打开的文件描述符上限，避免高并发下连接或文件句柄不足。',
+  events_use:
+    '指定事件驱动模型。Linux 常见是 epoll，留空时由 OpenResty 自动选择。',
+  multi_accept:
+    '开启后，worker 会尽可能一次接受多个新连接，适合高吞吐接入场景。',
+  keepalive_timeout: '客户端 Keep-Alive 空闲保持时间，单位秒。',
+  keepalive_requests: '单个长连接允许复用的最大请求数。',
+  client_header_timeout: '读取客户端请求头的超时时间，单位秒。',
+  client_body_timeout: '读取客户端请求体的超时时间，单位秒。',
+  send_timeout: '向客户端发送响应时的超时时间，单位秒。',
+  proxy_connect_timeout: '连接上游源站的超时时间，单位秒。',
+  proxy_send_timeout: '向上游发送请求的超时时间，单位秒。',
+  proxy_read_timeout: '等待上游返回响应的超时时间，单位秒。',
+  proxy_buffering:
+    '控制是否启用代理响应缓冲。开启后通常有更平滑的吞吐，但会增加内存占用。',
+  proxy_buffers: '设置代理响应缓冲区的数量和大小，例如 16 16k。',
+  proxy_buffer_size: '保存响应头等小块数据的基础缓冲区大小。',
+  proxy_busy_buffers_size: '限制 busy 状态下可同时占用的缓冲区总大小。',
+  gzip: '控制是否启用 gzip 压缩响应。',
+  gzip_min_length:
+    '只有响应体超过该字节数时才会启用 gzip，避免对极小响应做无意义压缩。',
+  gzip_comp_level: 'gzip 压缩等级，1 更省 CPU，9 压缩更高但更耗 CPU。',
+  proxy_cache_path: '缓存目录路径，对应 proxy_cache_path 指令中的磁盘位置。',
+  levels: '缓存目录层级，例如 1:2，可控制缓存文件的目录分布。',
+  inactive: '缓存对象在未命中访问时的失活时间，例如 30m。',
+  max_size:
+    '缓存目录允许占用的最大磁盘空间，会渲染到 proxy_cache_path 的 max_size。',
+  cache_key_template: '生成缓存 Key 的模板，决定不同请求如何命中同一缓存对象。',
+  proxy_cache_lock:
+    '启用后，同一缓存 Key 未命中时只允许一个请求回源，减少击穿。',
+  proxy_cache_lock_timeout: '等待缓存锁的最长时间，例如 5s。',
+  proxy_cache_use_stale:
+    '上游异常时允许返回旧缓存的条件列表，例如 error、timeout、http_500。',
+};
+
 type PerformanceTab = 'settings' | 'editor';
 
 type FeedbackState = {
@@ -609,7 +650,10 @@ export function PerformancePage() {
             }
           >
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <ResourceField label="worker_processes">
+              <ResourceField
+                label="worker_processes"
+                tooltip={performanceFieldTooltips.worker_processes}
+              >
                 <ResourceInput
                   value={performanceFields.OpenRestyWorkerProcesses}
                   onChange={(event) =>
@@ -621,7 +665,10 @@ export function PerformancePage() {
                   placeholder="auto"
                 />
               </ResourceField>
-              <ResourceField label="worker_connections">
+              <ResourceField
+                label="worker_connections"
+                tooltip={performanceFieldTooltips.worker_connections}
+              >
                 <ResourceInput
                   type="number"
                   value={performanceFields.OpenRestyWorkerConnections}
@@ -633,7 +680,10 @@ export function PerformancePage() {
                   }
                 />
               </ResourceField>
-              <ResourceField label="worker_rlimit_nofile">
+              <ResourceField
+                label="worker_rlimit_nofile"
+                tooltip={performanceFieldTooltips.worker_rlimit_nofile}
+              >
                 <ResourceInput
                   type="number"
                   value={performanceFields.OpenRestyWorkerRlimitNofile}
@@ -645,7 +695,11 @@ export function PerformancePage() {
                   }
                 />
               </ResourceField>
-              <ResourceField label="events use" hint="留空表示不显式渲染。">
+              <ResourceField
+                label="events use"
+                hint="留空表示不显式渲染。"
+                tooltip={performanceFieldTooltips.events_use}
+              >
                 <ResourceSelect
                   value={performanceFields.OpenRestyEventsUse}
                   onChange={(event) =>
@@ -665,6 +719,7 @@ export function PerformancePage() {
               <ToggleField
                 label="multi_accept"
                 description=""
+                tooltip={performanceFieldTooltips.multi_accept}
                 checked={performanceFields.OpenRestyEventsMultiAcceptEnabled}
                 onChange={(checked) =>
                   setPerformanceFields((previous) => ({
@@ -673,7 +728,10 @@ export function PerformancePage() {
                   }))
                 }
               />
-              <ResourceField label="keepalive_timeout (秒)">
+              <ResourceField
+                label="keepalive_timeout (秒)"
+                tooltip={performanceFieldTooltips.keepalive_timeout}
+              >
                 <ResourceInput
                   type="number"
                   value={performanceFields.OpenRestyKeepaliveTimeout}
@@ -685,7 +743,10 @@ export function PerformancePage() {
                   }
                 />
               </ResourceField>
-              <ResourceField label="keepalive_requests">
+              <ResourceField
+                label="keepalive_requests"
+                tooltip={performanceFieldTooltips.keepalive_requests}
+              >
                 <ResourceInput
                   type="number"
                   value={performanceFields.OpenRestyKeepaliveRequests}
@@ -697,7 +758,10 @@ export function PerformancePage() {
                   }
                 />
               </ResourceField>
-              <ResourceField label="client_header_timeout (秒)">
+              <ResourceField
+                label="client_header_timeout (秒)"
+                tooltip={performanceFieldTooltips.client_header_timeout}
+              >
                 <ResourceInput
                   type="number"
                   value={performanceFields.OpenRestyClientHeaderTimeout}
@@ -709,7 +773,10 @@ export function PerformancePage() {
                   }
                 />
               </ResourceField>
-              <ResourceField label="client_body_timeout (秒)">
+              <ResourceField
+                label="client_body_timeout (秒)"
+                tooltip={performanceFieldTooltips.client_body_timeout}
+              >
                 <ResourceInput
                   type="number"
                   value={performanceFields.OpenRestyClientBodyTimeout}
@@ -721,7 +788,10 @@ export function PerformancePage() {
                   }
                 />
               </ResourceField>
-              <ResourceField label="send_timeout (秒)">
+              <ResourceField
+                label="send_timeout (秒)"
+                tooltip={performanceFieldTooltips.send_timeout}
+              >
                 <ResourceInput
                   type="number"
                   value={performanceFields.OpenRestySendTimeout}
@@ -753,7 +823,10 @@ export function PerformancePage() {
               }
             >
               <div className="grid gap-5 md:grid-cols-2">
-                <ResourceField label="proxy_connect_timeout (秒)">
+                <ResourceField
+                  label="proxy_connect_timeout (秒)"
+                  tooltip={performanceFieldTooltips.proxy_connect_timeout}
+                >
                   <ResourceInput
                     type="number"
                     value={performanceFields.OpenRestyProxyConnectTimeout}
@@ -765,7 +838,10 @@ export function PerformancePage() {
                     }
                   />
                 </ResourceField>
-                <ResourceField label="proxy_send_timeout (秒)">
+                <ResourceField
+                  label="proxy_send_timeout (秒)"
+                  tooltip={performanceFieldTooltips.proxy_send_timeout}
+                >
                   <ResourceInput
                     type="number"
                     value={performanceFields.OpenRestyProxySendTimeout}
@@ -777,7 +853,10 @@ export function PerformancePage() {
                     }
                   />
                 </ResourceField>
-                <ResourceField label="proxy_read_timeout (秒)">
+                <ResourceField
+                  label="proxy_read_timeout (秒)"
+                  tooltip={performanceFieldTooltips.proxy_read_timeout}
+                >
                   <ResourceInput
                     type="number"
                     value={performanceFields.OpenRestyProxyReadTimeout}
@@ -792,6 +871,7 @@ export function PerformancePage() {
                 <ToggleField
                   label="proxy_buffering"
                   description="是否启用 proxy_buffering。"
+                  tooltip={performanceFieldTooltips.proxy_buffering}
                   checked={performanceFields.OpenRestyProxyBufferingEnabled}
                   onChange={(checked) =>
                     setPerformanceFields((previous) => ({
@@ -800,7 +880,10 @@ export function PerformancePage() {
                     }))
                   }
                 />
-                <ResourceField label="proxy_buffers">
+                <ResourceField
+                  label="proxy_buffers"
+                  tooltip={performanceFieldTooltips.proxy_buffers}
+                >
                   <ResourceInput
                     value={performanceFields.OpenRestyProxyBuffers}
                     onChange={(event) =>
@@ -812,7 +895,10 @@ export function PerformancePage() {
                     placeholder="16 16k"
                   />
                 </ResourceField>
-                <ResourceField label="proxy_buffer_size">
+                <ResourceField
+                  label="proxy_buffer_size"
+                  tooltip={performanceFieldTooltips.proxy_buffer_size}
+                >
                   <ResourceInput
                     value={performanceFields.OpenRestyProxyBufferSize}
                     onChange={(event) =>
@@ -824,7 +910,10 @@ export function PerformancePage() {
                     placeholder="8k"
                   />
                 </ResourceField>
-                <ResourceField label="proxy_busy_buffers_size">
+                <ResourceField
+                  label="proxy_busy_buffers_size"
+                  tooltip={performanceFieldTooltips.proxy_busy_buffers_size}
+                >
                   <ResourceInput
                     value={performanceFields.OpenRestyProxyBusyBuffersSize}
                     onChange={(event) =>
@@ -860,6 +949,7 @@ export function PerformancePage() {
                     <ToggleField
                       label="gzip"
                       description="是否启用 gzip on。"
+                      tooltip={performanceFieldTooltips.gzip}
                       checked={performanceFields.OpenRestyGzipEnabled}
                       onChange={(checked) =>
                         setPerformanceFields((previous) => ({
@@ -882,7 +972,10 @@ export function PerformancePage() {
                         </p>
                       )}
                     </div>
-                    <ResourceField label="gzip_min_length">
+                    <ResourceField
+                      label="gzip_min_length"
+                      tooltip={performanceFieldTooltips.gzip_min_length}
+                    >
                       <ResourceInput
                         type="number"
                         value={performanceFields.OpenRestyGzipMinLength}
@@ -894,7 +987,10 @@ export function PerformancePage() {
                         }
                       />
                     </ResourceField>
-                    <ResourceField label="gzip_comp_level">
+                    <ResourceField
+                      label="gzip_comp_level"
+                      tooltip={performanceFieldTooltips.gzip_comp_level}
+                    >
                       <ResourceInput
                         type="number"
                         min="1"
@@ -1018,6 +1114,7 @@ export function PerformancePage() {
                   >
                     <ResourceField
                       label="proxy_cache_path"
+                      tooltip={performanceFieldTooltips.proxy_cache_path}
                       hint={
                         performanceFields.OpenRestyCacheEnabled
                           ? '缓存目录，启用缓存时必填。'
@@ -1036,7 +1133,10 @@ export function PerformancePage() {
                         placeholder="/var/cache/openresty/atsflare"
                       />
                     </ResourceField>
-                    <ResourceField label="levels">
+                    <ResourceField
+                      label="levels"
+                      tooltip={performanceFieldTooltips.levels}
+                    >
                       <ResourceInput
                         value={performanceFields.OpenRestyCacheLevels}
                         disabled={!performanceFields.OpenRestyCacheEnabled}
@@ -1049,7 +1149,10 @@ export function PerformancePage() {
                         placeholder="1:2"
                       />
                     </ResourceField>
-                    <ResourceField label="inactive">
+                    <ResourceField
+                      label="inactive"
+                      tooltip={performanceFieldTooltips.inactive}
+                    >
                       <ResourceInput
                         value={performanceFields.OpenRestyCacheInactive}
                         disabled={!performanceFields.OpenRestyCacheEnabled}
@@ -1062,7 +1165,10 @@ export function PerformancePage() {
                         placeholder="30m"
                       />
                     </ResourceField>
-                    <ResourceField label="max_size">
+                    <ResourceField
+                      label="max_size"
+                      tooltip={performanceFieldTooltips.max_size}
+                    >
                       <ResourceInput
                         value={performanceFields.OpenRestyCacheMaxSize}
                         disabled={!performanceFields.OpenRestyCacheEnabled}
@@ -1075,7 +1181,10 @@ export function PerformancePage() {
                         placeholder="1g"
                       />
                     </ResourceField>
-                    <ResourceField label="cache key template">
+                    <ResourceField
+                      label="cache key template"
+                      tooltip={performanceFieldTooltips.cache_key_template}
+                    >
                       <ResourceInput
                         value={performanceFields.OpenRestyCacheKeyTemplate}
                         disabled={!performanceFields.OpenRestyCacheEnabled}
@@ -1090,6 +1199,7 @@ export function PerformancePage() {
                     <ToggleField
                       label="proxy_cache_lock"
                       description="是否启用 proxy_cache_lock。"
+                      tooltip={performanceFieldTooltips.proxy_cache_lock}
                       checked={performanceFields.OpenRestyCacheLockEnabled}
                       disabled={!performanceFields.OpenRestyCacheEnabled}
                       onChange={(checked) =>
@@ -1099,7 +1209,12 @@ export function PerformancePage() {
                         }))
                       }
                     />
-                    <ResourceField label="proxy_cache_lock_timeout">
+                    <ResourceField
+                      label="proxy_cache_lock_timeout"
+                      tooltip={
+                        performanceFieldTooltips.proxy_cache_lock_timeout
+                      }
+                    >
                       <ResourceInput
                         value={performanceFields.OpenRestyCacheLockTimeout}
                         disabled={!performanceFields.OpenRestyCacheEnabled}
@@ -1112,7 +1227,10 @@ export function PerformancePage() {
                         placeholder="5s"
                       />
                     </ResourceField>
-                    <ResourceField label="proxy_cache_use_stale">
+                    <ResourceField
+                      label="proxy_cache_use_stale"
+                      tooltip={performanceFieldTooltips.proxy_cache_use_stale}
+                    >
                       <ResourceInput
                         value={performanceFields.OpenRestyCacheUseStale}
                         disabled={!performanceFields.OpenRestyCacheEnabled}
