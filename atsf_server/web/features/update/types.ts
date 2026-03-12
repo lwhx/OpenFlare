@@ -8,3 +8,15 @@ export interface LatestReleaseInfo {
   upgrade_supported: boolean;
   in_progress: boolean;
 }
+
+export interface UploadedServerBinaryInfo {
+  upload_token: string;
+  file_name: string;
+  detected_version: string;
+  current_version: string;
+  has_update: boolean;
+  upgrade_supported: boolean;
+  ready_to_upgrade: boolean;
+  comparison_message: string;
+  uploaded_at: string;
+}

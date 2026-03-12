@@ -7,8 +7,14 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/providers/auth-provider';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { getPublicStatus } from '@/features/auth/api/public';
-import { getLatestRelease, upgradeServer } from '@/features/update/api/update';
+import {
+  confirmManualServerUpgrade,
+  getLatestRelease,
+  upgradeServer,
+  uploadServerBinary,
+} from '@/features/update/api/update';
 import { VersionUpgradeModal } from '@/features/update/components/version-upgrade-modal';
+import type { UploadedServerBinaryInfo } from '@/features/update/types';
 import { publicEnv } from '@/lib/env/public-env';
 import { useAppShellStore } from '@/store/app-shell';
 
@@ -26,6 +32,14 @@ export function DashboardTopbar() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
   const [versionFeedback, setVersionFeedback] = useState<string | null>(null);
+  const [manualUpgradeStatus, setManualUpgradeStatus] = useState<string | null>(
+    null,
+  );
+  const [manualUpgradeError, setManualUpgradeError] = useState<string | null>(
+    null,
+  );
+  const [uploadedBinary, setUploadedBinary] =
+    useState<UploadedServerBinaryInfo | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const isRoot = (user?.role ?? 0) >= 100;
 
@@ -44,6 +58,9 @@ export function DashboardTopbar() {
   const upgradeMutation = useMutation({
     mutationFn: upgradeServer,
     onSuccess: (release) => {
+      setUploadedBinary(null);
+      setManualUpgradeStatus(null);
+      setManualUpgradeError(null);
       setVersionFeedback(
         `服务升级任务已启动，目标版本 ${release.tag_name}。页面可能短暂不可用。`,
       );
@@ -52,6 +69,44 @@ export function DashboardTopbar() {
     onError: (error) => {
       setVersionFeedback(
         error instanceof Error ? error.message : '升级失败，请稍后重试。',
+      );
+    },
+  });
+
+  const uploadBinaryMutation = useMutation({
+    mutationFn: uploadServerBinary,
+    onSuccess: (candidate) => {
+      setVersionFeedback(null);
+      setManualUpgradeError(null);
+      setUploadedBinary(candidate);
+      setManualUpgradeStatus(candidate.comparison_message);
+    },
+    onError: (error) => {
+      setUploadedBinary(null);
+      setManualUpgradeStatus(null);
+      setManualUpgradeError(
+        error instanceof Error ? error.message : '上传升级包失败，请稍后重试。',
+      );
+    },
+  });
+
+  const confirmManualUpgradeMutation = useMutation({
+    mutationFn: confirmManualServerUpgrade,
+    onSuccess: (candidate) => {
+      setVersionFeedback(null);
+      setManualUpgradeError(null);
+      setUploadedBinary(candidate);
+      setManualUpgradeStatus(
+        `手动升级任务已启动，目标版本 ${candidate.detected_version}。页面可能短暂不可用。`,
+      );
+      void latestReleaseQuery.refetch();
+    },
+    onError: (error) => {
+      setManualUpgradeStatus(null);
+      setManualUpgradeError(
+        error instanceof Error
+          ? error.message
+          : '确认手动升级失败，请稍后重试。',
       );
     },
   });
@@ -100,6 +155,8 @@ export function DashboardTopbar() {
 
   const handleOpenVersionModal = () => {
     setVersionFeedback(null);
+    setManualUpgradeStatus(null);
+    setManualUpgradeError(null);
     setIsVersionModalOpen(true);
     if (isRoot) {
       void latestReleaseQuery.refetch();
@@ -108,7 +165,27 @@ export function DashboardTopbar() {
 
   const handleUpgrade = () => {
     setVersionFeedback(null);
+    setManualUpgradeStatus(null);
+    setManualUpgradeError(null);
     upgradeMutation.mutate();
+  };
+
+  const handleUploadBinary = (binary: File) => {
+    setManualUpgradeStatus(null);
+    setManualUpgradeError(null);
+    uploadBinaryMutation.mutate(binary);
+  };
+
+  const handleConfirmManualUpgrade = () => {
+    if (!uploadedBinary?.upload_token) {
+      setManualUpgradeStatus(null);
+      setManualUpgradeError('请先上传并检查升级包。');
+      return;
+    }
+    setVersionFeedback(null);
+    setManualUpgradeStatus(null);
+    setManualUpgradeError(null);
+    confirmManualUpgradeMutation.mutate(uploadedBinary.upload_token);
   };
 
   const release = latestReleaseQuery.data;
@@ -127,6 +204,7 @@ export function DashboardTopbar() {
         ? latestReleaseQuery.error.message
         : '版本检查失败，请稍后重试。'
       : undefined);
+  const manualUpgradeErrorMessage = manualUpgradeError ?? undefined;
 
   return (
     <>
@@ -206,11 +284,16 @@ export function DashboardTopbar() {
         frontendVersion={publicEnv.appVersion}
         startTime={publicStatusQuery.data?.start_time}
         release={release}
+        uploadedBinary={uploadedBinary}
         isLoading={latestReleaseQuery.isLoading && !release && isRoot}
-        errorMessage={versionErrorMessage}
+        releaseErrorMessage={versionErrorMessage}
+        manualStatusMessage={manualUpgradeStatus ?? undefined}
+        manualErrorMessage={manualUpgradeErrorMessage}
         canUpgrade={isRoot}
         isChecking={latestReleaseQuery.isFetching}
         isUpgrading={upgradeMutation.isPending}
+        isUploadingBinary={uploadBinaryMutation.isPending}
+        isConfirmingManualUpgrade={confirmManualUpgradeMutation.isPending}
         onRefresh={() => {
           setVersionFeedback(null);
           if (isRoot) {
@@ -218,6 +301,8 @@ export function DashboardTopbar() {
           }
         }}
         onUpgrade={handleUpgrade}
+        onUploadBinary={handleUploadBinary}
+        onConfirmManualUpgrade={handleConfirmManualUpgrade}
       />
     </>
   );

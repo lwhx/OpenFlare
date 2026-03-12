@@ -3,12 +3,15 @@ package service
 import (
 	"atsflare/common"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -27,6 +30,15 @@ var serverUpgradeState struct {
 	sync.Mutex
 	inProgress bool
 }
+
+var manualServerBinaryState struct {
+	sync.Mutex
+	candidate *manualServerBinaryCandidate
+}
+
+var serverBinaryUpgradeExecutor = replaceAndRestartServer
+
+var serverUpgradeDispatchDelay = 500 * time.Millisecond
 
 type LatestServerRelease struct {
 	TagName          string `json:"tag_name"`
@@ -58,6 +70,28 @@ type preparedServerUpgrade struct {
 	execPath    string
 }
 
+type UploadedServerBinary struct {
+	UploadToken       string    `json:"upload_token"`
+	FileName          string    `json:"file_name"`
+	DetectedVersion   string    `json:"detected_version"`
+	CurrentVersion    string    `json:"current_version"`
+	HasUpdate         bool      `json:"has_update"`
+	UpgradeSupported  bool      `json:"upgrade_supported"`
+	ReadyToUpgrade    bool      `json:"ready_to_upgrade"`
+	ComparisonMessage string    `json:"comparison_message"`
+	UploadedAt        time.Time `json:"uploaded_at"`
+}
+
+type manualServerBinaryCandidate struct {
+	UploadToken     string
+	FileName        string
+	DetectedVersion string
+	CurrentVersion  string
+	TempPath        string
+	ExecPath        string
+	UploadedAt      time.Time
+}
+
 func GetLatestServerRelease(ctx context.Context) (*LatestServerRelease, error) {
 	release, err := fetchLatestRelease(ctx)
 	if err != nil {
@@ -85,7 +119,7 @@ func ScheduleServerUpgrade() (*LatestServerRelease, error) {
 	prepared.release.InProgress = true
 
 	go func(task *preparedServerUpgrade) {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(serverUpgradeDispatchDelay)
 		if err := executeServerUpgrade(task); err != nil {
 			log.Printf("server self-update failed: %v", err)
 			serverUpgradeState.Lock()
@@ -95,6 +129,123 @@ func ScheduleServerUpgrade() (*LatestServerRelease, error) {
 	}(prepared)
 
 	return prepared.release, nil
+}
+
+func UploadManualServerBinary(ctx context.Context, fileName string, reader io.Reader) (*UploadedServerBinary, error) {
+	serverUpgradeState.Lock()
+	inProgress := serverUpgradeState.inProgress
+	serverUpgradeState.Unlock()
+	if inProgress {
+		return nil, fmt.Errorf("服务升级已在执行中，请稍后再试")
+	}
+	if strings.TrimSpace(fileName) == "" {
+		return nil, fmt.Errorf("缺少上传文件名")
+	}
+	if reader == nil {
+		return nil, fmt.Errorf("缺少上传文件内容")
+	}
+
+	tempPath, err := persistUploadedServerBinary(fileName, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	detectedVersion, err := detectUploadedServerBinaryVersion(ctx, tempPath)
+	if err != nil {
+		_ = os.Remove(tempPath)
+		return nil, err
+	}
+
+	currentVersion := strings.TrimSpace(common.Version)
+	uploadedAt := time.Now()
+	info := buildUploadedServerBinaryView(fileName, currentVersion, detectedVersion, uploadedAt)
+	if !info.ReadyToUpgrade {
+		_ = os.Remove(tempPath)
+		return info, nil
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		_ = os.Remove(tempPath)
+		return nil, fmt.Errorf("获取当前服务程序路径失败: %v", err)
+	}
+	if err = verifyExecutableDirectoryWritable(execPath); err != nil {
+		_ = os.Remove(tempPath)
+		return nil, err
+	}
+
+	uploadToken, err := newUpgradeToken()
+	if err != nil {
+		_ = os.Remove(tempPath)
+		return nil, fmt.Errorf("生成升级令牌失败: %v", err)
+	}
+
+	manualServerBinaryState.Lock()
+	cleanupManualServerBinaryCandidateLocked()
+	manualServerBinaryState.candidate = &manualServerBinaryCandidate{
+		UploadToken:     uploadToken,
+		FileName:        fileName,
+		DetectedVersion: detectedVersion,
+		CurrentVersion:  currentVersion,
+		TempPath:        tempPath,
+		ExecPath:        execPath,
+		UploadedAt:      uploadedAt,
+	}
+	manualServerBinaryState.Unlock()
+
+	info.UploadToken = uploadToken
+	return info, nil
+}
+
+func ConfirmManualServerUpgrade(uploadToken string) (*UploadedServerBinary, error) {
+	uploadToken = strings.TrimSpace(uploadToken)
+	if uploadToken == "" {
+		return nil, fmt.Errorf("缺少升级令牌")
+	}
+
+	serverUpgradeState.Lock()
+	if serverUpgradeState.inProgress {
+		serverUpgradeState.Unlock()
+		return nil, fmt.Errorf("服务升级已在执行中，请稍后再试")
+	}
+	serverUpgradeState.Unlock()
+
+	manualServerBinaryState.Lock()
+	candidate := manualServerBinaryState.candidate
+	if candidate == nil {
+		manualServerBinaryState.Unlock()
+		return nil, fmt.Errorf("未找到待确认的上传升级包，请重新上传")
+	}
+	if candidate.UploadToken != uploadToken {
+		manualServerBinaryState.Unlock()
+		return nil, fmt.Errorf("升级令牌无效或已过期，请重新上传")
+	}
+	manualServerBinaryState.candidate = nil
+	manualServerBinaryState.Unlock()
+
+	info := buildUploadedServerBinaryView(candidate.FileName, candidate.CurrentVersion, candidate.DetectedVersion, candidate.UploadedAt)
+	info.UploadToken = candidate.UploadToken
+	if !info.ReadyToUpgrade {
+		_ = os.Remove(candidate.TempPath)
+		return nil, fmt.Errorf("当前上传的二进制不满足升级条件")
+	}
+
+	serverUpgradeState.Lock()
+	serverUpgradeState.inProgress = true
+	serverUpgradeState.Unlock()
+
+	go func(task *manualServerBinaryCandidate) {
+		time.Sleep(serverUpgradeDispatchDelay)
+		if err := executeManualServerUpgrade(task); err != nil {
+			log.Printf("server manual upgrade failed: %v", err)
+			serverUpgradeState.Lock()
+			serverUpgradeState.inProgress = false
+			serverUpgradeState.Unlock()
+			_ = os.Remove(task.TempPath)
+		}
+	}(candidate)
+
+	return info, nil
 }
 
 func fetchLatestRelease(ctx context.Context) (*githubReleaseResponse, error) {
@@ -244,7 +395,12 @@ func executeServerUpgrade(task *preparedServerUpgrade) error {
 	}
 
 	common.SysLog("server self-update starting: from=" + strings.TrimSpace(common.Version) + " to=" + task.release.TagName)
-	return replaceAndRestartServer(task.execPath, tmpPath)
+	return serverBinaryUpgradeExecutor(task.execPath, tmpPath)
+}
+
+func executeManualServerUpgrade(task *manualServerBinaryCandidate) error {
+	common.SysLog("server manual self-update starting: from=" + strings.TrimSpace(task.CurrentVersion) + " to=" + strings.TrimSpace(task.DetectedVersion))
+	return serverBinaryUpgradeExecutor(task.ExecPath, task.TempPath)
 }
 
 func serverAssetName(goos string, goarch string) string {
@@ -318,10 +474,136 @@ func parseVersionParts(version string) []int {
 	return parts
 }
 
+func buildUploadedServerBinaryView(fileName string, currentVersion string, detectedVersion string, uploadedAt time.Time) *UploadedServerBinary {
+	upgradeSupported := isManualServerUpgradeSupported(currentVersion)
+	hasUpdate := false
+	comparisonMessage := ""
+
+	switch {
+	case !upgradeSupported:
+		comparisonMessage = "当前服务版本不支持手动升级确认流程"
+	case normalizeVersion(currentVersion) == normalizeVersion(detectedVersion):
+		comparisonMessage = "上传二进制与当前服务版本一致，无需升级"
+	case isVersionNewer(currentVersion, detectedVersion):
+		hasUpdate = true
+		comparisonMessage = fmt.Sprintf("检测到可升级版本：%s -> %s", strings.TrimSpace(currentVersion), strings.TrimSpace(detectedVersion))
+	default:
+		comparisonMessage = "上传二进制版本不高于当前服务版本，已拒绝升级"
+	}
+
+	return &UploadedServerBinary{
+		FileName:          strings.TrimSpace(fileName),
+		DetectedVersion:   strings.TrimSpace(detectedVersion),
+		CurrentVersion:    strings.TrimSpace(currentVersion),
+		HasUpdate:         hasUpdate,
+		UpgradeSupported:  upgradeSupported,
+		ReadyToUpgrade:    upgradeSupported && hasUpdate,
+		ComparisonMessage: comparisonMessage,
+		UploadedAt:        uploadedAt,
+	}
+}
+
+func isManualServerUpgradeSupported(currentVersion string) bool {
+	normalized := strings.TrimSpace(strings.TrimPrefix(currentVersion, "v"))
+	return normalized != "" && !strings.EqualFold(normalized, "dev")
+}
+
+func persistUploadedServerBinary(fileName string, reader io.Reader) (string, error) {
+	suffix := filepath.Ext(strings.TrimSpace(fileName))
+	if runtime.GOOS == "windows" && suffix == "" {
+		suffix = ".exe"
+	}
+	tempFile, err := os.CreateTemp("", "atsflare-server-manual-upgrade-*"+suffix)
+	if err != nil {
+		return "", fmt.Errorf("创建临时升级文件失败: %v", err)
+	}
+	tempPath := tempFile.Name()
+	if _, err = io.Copy(tempFile, reader); err != nil {
+		_ = tempFile.Close()
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("写入上传二进制失败: %v", err)
+	}
+	if err = tempFile.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("关闭临时升级文件失败: %v", err)
+	}
+	if err = os.Chmod(tempPath, 0o755); err != nil && runtime.GOOS != "windows" {
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("设置临时升级文件权限失败: %v", err)
+	}
+	return tempPath, nil
+}
+
+func detectUploadedServerBinaryVersion(ctx context.Context, filePath string) (string, error) {
+	commandCtx := ctx
+	if commandCtx == nil {
+		commandCtx = context.Background()
+	}
+	cmd := exec.CommandContext(commandCtx, filePath, "--version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("检查上传二进制版本失败: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	version := strings.TrimSpace(string(output))
+	if version == "" {
+		return "", fmt.Errorf("上传二进制未返回有效版本号")
+	}
+	for _, line := range strings.Split(version, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			return trimmed, nil
+		}
+	}
+	return "", fmt.Errorf("上传二进制未返回有效版本号")
+}
+
+func cleanupManualServerBinaryCandidateLocked() {
+	if manualServerBinaryState.candidate == nil {
+		return
+	}
+	_ = os.Remove(manualServerBinaryState.candidate.TempPath)
+	manualServerBinaryState.candidate = nil
+}
+
+func newUpgradeToken() (string, error) {
+	buffer := make([]byte, 16)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buffer), nil
+}
+
+func normalizeVersion(version string) string {
+	return strings.TrimSpace(strings.TrimPrefix(version, "v"))
+}
+
 func UpdateHTTPClientForTest() *http.Client {
 	return updateHTTPClient
 }
 
 func SetUpdateHTTPClientForTest(client *http.Client) {
 	updateHTTPClient = client
+}
+
+func ServerBinaryUpgradeExecutorForTest() func(string, string) error {
+	return serverBinaryUpgradeExecutor
+}
+
+func SetServerBinaryUpgradeExecutorForTest(executor func(string, string) error) {
+	if executor == nil {
+		serverBinaryUpgradeExecutor = replaceAndRestartServer
+		return
+	}
+	serverBinaryUpgradeExecutor = executor
+}
+
+func ServerUpgradeDispatchDelayForTest() time.Duration {
+	return serverUpgradeDispatchDelay
+}
+
+func SetServerUpgradeDispatchDelayForTest(delay time.Duration) {
+	if delay < 0 {
+		delay = 0
+	}
+	serverUpgradeDispatchDelay = delay
 }

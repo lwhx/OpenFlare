@@ -59,6 +59,8 @@ func SetApiRouter(router *gin.Engine) {
 		updateRoute.Use(middleware.RootAuth(), middleware.NoTokenAuth())
 		{
 			updateRoute.GET("/latest-release", controller.GetLatestRelease)
+			updateRoute.POST("/manual-upload", controller.UploadManualServerBinary)
+			updateRoute.POST("/manual-upgrade", controller.ConfirmManualServerUpgrade)
 			updateRoute.POST("/upgrade", controller.UpgradeServer)
 		}
 		fileRoute := apiRouter.Group("/file")

@@ -1,6 +1,7 @@
 'use client';
 
 import { marked } from 'marked';
+import { useEffect, useState } from 'react';
 
 import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
@@ -8,9 +9,14 @@ import { LoadingState } from '@/components/feedback/loading-state';
 import { AppCard } from '@/components/ui/app-card';
 import { AppModal } from '@/components/ui/app-modal';
 import { StatusBadge } from '@/components/ui/status-badge';
-import type { LatestReleaseInfo } from '@/features/update/types';
+import type {
+  LatestReleaseInfo,
+  UploadedServerBinaryInfo,
+} from '@/features/update/types';
 import {
   PrimaryButton,
+  ResourceField,
+  ResourceInput,
   SecondaryButton,
 } from '@/features/shared/components/resource-primitives';
 import { formatDateTime, formatRelativeTime } from '@/lib/utils/date';
@@ -22,13 +28,20 @@ interface VersionUpgradeModalProps {
   frontendVersion: string;
   startTime?: number;
   release: LatestReleaseInfo | null | undefined;
+  uploadedBinary: UploadedServerBinaryInfo | null;
   isLoading: boolean;
-  errorMessage?: string;
+  releaseErrorMessage?: string;
+  manualStatusMessage?: string;
+  manualErrorMessage?: string;
   canUpgrade: boolean;
   isChecking: boolean;
   isUpgrading: boolean;
+  isUploadingBinary: boolean;
+  isConfirmingManualUpgrade: boolean;
   onRefresh: () => void;
   onUpgrade: () => void;
+  onUploadBinary: (file: File) => void;
+  onConfirmManualUpgrade: () => void;
 }
 
 function getUpgradeBadge(release: LatestReleaseInfo | null | undefined) {
@@ -51,33 +64,75 @@ export function VersionUpgradeModal({
   frontendVersion,
   startTime,
   release,
+  uploadedBinary,
   isLoading,
-  errorMessage,
+  releaseErrorMessage,
+  manualStatusMessage,
+  manualErrorMessage,
   canUpgrade,
   isChecking,
   isUpgrading,
+  isUploadingBinary,
+  isConfirmingManualUpgrade,
   onRefresh,
   onUpgrade,
+  onUploadBinary,
+  onConfirmManualUpgrade,
 }: VersionUpgradeModalProps) {
   const upgradeBadge = getUpgradeBadge(release);
+  const [selectedBinary, setSelectedBinary] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedBinary(null);
+    }
+  }, [isOpen]);
 
   return (
     <AppModal
       isOpen={isOpen}
       onClose={onClose}
       title="版本"
-      description="在这里检查 GitHub 最新版本，并直接触发 Server 自升级。升级开始后服务会短暂重启。"
+      description="在这里检查 GitHub 最新版本，或手动上传 Server 二进制并确认升级。升级开始后服务会短暂重启。"
       size="lg"
       footer={
-        <div className="flex flex-wrap justify-end gap-3">
-          <SecondaryButton
-            type="button"
-            onClick={onRefresh}
-            disabled={isChecking || isUpgrading}
-          >
-            {isChecking ? '检查中...' : '检查更新'}
-          </SecondaryButton>
-          {canUpgrade ? (
+        canUpgrade ? (
+          <div className="flex flex-wrap justify-end gap-3">
+            <SecondaryButton
+              type="button"
+              onClick={onRefresh}
+              disabled={isChecking || isUpgrading || isUploadingBinary}
+            >
+              {isChecking ? '检查中...' : '检查更新'}
+            </SecondaryButton>
+            <PrimaryButton
+              type="button"
+              onClick={() => {
+                if (selectedBinary) {
+                  onUploadBinary(selectedBinary);
+                }
+              }}
+              disabled={
+                !selectedBinary ||
+                isUploadingBinary ||
+                isConfirmingManualUpgrade
+              }
+            >
+              {isUploadingBinary ? '上传检查中...' : '上传并检查'}
+            </PrimaryButton>
+            <PrimaryButton
+              type="button"
+              onClick={onConfirmManualUpgrade}
+              disabled={
+                !uploadedBinary?.ready_to_upgrade ||
+                !uploadedBinary.upload_token ||
+                isConfirmingManualUpgrade ||
+                isUploadingBinary ||
+                isUpgrading
+              }
+            >
+              {isConfirmingManualUpgrade ? '升级中...' : '确认手动升级'}
+            </PrimaryButton>
             <PrimaryButton
               type="button"
               onClick={onUpgrade}
@@ -85,7 +140,9 @@ export function VersionUpgradeModal({
                 !release?.has_update ||
                 release.in_progress ||
                 isUpgrading ||
-                !release.upgrade_supported
+                !release.upgrade_supported ||
+                isUploadingBinary ||
+                isConfirmingManualUpgrade
               }
             >
               {isUpgrading
@@ -94,8 +151,8 @@ export function VersionUpgradeModal({
                   ? '升级中...'
                   : '立即升级'}
             </PrimaryButton>
-          ) : null}
-        </div>
+          </div>
+        ) : undefined
       }
     >
       <div className="space-y-6">
@@ -129,16 +186,16 @@ export function VersionUpgradeModal({
         </div>
 
         {isLoading ? <LoadingState /> : null}
-        {!isLoading && errorMessage ? (
-          <ErrorState title="版本检查失败" description={errorMessage} />
+        {!isLoading && releaseErrorMessage ? (
+          <ErrorState title="版本检查失败" description={releaseErrorMessage} />
         ) : null}
-        {!isLoading && !errorMessage && !release ? (
+        {!isLoading && !releaseErrorMessage && !release ? (
           <EmptyState
             title="尚未检查更新"
             description="点击“检查更新”后会在这里展示最新 GitHub Release 信息。"
           />
         ) : null}
-        {!isLoading && !errorMessage && release ? (
+        {!isLoading && !releaseErrorMessage && release ? (
           <AppCard
             title={`GitHub Release · ${release.tag_name}`}
             description={
@@ -179,6 +236,113 @@ export function VersionUpgradeModal({
               >
                 查看发布详情
               </a>
+            </div>
+          </AppCard>
+        ) : null}
+
+        {canUpgrade ? (
+          <AppCard
+            title="手动升级"
+            description="上传服务端二进制后，服务端会先检查版本，再由你确认是否执行升级。"
+          >
+            <div className="space-y-4">
+              <ResourceField
+                label="服务端二进制"
+                hint="支持上传已编译好的当前平台 Server 可执行文件。"
+              >
+                <ResourceInput
+                  type="file"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setSelectedBinary(file);
+                  }}
+                  disabled={isUploadingBinary || isConfirmingManualUpgrade}
+                />
+              </ResourceField>
+
+              {manualErrorMessage ? (
+                <ErrorState
+                  title="手动升级检查失败"
+                  description={manualErrorMessage}
+                />
+              ) : null}
+
+              {!manualErrorMessage && manualStatusMessage ? (
+                <div className="rounded-2xl border border-[var(--status-warning-border)] bg-[var(--status-warning-soft)] px-4 py-3 text-sm text-[var(--status-warning-foreground)]">
+                  {manualStatusMessage}
+                </div>
+              ) : null}
+
+              {uploadedBinary ? (
+                <div className="space-y-4 rounded-3xl border border-[var(--border-default)] bg-[var(--surface-elevated)] p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <StatusBadge
+                      label={
+                        uploadedBinary.ready_to_upgrade
+                          ? '可确认升级'
+                          : uploadedBinary.has_update
+                            ? '待确认'
+                            : '不可升级'
+                      }
+                      variant={
+                        uploadedBinary.ready_to_upgrade ? 'warning' : 'info'
+                      }
+                    />
+                    {!uploadedBinary.upgrade_supported ? (
+                      <StatusBadge
+                        label="当前版本不支持手动升级"
+                        variant="danger"
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-[var(--foreground-secondary)]">
+                        文件名
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-[var(--foreground-primary)]">
+                        {uploadedBinary.file_name}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--foreground-secondary)]">
+                        上传时间
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-[var(--foreground-primary)]">
+                        {uploadedBinary.uploaded_at
+                          ? formatDateTime(uploadedBinary.uploaded_at)
+                          : '未知'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--foreground-secondary)]">
+                        当前版本
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-[var(--foreground-primary)]">
+                        {uploadedBinary.current_version}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--foreground-secondary)]">
+                        上传版本
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-[var(--foreground-primary)]">
+                        {uploadedBinary.detected_version}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-[var(--foreground-secondary)]">
+                    {uploadedBinary.comparison_message}
+                  </p>
+                </div>
+              ) : (
+                <EmptyState
+                  title="尚未上传升级包"
+                  description="上传后会在这里展示识别出的版本信息，并允许你确认升级。"
+                />
+              )}
             </div>
           </AppCard>
         ) : null}
