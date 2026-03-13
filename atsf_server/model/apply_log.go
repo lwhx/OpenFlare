@@ -29,3 +29,23 @@ func GetLatestApplyLog(nodeID string) (*ApplyLog, error) {
 	err := DB.Where("node_id = ?", nodeID).Order("id desc").First(log).Error
 	return log, err
 }
+
+func GetLatestApplyLogsByNodeIDs(nodeIDs []string) (map[string]*ApplyLog, error) {
+	result := make(map[string]*ApplyLog)
+	if len(nodeIDs) == 0 {
+		return result, nil
+	}
+
+	var logs []*ApplyLog
+	subQuery := DB.Model(&ApplyLog{}).
+		Select("MAX(id) AS id").
+		Where("node_id IN ?", nodeIDs).
+		Group("node_id")
+	if err := DB.Where("id IN (?)", subQuery).Find(&logs).Error; err != nil {
+		return nil, err
+	}
+	for _, log := range logs {
+		result[log.NodeID] = log
+	}
+	return result, nil
+}

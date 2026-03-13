@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -204,14 +205,17 @@ func TestDockerExecutorStartsStoppedContainer(t *testing.T) {
 }
 
 func TestDockerExecutorRunContainerMountsManagedFiles(t *testing.T) {
+	mainConfigPath := filepath.Clean("/tmp/managed/nginx.conf")
+	routeConfigDir := filepath.Clean("/tmp/managed/conf.d")
+	certDir := filepath.Clean("/tmp/managed/certs")
 	runner := &fakeRunner{}
 	executor := &DockerExecutor{
 		DockerBinary:   "docker",
 		ContainerName:  "atsflare-openresty",
 		Image:          "openresty/openresty:alpine",
-		MainConfigPath: filepath.Clean("/tmp/managed/nginx.conf"),
-		RouteConfigDir: filepath.Clean("/tmp/managed/conf.d"),
-		CertDir:        filepath.Clean("/tmp/managed/certs"),
+		MainConfigPath: mainConfigPath,
+		RouteConfigDir: routeConfigDir,
+		CertDir:        certDir,
 		NginxCertDir:   "/etc/nginx/atsflare-certs",
 		Runner:         runner,
 	}
@@ -229,9 +233,9 @@ func TestDockerExecutorRunContainerMountsManagedFiles(t *testing.T) {
 		"--name", "atsflare-openresty",
 		"-p", "80:80",
 		"-p", "443:443",
-		"-v", "/tmp/managed/nginx.conf:" + DockerMainConfigPath,
-		"-v", "/tmp/managed/conf.d:/etc/nginx/conf.d",
-		"-v", "/tmp/managed/certs:/etc/nginx/atsflare-certs",
+		"-v", mainConfigPath + ":" + DockerMainConfigPath,
+		"-v", routeConfigDir + ":/etc/nginx/conf.d",
+		"-v", certDir + ":/etc/nginx/atsflare-certs",
 		"openresty/openresty:alpine",
 	}
 	if !reflect.DeepEqual(runner.calls[0].args, expectedArgs) {
@@ -535,5 +539,66 @@ func TestManagerRollbackRestoresSupportFiles(t *testing.T) {
 	}
 	if string(certData) != "old-cert" {
 		t.Fatalf("expected cert rollback, got %s", string(certData))
+	}
+}
+
+func TestManagerSupportFileTargetPathRejectsEscapes(t *testing.T) {
+	manager := &Manager{CertDir: filepath.Join(t.TempDir(), "certs")}
+	if err := os.MkdirAll(manager.CertDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	absolutePath := "/tmp/evil.crt"
+	if runtime.GOOS == "windows" {
+		absolutePath = `C:/tmp/evil.crt`
+	}
+
+	testCases := []struct {
+		path      string
+		shouldErr bool
+	}{
+		{path: "nested/1.crt", shouldErr: false},
+		{path: "../escape.crt", shouldErr: true},
+		{path: "..\\escape.crt", shouldErr: true},
+		{path: absolutePath, shouldErr: true},
+		{path: "", shouldErr: true},
+	}
+
+	for _, testCase := range testCases {
+		targetPath, err := manager.supportFileTargetPath(testCase.path)
+		if testCase.shouldErr {
+			if err == nil {
+				t.Fatalf("expected path %q to be rejected, got target %q", testCase.path, targetPath)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("expected path %q to be accepted: %v", testCase.path, err)
+		}
+		if !strings.HasPrefix(targetPath, manager.CertDir) {
+			t.Fatalf("expected target path %q to stay under %q", targetPath, manager.CertDir)
+		}
+	}
+}
+
+func TestManagerApplyRejectsSupportFilePathTraversal(t *testing.T) {
+	tempDir := t.TempDir()
+	manager := &Manager{
+		MainConfigPath:  filepath.Join(tempDir, "nginx.conf"),
+		RouteConfigPath: filepath.Join(tempDir, "routes.conf"),
+		CertDir:         filepath.Join(tempDir, "certs"),
+		NginxCertDir:    "/etc/nginx/atsflare-certs",
+		Executor:        &fakeExecutor{},
+	}
+
+	err := manager.Apply(context.Background(), "main", "route", []protocol.SupportFile{
+		{Path: "../escape.crt", Content: "bad"},
+	})
+	if err == nil {
+		t.Fatal("expected Apply to reject traversal path")
+	}
+
+	if _, statErr := os.Stat(filepath.Join(tempDir, "escape.crt")); !os.IsNotExist(statErr) {
+		t.Fatalf("expected escaped file to not exist, stat err = %v", statErr)
 	}
 }

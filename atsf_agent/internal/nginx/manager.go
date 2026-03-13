@@ -499,7 +499,10 @@ func (m *Manager) restore(state *backupState) error {
 		return err
 	}
 	for _, file := range state.Files {
-		targetPath := filepath.Join(m.CertDir, filepath.Clean(file.Path))
+		targetPath, err := m.supportFileTargetPath(file.Path)
+		if err != nil {
+			return err
+		}
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 			return err
 		}
@@ -521,7 +524,10 @@ func (m *Manager) writeSupportFiles(supportFiles []protocol.SupportFile) error {
 		return err
 	}
 	for _, file := range supportFiles {
-		targetPath := filepath.Join(m.CertDir, filepath.Clean(file.Path))
+		targetPath, err := m.supportFileTargetPath(file.Path)
+		if err != nil {
+			return err
+		}
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 			return err
 		}
@@ -571,6 +577,28 @@ func (m *Manager) readSupportFiles() ([]protocol.SupportFile, error) {
 		return files[i].Path < files[j].Path
 	})
 	return files, nil
+}
+
+func (m *Manager) supportFileTargetPath(relativePath string) (string, error) {
+	if strings.TrimSpace(m.CertDir) == "" {
+		return "", errors.New("cert dir 不能为空")
+	}
+	normalizedPath := filepath.Clean(filepath.FromSlash(strings.TrimSpace(relativePath)))
+	if normalizedPath == "." || normalizedPath == "" {
+		return "", errors.New("support file path 不能为空")
+	}
+	if filepath.IsAbs(normalizedPath) || filepath.VolumeName(normalizedPath) != "" {
+		return "", fmt.Errorf("support file path %q must be relative", relativePath)
+	}
+	targetPath := filepath.Join(m.CertDir, normalizedPath)
+	relativeToBase, err := filepath.Rel(m.CertDir, targetPath)
+	if err != nil {
+		return "", err
+	}
+	if relativeToBase == ".." || strings.HasPrefix(relativeToBase, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("support file path %q escapes cert dir", relativePath)
+	}
+	return targetPath, nil
 }
 
 func (m *Manager) renderRouteConfig(content string) string {

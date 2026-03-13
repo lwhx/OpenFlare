@@ -118,6 +118,7 @@ func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*HeartbeatRespon
 	if err := validateAgentNodePayload(payload); err != nil {
 		return nil, err
 	}
+	previous := *node
 	updateNow := node.UpdateRequested
 	restartOpenrestyNow := node.RestartOpenrestyRequested
 	updateChannel := normalizeReleaseChannel(node.UpdateChannel)
@@ -127,8 +128,11 @@ func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*HeartbeatRespon
 	node.UpdateChannel = ReleaseChannelStable.String()
 	node.UpdateTag = ""
 	node.RestartOpenrestyRequested = false
-	if err := model.DB.Model(node).Select("ip", "agent_version", "nginx_version", "openresty_status", "openresty_message", "status", "current_version", "last_seen_at", "last_error", "update_requested", "update_channel", "update_tag", "restart_openresty_requested").Updates(node).Error; err != nil {
-		return nil, err
+	changes := collectNodeHeartbeatChanges(&previous, node)
+	if len(changes) > 0 {
+		if err := model.DB.Model(node).Updates(changes).Error; err != nil {
+			return nil, err
+		}
 	}
 	activeConfig, err := GetActiveConfigMetaForAgent()
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -252,6 +256,14 @@ func ListNodeViews() ([]*NodeView, error) {
 	if err != nil {
 		return nil, err
 	}
+	nodeIDs := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		nodeIDs = append(nodeIDs, node.NodeID)
+	}
+	latestLogs, err := model.GetLatestApplyLogsByNodeIDs(nodeIDs)
+	if err != nil {
+		return nil, err
+	}
 	views := make([]*NodeView, 0, len(nodes))
 	for _, node := range nodes {
 		computedStatus := computeNodeStatus(node)
@@ -266,7 +278,7 @@ func ListNodeViews() ([]*NodeView, error) {
 		}
 		view := buildNodeView(node)
 		view.Status = computedStatus
-		if log, err := model.GetLatestApplyLog(node.NodeID); err == nil {
+		if log, ok := latestLogs[node.NodeID]; ok {
 			view.LatestApplyResult = log.Result
 			view.LatestApplyMessage = log.Message
 			view.LatestApplyChecksum = log.Checksum
@@ -299,4 +311,33 @@ func computeNodeStatus(node *model.Node) string {
 		return NodeStatusOffline
 	}
 	return NodeStatusOnline
+}
+
+func collectNodeHeartbeatChanges(previous *model.Node, current *model.Node) map[string]any {
+	if previous == nil || current == nil {
+		return map[string]any{}
+	}
+	changes := make(map[string]any)
+	appendIfChanged := func(key string, before any, after any) {
+		if before != after {
+			changes[key] = after
+		}
+	}
+	appendIfChanged("name", previous.Name, current.Name)
+	appendIfChanged("ip", previous.IP, current.IP)
+	appendIfChanged("agent_version", previous.AgentVersion, current.AgentVersion)
+	appendIfChanged("nginx_version", previous.NginxVersion, current.NginxVersion)
+	appendIfChanged("openresty_status", previous.OpenrestyStatus, current.OpenrestyStatus)
+	appendIfChanged("openresty_message", previous.OpenrestyMessage, current.OpenrestyMessage)
+	appendIfChanged("status", previous.Status, current.Status)
+	appendIfChanged("current_version", previous.CurrentVersion, current.CurrentVersion)
+	appendIfChanged("last_error", previous.LastError, current.LastError)
+	appendIfChanged("update_requested", previous.UpdateRequested, current.UpdateRequested)
+	appendIfChanged("update_channel", previous.UpdateChannel, current.UpdateChannel)
+	appendIfChanged("update_tag", previous.UpdateTag, current.UpdateTag)
+	appendIfChanged("restart_openresty_requested", previous.RestartOpenrestyRequested, current.RestartOpenrestyRequested)
+	if !previous.LastSeenAt.Equal(current.LastSeenAt) {
+		changes["last_seen_at"] = current.LastSeenAt
+	}
+	return changes
 }
