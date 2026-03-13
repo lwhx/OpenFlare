@@ -156,7 +156,7 @@ export function DangerButton({
 
 interface ToggleFieldProps {
   label: string;
-  description: string;
+  description?: string;
   checked: boolean;
   disabled?: boolean;
   tooltip?: string;
@@ -185,9 +185,11 @@ export function ToggleField({
           <span>{label}</span>
           {tooltip ? <FieldTooltip content={tooltip} /> : null}
         </span>
-        <span className="block text-xs leading-5 text-[var(--foreground-secondary)]">
-          {description}
-        </span>
+        {description ? (
+          <span className="block text-xs leading-5 text-[var(--foreground-secondary)]">
+            {description}
+          </span>
+        ) : null}
       </span>
     </label>
   );

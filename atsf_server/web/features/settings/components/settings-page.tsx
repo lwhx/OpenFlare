@@ -1065,23 +1065,6 @@ export function SettingsPage() {
               </ResourceField>
             </AppCard>
             <AppCard
-              title="性能页入口"
-              description="OpenResty 连接、缓冲、压缩、缓存以及主配置模板编辑已迁移到侧边栏“性能”页面。"
-              action={
-                <PrimaryButton
-                  type="button"
-                  onClick={() => window.location.assign('/performance')}
-                >
-                  打开性能页
-                </PrimaryButton>
-              }
-            >
-              <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
-                设置页保留 Agent、系统、限流和品牌配置；OpenResty
-                相关项已拆分为独立工作台，支持“设置 / 编辑”双 Tab 操作。
-              </p>
-            </AppCard>
-            <AppCard
               title="Discovery Token 与部署命令"
               description="适用于新节点首次接入。可直接复制一键安装命令。"
               action={
@@ -1527,23 +1510,6 @@ export function SettingsPage() {
               </div>
             </AppCard>
           </div>
-          <AppCard
-            title="性能页说明"
-            description="OpenResty 反代缓冲、压缩、缓存和主配置模板编辑已迁移到独立“性能”页面。"
-            action={
-              <PrimaryButton
-                type="button"
-                onClick={() => window.location.assign('/performance')}
-              >
-                前往性能页
-              </PrimaryButton>
-            }
-          >
-            <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
-              这样可以把 Agent 运行参数、系统开关与 OpenResty
-              专项配置拆开，减少设置页的混杂信息量。
-            </p>
-          </AppCard>
           <AppCard
             title="请求限流设置"
             description="按来源 IP 生效，保存后立即影响 Web、API、上传下载及登录注册等敏感接口。时间单位均为秒。"
