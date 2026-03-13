@@ -318,6 +318,18 @@ func TestOpenRestyCommonRequestOptionsRender(t *testing.T) {
 	}
 }
 
+func TestOpenRestyProxyRequestBufferingDefaultsToOff(t *testing.T) {
+	setupServiceTestDB(t)
+
+	preview, err := PreviewConfigVersion()
+	if err != nil {
+		t.Fatalf("PreviewConfigVersion failed: %v", err)
+	}
+	if !strings.Contains(preview.MainConfig, "proxy_request_buffering off;") {
+		t.Fatal("expected preview main config to default proxy_request_buffering to off")
+	}
+}
+
 func setupServiceTestDB(t *testing.T) {
 	t.Helper()
 	common.SQLitePath = filepath.Join(t.TempDir(), "service.db")

@@ -44,7 +44,7 @@ const defaultPerformanceFields = {
     OpenRestyProxyConnectTimeout: '5',
     OpenRestyProxySendTimeout: '60',
     OpenRestyProxyReadTimeout: '60',
-    OpenRestyProxyRequestBufferingEnabled: true,
+    OpenRestyProxyRequestBufferingEnabled: false,
     OpenRestyProxyBufferingEnabled: true,
     OpenRestyProxyBuffers: '16 16k',
     OpenRestyProxyBufferSize: '8k',
@@ -226,7 +226,7 @@ export function PerformancePage() {
             OpenRestyProxyReadTimeout: optionMap.OpenRestyProxyReadTimeout ?? '60',
             OpenRestyProxyRequestBufferingEnabled: toBoolean(
                 optionMap.OpenRestyProxyRequestBufferingEnabled,
-                true,
+                false,
             ),
             OpenRestyProxyBufferingEnabled: toBoolean(
                 optionMap.OpenRestyProxyBufferingEnabled,
