@@ -22,6 +22,7 @@ func setWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	router.Use(middleware.GlobalWebRateLimit())
 	fileDownloadRoute := router.Group("/")
 	fileDownloadRoute.GET("/upload/:file", middleware.DownloadRateLimit(), controller.DownloadFile)
+	router.Use(normalizeStaticExportDataNavigation())
 	router.Use(middleware.Cache())
 	router.Use(static.Serve("/", common.EmbedFolder(buildFS, "web/build")))
 	router.NoRoute(func(c *gin.Context) {
@@ -58,6 +59,29 @@ func serveExportedPage(c *gin.Context, buildFS fs.FS) bool {
 	}
 
 	return false
+}
+
+func normalizeStaticExportDataNavigation() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestPath := c.Request.URL.Path
+		if strings.HasSuffix(requestPath, ".txt") && isDocumentNavigationRequest(c.Request) {
+			normalizedPath := strings.TrimSuffix(requestPath, ".txt")
+			if normalizedPath == "" {
+				normalizedPath = "/"
+			}
+			c.Request.URL.Path = normalizedPath
+		}
+
+		c.Next()
+	}
+}
+
+func isDocumentNavigationRequest(request *http.Request) bool {
+	if request.Header.Get("Sec-Fetch-Mode") == "navigate" || request.Header.Get("Sec-Fetch-Dest") == "document" {
+		return true
+	}
+
+	return strings.Contains(request.Header.Get("Accept"), "text/html")
 }
 
 func isStaticAssetRequest(requestPath string) bool {
