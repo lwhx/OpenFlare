@@ -280,7 +280,7 @@ export function WorldStage({
         <div className="space-y-5">
           <div
             className={cn(
-              'relative min-h-[456px] overflow-hidden rounded-[28px] border py-5',
+              'relative min-h-[540px] overflow-hidden rounded-[28px] border py-6 lg:min-h-[600px]',
               isDark
                 ? 'border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.16),rgba(15,23,42,0.42))]'
                 : 'border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(239,246,255,0.92))]',
@@ -305,9 +305,9 @@ export function WorldStage({
 
             <div
               ref={mapViewportRef}
-              className="absolute inset-x-3 top-14 bottom-24 flex items-center justify-center md:inset-x-4 md:top-16 md:bottom-28"
+              className="absolute inset-x-3 top-16 bottom-28 flex items-center justify-center md:inset-x-4 md:top-18 md:bottom-32"
             >
-              <div className="aspect-[2/1] h-auto max-h-full w-full">
+              <div className="h-full max-w-full aspect-[2/1]">
                 {shouldRenderMap ? (
                   <WorldStageMap isDark={isDark} nodes={nodes} />
                 ) : (
@@ -322,7 +322,7 @@ export function WorldStage({
             </div>
 
             {shouldRenderMap && nodes.length === 0 ? (
-              <div className="pointer-events-none absolute inset-x-6 bottom-24 z-10">
+              <div className="pointer-events-none absolute inset-x-6 bottom-28 z-10">
                 <div
                   className={cn(
                     'rounded-2xl border border-dashed px-4 py-4 text-sm backdrop-blur',
@@ -336,7 +336,7 @@ export function WorldStage({
               </div>
             ) : null}
 
-            <div className="absolute bottom-5 left-4 right-4 z-10 grid gap-3 md:grid-cols-3">
+            <div className="absolute bottom-6 left-4 right-4 z-10 grid gap-3 md:grid-cols-3">
               {sourceCountries.length > 0 ? (
                 sourceCountries.slice(0, 3).map((item, index) => (
                   <CountrySignal
