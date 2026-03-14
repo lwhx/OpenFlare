@@ -115,7 +115,7 @@ type configBundle struct {
 }
 
 const (
-	nginxCertDirPlaceholder           = "__ATSF_CERT_DIR__"
+	nginxSupportDirPlaceholder        = "__ATSF_SUPPORT_DIR__"
 	nginxRouteConfigPlaceholder       = "__ATSF_ROUTE_CONFIG__"
 	nginxAccessLogPlaceholder         = "__ATSF_ACCESS_LOG__"
 	nginxLuaDirPlaceholder            = "__ATSF_LUA_DIR__"
@@ -751,8 +751,8 @@ func renderHTTPRedirectServer(domain string) string {
 }
 
 func renderHTTPSServer(domain string, originURL string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput) string {
-	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
-	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
+	certPath := fmt.Sprintf("%s/%s", nginxSupportDirPlaceholder, certificateCertFileName(certificateID))
+	keyPath := fmt.Sprintf("%s/%s", nginxSupportDirPlaceholder, certificateKeyFileName(certificateID))
 	return fmt.Sprintf("server {\n    listen 443 ssl;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, certPath, keyPath, renderProxyHeaderBlock(customHeaders), originURL)
 }
 

@@ -263,7 +263,7 @@ export LOG_LEVEL='info'
 
 验证点：
 
-1. 首次启动后确认 `data/etc/nginx/nginx.conf`、`data/etc/nginx/conf.d/atsflare_routes.conf` 与 `data/etc/nginx/certs` 已由 Agent 创建
+1. 首次启动后确认 `data/etc/nginx/nginx.conf`、`data/etc/nginx/conf.d/atsflare_routes.conf` 与 `data/etc/nginx/support` 已由 Agent 创建
 2. 确认容器实际挂载了主配置、路由目录和证书目录
 3. 确认宿主机本地可访问 `http://127.0.0.1:18081/atsflare/observability` 与 `http://127.0.0.1:18081/atsflare/stub_status`
 3. 在管理端发布一次新版本后，确认节点 `current_version` 追平激活版本
@@ -293,8 +293,8 @@ docker exec atsflare-openresty openresty -t
   "openresty_path": "/usr/local/openresty/nginx/sbin/openresty",
   "main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
   "route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
-  "cert_dir": "/usr/local/openresty/nginx/conf/certs",
-  "openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs",
+  "support_dir": "/usr/local/openresty/nginx/conf/support",
+  "openresty_support_dir": "/usr/local/openresty/nginx/conf/support",
   "openresty_observability_port": 18081
 }
 ```

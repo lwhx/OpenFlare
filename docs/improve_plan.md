@@ -59,7 +59,7 @@
 
 维护期内优先处理以下高风险或高敏感问题：
 
-* Agent 写入 `support_files` 时缺少对目标路径必须位于 `cert_dir` 内的强约束，存在路径穿越风险
+* Agent 写入 `support_files` 时缺少对目标路径必须位于 `support_dir` 内的强约束，存在路径穿越风险
 * 手动上传 Server 二进制后会执行 `--version` 检测，属于高敏感执行链路，必须进一步加固
 
 ---
@@ -106,7 +106,7 @@
 * 为 Agent 支持文件写入增加安全路径校验
   * 拒绝绝对路径
   * 拒绝 `..` 跳目录
-  * 通过 `filepath.Rel` 或安全辅助函数确认最终路径仍位于 `cert_dir` 内
+  * 通过 `filepath.Rel` 或安全辅助函数确认最终路径仍位于 `support_dir` 内
   * `writeSupportFiles`、`restore`、未来新增的写文件入口全部复用同一套安全函数
 * 收紧手动上传升级链路
   * 明确只允许 root 用户

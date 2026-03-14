@@ -39,8 +39,8 @@ func TestLoadDockerModeUsesManagedPaths(t *testing.T) {
 	if cfg.RouteConfigPath != filepath.Join(dir, "data", defaultDockerRouteConfigRelativePath) {
 		t.Fatalf("unexpected route config path: %s", cfg.RouteConfigPath)
 	}
-	if cfg.CertDir != filepath.Join(dir, "data", defaultCertDirRelativePath) {
-		t.Fatalf("unexpected cert dir: %s", cfg.CertDir)
+	if cfg.SupportDir != filepath.Join(dir, "data", defaultSupportDirRelativePath) {
+		t.Fatalf("unexpected support dir: %s", cfg.SupportDir)
 	}
 	if cfg.OpenrestyContainerName != "atsflare-openresty" {
 		t.Fatalf("unexpected openresty container name: %s", cfg.OpenrestyContainerName)
@@ -48,8 +48,8 @@ func TestLoadDockerModeUsesManagedPaths(t *testing.T) {
 	if cfg.OpenrestyDockerImage != "openresty/openresty:alpine" {
 		t.Fatalf("unexpected openresty image: %s", cfg.OpenrestyDockerImage)
 	}
-	if cfg.OpenrestyCertDir != defaultDockerOpenRestyCertDir {
-		t.Fatalf("unexpected openresty cert dir: %s", cfg.OpenrestyCertDir)
+	if cfg.OpenrestySupportDir != defaultDockerOpenRestySupportDir {
+		t.Fatalf("unexpected openresty support dir: %s", cfg.OpenrestySupportDir)
 	}
 	if cfg.StatePath != filepath.Join(dir, "data", defaultDockerStateRelativePath) {
 		t.Fatalf("unexpected state path: %s", cfg.StatePath)
@@ -94,8 +94,8 @@ func TestLoadPathModeKeepsExplicitPaths(t *testing.T) {
 	if cfg.StatePath != "/tmp/agent-state.json" {
 		t.Fatalf("unexpected state path: %s", cfg.StatePath)
 	}
-	if cfg.OpenrestyCertDir != cfg.CertDir {
-		t.Fatalf("expected path mode openresty cert dir to equal cert dir, got %s / %s", cfg.OpenrestyCertDir, cfg.CertDir)
+	if cfg.OpenrestySupportDir != cfg.SupportDir {
+		t.Fatalf("expected path mode openresty support dir to equal support dir, got %s / %s", cfg.OpenrestySupportDir, cfg.SupportDir)
 	}
 	if cfg.OpenrestyObservabilityPort != defaultOpenRestyObservabilityPort {
 		t.Fatalf("unexpected path mode openresty observability port: %d", cfg.OpenrestyObservabilityPort)
@@ -134,8 +134,8 @@ func TestLoadUsesCustomDataDirForGeneratedFiles(t *testing.T) {
 	if cfg.StatePath != "/srv/atsflare/"+defaultDockerStateRelativePath {
 		t.Fatalf("unexpected state path: %s", cfg.StatePath)
 	}
-	if cfg.CertDir != "/srv/atsflare/"+defaultCertDirRelativePath {
-		t.Fatalf("unexpected cert dir: %s", cfg.CertDir)
+	if cfg.SupportDir != "/srv/atsflare/"+defaultSupportDirRelativePath {
+		t.Fatalf("unexpected support dir: %s", cfg.SupportDir)
 	}
 }
 

@@ -69,8 +69,8 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, "return 301 https://$host$request_uri;") {
 		t.Fatal("expected rendered config to include http redirect")
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "__ATSF_CERT_DIR__/") {
-		t.Fatal("expected rendered config to keep certificate dir placeholder")
+	if !strings.Contains(result.Version.RenderedConfig, "__ATSF_SUPPORT_DIR__/") {
+		t.Fatal("expected rendered config to keep support dir placeholder for certificates")
 	}
 	if !strings.Contains(result.Version.SupportFilesJSON, ".crt") || !strings.Contains(result.Version.SupportFilesJSON, ".key") {
 		t.Fatal("expected support files to contain certificate and key")

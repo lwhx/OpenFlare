@@ -39,8 +39,8 @@ func main() {
 			Image:                      cfg.OpenrestyDockerImage,
 			MainConfigPath:             cfg.MainConfigPath,
 			RouteConfigPath:            cfg.RouteConfigPath,
-			CertDir:                    cfg.CertDir,
-			NginxCertDir:               cfg.OpenrestyCertDir,
+			SupportDir:                 cfg.SupportDir,
+			NginxSupportDir:            cfg.OpenrestySupportDir,
 			OpenrestyObservabilityPort: cfg.OpenrestyObservabilityPort,
 		},
 	)
@@ -50,7 +50,7 @@ func main() {
 		"ip", cfg.NodeIP,
 		"heartbeat_interval", cfg.HeartbeatInterval,
 		"route_config", cfg.RouteConfigPath,
-		"cert_dir", cfg.CertDir,
+		"support_dir", cfg.SupportDir,
 	)
 
 	client := httpclient.New(cfg.ServerURL, cfg.InitialAuthToken(), cfg.RequestTimeout.Duration())
@@ -63,8 +63,8 @@ func main() {
 		MainConfigPath:             cfg.MainConfigPath,
 		RouteConfigPath:            cfg.RouteConfigPath,
 		RuntimeRouteConfigPath:     runtimeRouteConfigPath,
-		CertDir:                    cfg.CertDir,
-		NginxCertDir:               cfg.OpenrestyCertDir,
+		SupportDir:                 cfg.SupportDir,
+		NginxSupportDir:            cfg.OpenrestySupportDir,
 		OpenrestyObservabilityPort: cfg.OpenrestyObservabilityPort,
 		Executor: nginx.NewExecutor(nginx.ExecutorOptions{
 			NginxPath:                  cfg.OpenrestyPath,
@@ -73,8 +73,8 @@ func main() {
 			Image:                      cfg.OpenrestyDockerImage,
 			MainConfigPath:             cfg.MainConfigPath,
 			RouteConfigPath:            cfg.RouteConfigPath,
-			CertDir:                    cfg.CertDir,
-			NginxCertDir:               cfg.OpenrestyCertDir,
+			SupportDir:                 cfg.SupportDir,
+			NginxSupportDir:            cfg.OpenrestySupportDir,
 			OpenrestyObservabilityPort: cfg.OpenrestyObservabilityPort,
 		}),
 	}

@@ -14,9 +14,9 @@ import (
 const (
 	defaultDockerMainConfigRelativePath  = "etc/nginx/nginx.conf"
 	defaultDockerRouteConfigRelativePath = "etc/nginx/conf.d/atsflare_routes.conf"
-	defaultCertDirRelativePath           = "etc/nginx/certs"
+	defaultSupportDirRelativePath        = "etc/nginx/support"
 	defaultDockerStateRelativePath       = "var/lib/atsflare/agent-state.json"
-	defaultDockerOpenRestyCertDir        = "/etc/nginx/atsflare-certs"
+	defaultDockerOpenRestySupportDir     = "/etc/nginx/atsflare-support"
 	defaultOpenRestyObservabilityPort    = 18081
 )
 
@@ -35,8 +35,8 @@ type Config struct {
 	DataDir                    string              `json:"data_dir"`
 	MainConfigPath             string              `json:"main_config_path"`
 	RouteConfigPath            string              `json:"route_config_path"`
-	CertDir                    string              `json:"cert_dir"`
-	OpenrestyCertDir           string              `json:"openresty_cert_dir"`
+	SupportDir                 string              `json:"support_dir"`
+	OpenrestySupportDir        string              `json:"openresty_support_dir"`
 	OpenrestyObservabilityPort int                 `json:"openresty_observability_port"`
 	StatePath                  string              `json:"state_path"`
 	HeartbeatInterval          MillisecondDuration `json:"heartbeat_interval"`
@@ -57,8 +57,10 @@ type configFile struct {
 	DataDir                    string              `json:"data_dir"`
 	MainConfigPath             string              `json:"main_config_path"`
 	RouteConfigPath            string              `json:"route_config_path"`
-	CertDir                    string              `json:"cert_dir"`
-	OpenrestyCertDir           string              `json:"openresty_cert_dir"`
+	SupportDir                 string              `json:"support_dir"`
+	OpenrestySupportDir        string              `json:"openresty_support_dir"`
+	LegacyCertDir              string              `json:"cert_dir"`
+	LegacyOpenrestyCertDir     string              `json:"openresty_cert_dir"`
 	OpenrestyObservabilityPort int                 `json:"openresty_observability_port"`
 	StatePath                  string              `json:"state_path"`
 	HeartbeatInterval          MillisecondDuration `json:"heartbeat_interval"`
@@ -87,8 +89,8 @@ func Load(path string) (*Config, error) {
 		DataDir:                    file.DataDir,
 		MainConfigPath:             file.MainConfigPath,
 		RouteConfigPath:            file.RouteConfigPath,
-		CertDir:                    file.CertDir,
-		OpenrestyCertDir:           file.OpenrestyCertDir,
+		SupportDir:                 firstNonEmpty(file.SupportDir, file.LegacyCertDir),
+		OpenrestySupportDir:        firstNonEmpty(file.OpenrestySupportDir, file.LegacyOpenrestyCertDir),
 		OpenrestyObservabilityPort: file.OpenrestyObservabilityPort,
 		StatePath:                  file.StatePath,
 		HeartbeatInterval:          file.HeartbeatInterval,
@@ -138,14 +140,14 @@ func applyDefaults(cfg *Config, baseDir string) {
 			cfg.StatePath = joinManagedPath(cfg.DataDir, defaultDockerStateRelativePath)
 		}
 	}
-	if cfg.CertDir == "" {
-		cfg.CertDir = joinManagedPath(cfg.DataDir, defaultCertDirRelativePath)
+	if cfg.SupportDir == "" {
+		cfg.SupportDir = joinManagedPath(cfg.DataDir, defaultSupportDirRelativePath)
 	}
-	if cfg.OpenrestyCertDir == "" {
+	if cfg.OpenrestySupportDir == "" {
 		if cfg.OpenrestyPath != "" {
-			cfg.OpenrestyCertDir = cfg.CertDir
+			cfg.OpenrestySupportDir = cfg.SupportDir
 		} else {
-			cfg.OpenrestyCertDir = defaultDockerOpenRestyCertDir
+			cfg.OpenrestySupportDir = defaultDockerOpenRestySupportDir
 		}
 	}
 	if cfg.OpenrestyObservabilityPort <= 0 {
@@ -173,8 +175,11 @@ func normalizeManagedPaths(cfg *Config) {
 	if usesSlashPath(cfg.RouteConfigPath) {
 		cfg.RouteConfigPath = filepath.ToSlash(cfg.RouteConfigPath)
 	}
-	if usesSlashPath(cfg.CertDir) {
-		cfg.CertDir = filepath.ToSlash(cfg.CertDir)
+	if usesSlashPath(cfg.SupportDir) {
+		cfg.SupportDir = filepath.ToSlash(cfg.SupportDir)
+	}
+	if usesSlashPath(cfg.OpenrestySupportDir) {
+		cfg.OpenrestySupportDir = filepath.ToSlash(cfg.OpenrestySupportDir)
 	}
 	if usesSlashPath(cfg.StatePath) {
 		cfg.StatePath = filepath.ToSlash(cfg.StatePath)
@@ -241,6 +246,15 @@ func detectHostname() string {
 		return ""
 	}
 	return strings.TrimSpace(host)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func detectNodeIP() string {

@@ -256,8 +256,8 @@ go run ./cmd/agent -config ./agent.json
 	"openresty_path": "/usr/local/openresty/nginx/sbin/openresty",
 	"main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
 	"route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
-	"cert_dir": "/usr/local/openresty/nginx/conf/certs",
-	"openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs",
+	"support_dir": "/usr/local/openresty/nginx/conf/support",
+	"openresty_support_dir": "/usr/local/openresty/nginx/conf/support",
 	"openresty_observability_port": 18081,
 	"state_path": "./data/agent-state.json",
 	"heartbeat_interval": 10000,
@@ -282,8 +282,8 @@ go run ./cmd/agent -config ./agent.json
 | `data_dir` | Agent 数据目录，用于存储托管配置、证书和状态文件 | 否 | 配置文件所在目录下的 `data` 子目录 | `./data` |
 | `main_config_path` | 第五版主配置接管时 OpenResty 主配置文件写入路径 | 第五版本机模式建议必填 | Docker 模式可使用受管默认路径；本机模式建议显式设置 | `/usr/local/openresty/nginx/conf/nginx.conf` |
 | `route_config_path` | 路由配置文件写入路径 | 否 | 默认为 `data_dir` 下托管路径 | `/etc/nginx/conf.d/atsflare_routes.conf` |
-| `cert_dir` | Agent 在本机写入证书文件的目录 | 否 | 默认为 `data_dir` 下托管证书目录 | `./data/etc/nginx/certs` |
-| `openresty_cert_dir` | OpenResty 实际读取证书的目录 | 否 | 本机模式默认等于 `cert_dir`；Docker 模式默认 `/etc/nginx/atsflare-certs` | `/usr/local/openresty/nginx/conf/certs` |
+| `support_dir` | Agent 在本机写入受管附属文件的目录，当前包含证书与 Lua 观测脚本 | 否 | 默认为 `data_dir` 下托管 support 目录 | `./data/etc/nginx/support` |
+| `openresty_support_dir` | OpenResty 实际读取受管附属文件的目录 | 否 | 本机模式默认等于 `support_dir`；Docker 模式默认 `/etc/nginx/atsflare-support` | `/usr/local/openresty/nginx/conf/support` |
 | `state_path` | Agent 本地状态文件路径 | 否 | 默认为 `data_dir` 下托管状态文件 | `./data/agent-state.json` |
 | `heartbeat_interval` | 心跳间隔 | 否 | `10000` 毫秒 | `10000` |
 | `request_timeout` | HTTP 请求超时时间 | 否 | `10000` 毫秒 | `10000` |
@@ -297,6 +297,7 @@ go run ./cmd/agent -config ./agent.json
 * `node_name` 与 `node_ip` 未填写时会自动探测；若自动探测失败，配置校验会报错
 * 未配置 `openresty_path` 时，默认为 Docker OpenResty 模式
 * `openresty_observability_port` 默认仅绑定本地回环地址；若节点本机已有端口冲突，可改为其他未占用端口
+* 为兼容旧节点，Agent 仍可读取历史字段 `cert_dir` / `openresty_cert_dir`，但保存配置时会统一写回 `support_dir` / `openresty_support_dir`
 * 配置保存时，`agent_version`、`nginx_version` 由程序运行时维护，不需要写入 JSON
 * 第五版主配置接管完成后，本机模式下应优先通过 `main_config_path` 由 Agent 写入受管主配置，而不是依赖节点手工维护 include 规则
 
@@ -308,14 +309,14 @@ go run ./cmd/agent -config ./agent.json
 | --- | --- |
 | `main_config_path` | 第五版 Docker 模式默认可落在 `data_dir/etc/nginx/nginx.conf`；本机模式建议显式配置 |
 | `route_config_path` | `data_dir/etc/nginx/conf.d/atsflare_routes.conf` |
-| `cert_dir` | `data_dir/etc/nginx/certs` |
+| `support_dir` | `data_dir/etc/nginx/support` |
 | `state_path` | `data_dir/var/lib/atsflare/agent-state.json` |
 
 Docker OpenResty 模式下：
 
 | 字段 | 默认值 |
 | --- | --- |
-| `openresty_cert_dir` | `/etc/nginx/atsflare-certs` |
+| `openresty_support_dir` | `/etc/nginx/atsflare-support` |
 
 补充说明：
 
@@ -347,8 +348,8 @@ Docker OpenResty 模式下：
 	"openresty_path": "/usr/local/openresty/nginx/sbin/openresty",
 	"main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
 	"route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
-	"cert_dir": "/usr/local/openresty/nginx/conf/certs",
-	"openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs"
+	"support_dir": "/usr/local/openresty/nginx/conf/support",
+	"openresty_support_dir": "/usr/local/openresty/nginx/conf/support"
 }
 ```
 
