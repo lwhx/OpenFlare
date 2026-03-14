@@ -265,6 +265,13 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 		t.Fatal("expected node list to expose openresty message")
 	}
 
+	observabilityResp := performJSONRequest(t, engine, adminToken, http.MethodGet, "/api/nodes/"+toString(createdNode.ID)+"/observability?hours=24&limit=20", nil)
+	var observability service.NodeObservabilityView
+	decodeResponseData(t, observabilityResp, &observability)
+	if observability.NodeID != createdNode.NodeID {
+		t.Fatalf("expected observability response for node %s, got %s", createdNode.NodeID, observability.NodeID)
+	}
+
 	restartResp := performJSONRequest(t, engine, adminToken, http.MethodPost, "/api/nodes/"+toString(createdNode.ID)+"/openresty-restart", nil)
 	decodeResponseData(t, restartResp, &createdNode)
 	if !createdNode.RestartOpenrestyRequested {

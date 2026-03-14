@@ -12,6 +12,11 @@ type nodeAgentUpdateRequest struct {
 	TagName string `json:"tag_name"`
 }
 
+type nodeObservabilityQuery struct {
+	Hours int `form:"hours"`
+	Limit int `form:"limit"`
+}
+
 // CreateNode godoc
 // @Summary Create node
 // @Tags Nodes
@@ -206,4 +211,39 @@ func GetNodeAgentRelease(c *gin.Context) {
 		return
 	}
 	respondSuccess(c, release)
+}
+
+// GetNodeObservability godoc
+// @Summary Get node observability details
+// @Tags Nodes
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Node ID"
+// @Param hours query int false "Lookback window in hours"
+// @Param limit query int false "Max records per section"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /api/nodes/{id}/observability [get]
+func GetNodeObservability(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		respondBadRequest(c, "")
+		return
+	}
+
+	var query nodeObservabilityQuery
+	if err = c.ShouldBindQuery(&query); err != nil {
+		respondBadRequest(c, "")
+		return
+	}
+
+	view, err := service.GetNodeObservability(uint(id), service.NodeObservabilityQuery{
+		Hours: query.Hours,
+		Limit: query.Limit,
+	})
+	if err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccess(c, view)
 }

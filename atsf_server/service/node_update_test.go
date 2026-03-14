@@ -493,3 +493,100 @@ func TestHeartbeatNodeResolvesMissingHealthEvents(t *testing.T) {
 		t.Fatalf("expected resolved health event record, got %+v", allEvents)
 	}
 }
+
+func TestGetNodeObservability(t *testing.T) {
+	setupServiceTestDB(t)
+
+	node := &model.Node{
+		NodeID:       "node-observability-query",
+		Name:         "query-edge",
+		IP:           "10.0.0.61",
+		AgentToken:   "token-query",
+		AgentVersion: "v0.6.0",
+		NginxVersion: "1.27.1.2",
+		Status:       NodeStatusOnline,
+	}
+	if err := node.Insert(); err != nil {
+		t.Fatalf("failed to insert node: %v", err)
+	}
+	if err := model.UpsertNodeSystemProfile(&model.NodeSystemProfile{
+		NodeID:       node.NodeID,
+		Hostname:     "query-edge",
+		OSName:       "Ubuntu",
+		Architecture: "amd64",
+		ReportedAt:   time.Now(),
+	}); err != nil {
+		t.Fatalf("failed to insert node system profile: %v", err)
+	}
+	if err := (&model.NodeMetricSnapshot{
+		NodeID:     node.NodeID,
+		CapturedAt: time.Now(),
+	}).Insert(); err != nil {
+		t.Fatalf("failed to insert node metric snapshot: %v", err)
+	}
+	if err := (&model.NodeRequestReport{
+		NodeID:          node.NodeID,
+		WindowStartedAt: time.Now().Add(-time.Minute),
+		WindowEndedAt:   time.Now(),
+		RequestCount:    123,
+	}).Insert(); err != nil {
+		t.Fatalf("failed to insert node request report: %v", err)
+	}
+	if err := model.DB.Create(&model.NodeHealthEvent{
+		NodeID:           node.NodeID,
+		EventType:        "sync_error",
+		Severity:         NodeHealthSeverityWarning,
+		Status:           NodeHealthEventStatusActive,
+		Message:          "checksum mismatch",
+		FirstTriggeredAt: time.Now().Add(-time.Minute),
+		LastTriggeredAt:  time.Now(),
+		ReportedAt:       time.Now(),
+	}).Error; err != nil {
+		t.Fatalf("failed to insert node health event: %v", err)
+	}
+
+	view, err := GetNodeObservability(node.ID, NodeObservabilityQuery{Hours: 24, Limit: 10})
+	if err != nil {
+		t.Fatalf("GetNodeObservability failed: %v", err)
+	}
+	if view.NodeID != node.NodeID {
+		t.Fatalf("unexpected node id: %s", view.NodeID)
+	}
+	if view.Profile == nil || view.Profile.OSName != "Ubuntu" {
+		t.Fatalf("unexpected profile: %+v", view.Profile)
+	}
+	if len(view.MetricSnapshots) != 1 {
+		t.Fatalf("expected 1 metric snapshot, got %d", len(view.MetricSnapshots))
+	}
+	if len(view.TrafficReports) != 1 || view.TrafficReports[0].RequestCount != 123 {
+		t.Fatalf("unexpected traffic reports: %+v", view.TrafficReports)
+	}
+	if len(view.HealthEvents) != 1 || view.HealthEvents[0].EventType != "sync_error" {
+		t.Fatalf("unexpected health events: %+v", view.HealthEvents)
+	}
+}
+
+func TestGetNodeObservabilityAllowsMissingProfile(t *testing.T) {
+	setupServiceTestDB(t)
+
+	node := &model.Node{
+		NodeID:       "node-observability-empty",
+		Name:         "empty-edge",
+		IP:           "10.0.0.62",
+		AgentToken:   "token-empty",
+		AgentVersion: "v0.6.0",
+		NginxVersion: "1.27.1.2",
+		Status:       NodeStatusOnline,
+	}
+	if err := node.Insert(); err != nil {
+		t.Fatalf("failed to insert node: %v", err)
+	}
+
+	view, err := GetNodeObservability(node.ID, NodeObservabilityQuery{})
+	if err != nil {
+		t.Fatalf("GetNodeObservability failed: %v", err)
+	}
+	if view.Profile != nil {
+		t.Fatalf("expected nil profile when profile not reported, got %+v", view.Profile)
+	}
+}

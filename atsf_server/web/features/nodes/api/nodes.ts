@@ -6,6 +6,7 @@ import type {
   NodeBootstrapToken,
   NodeItem,
   NodeMutationPayload,
+  NodeObservability,
 } from '@/features/nodes/types';
 import type { ReleaseChannel } from '@/features/update/types';
 
@@ -66,4 +67,21 @@ export function requestNodeOpenrestyRestart(id: number) {
   return apiRequest<NodeItem>(`/nodes/${id}/openresty-restart`, {
     method: 'POST',
   });
+}
+
+export function getNodeObservability(
+  id: number,
+  options?: { hours?: number; limit?: number },
+) {
+  const params = new URLSearchParams();
+  if (options?.hours) {
+    params.set('hours', String(options.hours));
+  }
+  if (options?.limit) {
+    params.set('limit', String(options.limit));
+  }
+  const query = params.toString();
+  return apiRequest<NodeObservability>(
+    `/nodes/${id}/observability${query ? `?${query}` : ''}`,
+  );
 }

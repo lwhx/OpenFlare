@@ -117,6 +117,7 @@ func SetApiRouter(router *gin.Engine) {
 			nodeRoute.GET("/", controller.GetNodes)
 			nodeRoute.POST("/", controller.CreateNode)
 			nodeRoute.GET("/:id/agent-release", controller.GetNodeAgentRelease)
+			nodeRoute.GET("/:id/observability", controller.GetNodeObservability)
 			nodeRoute.POST("/:id/agent-update", controller.RequestNodeAgentUpdate)
 			nodeRoute.POST("/:id/openresty-restart", controller.RequestNodeOpenrestyRestart)
 			nodeRoute.PUT("/:id", controller.UpdateNode)
