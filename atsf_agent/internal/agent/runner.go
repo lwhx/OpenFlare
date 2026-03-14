@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"atsflare-agent/internal/config"
+	"atsflare-agent/internal/observability"
 	"atsflare-agent/internal/protocol"
 	"atsflare-agent/internal/state"
 )
@@ -232,7 +233,7 @@ func (r *Runner) tryRegister(ctx context.Context, nodeID *string) error {
 		r.recordSyncError(err)
 		slog.Error("agent post-register startup sync failed", "error", err)
 	} else {
-				slog.Debug("agent post-register startup sync completed")
+		slog.Debug("agent post-register startup sync completed")
 	}
 	r.tryRestartOpenresty(ctx)
 	r.tryAutoUpdate(ctx)
@@ -310,6 +311,9 @@ func (r *Runner) nodePayload(nodeID string) protocol.NodePayload {
 	if openrestyStatus == "" {
 		openrestyStatus = protocol.OpenrestyStatusUnknown
 	}
+	profile := observability.BuildProfile(r.Config, r.StateStore)
+	metricSnapshot := observability.BuildSnapshot(r.Config, r.StateStore)
+	healthEvents := observability.BuildHealthEvents(snapshot)
 	return protocol.NodePayload{
 		NodeID:           nodeID,
 		Name:             r.Config.NodeName,
@@ -320,5 +324,8 @@ func (r *Runner) nodePayload(nodeID string) protocol.NodePayload {
 		LastError:        snapshot.LastError,
 		OpenrestyStatus:  openrestyStatus,
 		OpenrestyMessage: snapshot.OpenrestyMessage,
+		Profile:          profile,
+		Snapshot:         metricSnapshot,
+		HealthEvents:     healthEvents,
 	}
 }

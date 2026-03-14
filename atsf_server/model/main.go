@@ -3,9 +3,9 @@ package model
 import (
 	"atsflare/common"
 	"github.com/glebarez/sqlite"
-	"log/slog"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"log/slog"
 	"os"
 )
 
@@ -90,7 +90,23 @@ func InitDB() (err error) {
 		if err != nil {
 			return err
 		}
+		err = db.AutoMigrate(&NodeSystemProfile{})
+		if err != nil {
+			return err
+		}
 		err = db.AutoMigrate(&ApplyLog{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&NodeMetricSnapshot{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&NodeRequestReport{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&NodeHealthEvent{})
 		if err != nil {
 			return err
 		}

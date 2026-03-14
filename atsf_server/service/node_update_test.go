@@ -325,3 +325,171 @@ func TestListNodeViewsDoesNotPersistComputedStatus(t *testing.T) {
 		t.Fatalf("expected list query to avoid persisting computed status, got %s", storedNode.Status)
 	}
 }
+
+func TestHeartbeatNodePersistsObservabilityPayload(t *testing.T) {
+	setupServiceTestDB(t)
+
+	node := &model.Node{
+		NodeID:       "node-observe-1",
+		Name:         "observe-edge-1",
+		IP:           "10.0.0.31",
+		AgentToken:   "token-observe",
+		AgentVersion: "v0.6.0",
+		NginxVersion: "1.27.1.2",
+		Status:       NodeStatusOnline,
+	}
+	if err := node.Insert(); err != nil {
+		t.Fatalf("failed to seed node: %v", err)
+	}
+
+	_, err := HeartbeatNode(node, AgentNodePayload{
+		NodeID:       node.NodeID,
+		Name:         node.Name,
+		IP:           node.IP,
+		AgentVersion: node.AgentVersion,
+		NginxVersion: node.NginxVersion,
+		Profile: &AgentNodeSystemProfile{
+			Hostname:         "observe-edge-1",
+			OSName:           "Ubuntu",
+			OSVersion:        "24.04",
+			KernelVersion:    "6.8.0",
+			Architecture:     "amd64",
+			CPUModel:         "Intel Xeon",
+			CPUCores:         8,
+			TotalMemoryBytes: 16 * 1024 * 1024 * 1024,
+			TotalDiskBytes:   200 * 1024 * 1024 * 1024,
+			UptimeSeconds:    3600,
+			ReportedAtUnix:   time.Now().Add(-time.Minute).Unix(),
+		},
+		Snapshot: &AgentNodeMetricSnapshot{
+			CapturedAtUnix:       time.Now().Add(-30 * time.Second).Unix(),
+			CPUUsagePercent:      42.5,
+			MemoryUsedBytes:      8 * 1024 * 1024 * 1024,
+			MemoryTotalBytes:     16 * 1024 * 1024 * 1024,
+			StorageUsedBytes:     70 * 1024 * 1024 * 1024,
+			StorageTotalBytes:    200 * 1024 * 1024 * 1024,
+			DiskReadBytes:        1024,
+			DiskWriteBytes:       2048,
+			NetworkRxBytes:       4096,
+			NetworkTxBytes:       8192,
+			OpenrestyConnections: 128,
+		},
+		TrafficReport: &AgentNodeTrafficReport{
+			WindowStartedAtUnix: time.Now().Add(-time.Minute).Unix(),
+			WindowEndedAtUnix:   time.Now().Unix(),
+			RequestCount:        1200,
+			ErrorCount:          12,
+			UniqueVisitorCount:  320,
+			StatusCodes:         map[string]int64{"200": 1100, "502": 12},
+			TopDomains:          map[string]int64{"example.com": 900},
+			SourceCountries:     map[string]int64{"CN": 700, "US": 200},
+		},
+		HealthEvents: []AgentNodeHealthEvent{
+			{
+				EventType:       "openresty_unhealthy",
+				Severity:        NodeHealthSeverityCritical,
+				Message:         "reload failed",
+				TriggeredAtUnix: time.Now().Add(-2 * time.Minute).Unix(),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected heartbeat to succeed: %v", err)
+	}
+
+	profile, err := model.GetNodeSystemProfile(node.NodeID)
+	if err != nil {
+		t.Fatalf("expected node profile to persist: %v", err)
+	}
+	if profile.OSName != "Ubuntu" || profile.CPUCores != 8 {
+		t.Fatalf("unexpected system profile: %+v", profile)
+	}
+
+	snapshots, err := model.ListNodeMetricSnapshots(node.NodeID, time.Time{}, 10)
+	if err != nil {
+		t.Fatalf("expected node snapshots query to succeed: %v", err)
+	}
+	if len(snapshots) != 1 || snapshots[0].OpenrestyConnections != 128 {
+		t.Fatalf("unexpected metric snapshots: %+v", snapshots)
+	}
+
+	reports, err := model.ListNodeRequestReports(node.NodeID, time.Time{}, 10)
+	if err != nil {
+		t.Fatalf("expected node request reports query to succeed: %v", err)
+	}
+	if len(reports) != 1 || reports[0].RequestCount != 1200 {
+		t.Fatalf("unexpected request reports: %+v", reports)
+	}
+
+	events, err := model.ListNodeHealthEvents(node.NodeID, true, 10)
+	if err != nil {
+		t.Fatalf("expected node health events query to succeed: %v", err)
+	}
+	if len(events) != 1 || events[0].EventType != "openresty_unhealthy" {
+		t.Fatalf("unexpected active health events: %+v", events)
+	}
+}
+
+func TestHeartbeatNodeResolvesMissingHealthEvents(t *testing.T) {
+	setupServiceTestDB(t)
+
+	node := &model.Node{
+		NodeID:       "node-event-1",
+		Name:         "event-edge-1",
+		IP:           "10.0.0.41",
+		AgentToken:   "token-event",
+		AgentVersion: "v0.6.0",
+		NginxVersion: "1.27.1.2",
+		Status:       NodeStatusOnline,
+	}
+	if err := node.Insert(); err != nil {
+		t.Fatalf("failed to seed node: %v", err)
+	}
+
+	_, err := HeartbeatNode(node, AgentNodePayload{
+		NodeID:       node.NodeID,
+		Name:         node.Name,
+		IP:           node.IP,
+		AgentVersion: node.AgentVersion,
+		NginxVersion: node.NginxVersion,
+		HealthEvents: []AgentNodeHealthEvent{
+			{
+				EventType:       "sync_error",
+				Severity:        NodeHealthSeverityWarning,
+				Message:         "checksum mismatch",
+				TriggeredAtUnix: time.Now().Add(-time.Minute).Unix(),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected first heartbeat to succeed: %v", err)
+	}
+
+	_, err = HeartbeatNode(node, AgentNodePayload{
+		NodeID:       node.NodeID,
+		Name:         node.Name,
+		IP:           node.IP,
+		AgentVersion: node.AgentVersion,
+		NginxVersion: node.NginxVersion,
+		HealthEvents: []AgentNodeHealthEvent{},
+	})
+	if err != nil {
+		t.Fatalf("expected second heartbeat to succeed: %v", err)
+	}
+
+	activeEvents, err := model.ListNodeHealthEvents(node.NodeID, true, 10)
+	if err != nil {
+		t.Fatalf("expected active node health events query to succeed: %v", err)
+	}
+	if len(activeEvents) != 0 {
+		t.Fatalf("expected no active health events, got %+v", activeEvents)
+	}
+
+	allEvents, err := model.ListNodeHealthEvents(node.NodeID, false, 10)
+	if err != nil {
+		t.Fatalf("expected all node health events query to succeed: %v", err)
+	}
+	if len(allEvents) != 1 || allEvents[0].Status != NodeHealthEventStatusResolved || allEvents[0].ResolvedAt == nil {
+		t.Fatalf("expected resolved health event record, got %+v", allEvents)
+	}
+}

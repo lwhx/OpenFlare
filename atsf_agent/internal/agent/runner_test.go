@@ -281,6 +281,50 @@ func TestRunnerReportsOpenrestyHealthAndExecutesRestart(t *testing.T) {
 	}
 }
 
+func TestRunnerHeartbeatPayloadIncludesObservabilityExtensions(t *testing.T) {
+	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	if err := stateStore.Save(&state.Snapshot{
+		NodeID:           "node-observe",
+		CurrentVersion:   "20260314-001",
+		LastError:        "sync failed",
+		OpenrestyStatus:  protocol.OpenrestyStatusUnhealthy,
+		OpenrestyMessage: "reload failed",
+	}); err != nil {
+		t.Fatalf("failed to seed state: %v", err)
+	}
+
+	runner := &Runner{
+		Config: &config.Config{
+			NodeName:          "edge-observe-1",
+			NodeIP:            "10.0.0.51",
+			AgentVersion:      config.AgentVersion,
+			NginxVersion:      "1.27.1.2",
+			DataDir:           t.TempDir(),
+			HeartbeatInterval: config.MillisecondDuration(10 * time.Millisecond),
+		},
+		StateStore: stateStore,
+	}
+
+	firstPayload := runner.nodePayload("node-observe")
+	if firstPayload.Profile == nil {
+		t.Fatal("expected first heartbeat payload to include system profile")
+	}
+	if firstPayload.Snapshot == nil {
+		t.Fatal("expected first heartbeat payload to include metric snapshot")
+	}
+	if len(firstPayload.HealthEvents) != 2 {
+		t.Fatalf("expected health events for openresty and sync error, got %+v", firstPayload.HealthEvents)
+	}
+
+	secondPayload := runner.nodePayload("node-observe")
+	if secondPayload.Profile != nil {
+		t.Fatal("expected unchanged profile to be omitted on subsequent heartbeat")
+	}
+	if secondPayload.Snapshot == nil {
+		t.Fatal("expected metric snapshot to continue reporting on subsequent heartbeat")
+	}
+}
+
 func TestRunnerDiscoveryRegisterUpdatesTokenAndNodeID(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

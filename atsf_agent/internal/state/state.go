@@ -10,12 +10,16 @@ import (
 )
 
 type Snapshot struct {
-	NodeID           string `json:"node_id"`
-	CurrentVersion   string `json:"current_version"`
-	CurrentChecksum  string `json:"current_checksum"`
-	LastError        string `json:"last_error"`
-	OpenrestyStatus  string `json:"openresty_status"`
-	OpenrestyMessage string `json:"openresty_message"`
+	NodeID                 string `json:"node_id"`
+	CurrentVersion         string `json:"current_version"`
+	CurrentChecksum        string `json:"current_checksum"`
+	LastError              string `json:"last_error"`
+	OpenrestyStatus        string `json:"openresty_status"`
+	OpenrestyMessage       string `json:"openresty_message"`
+	LastProfileFingerprint string `json:"last_profile_fingerprint"`
+	LastCPUStatTotal       uint64 `json:"last_cpu_stat_total"`
+	LastCPUStatIdle        uint64 `json:"last_cpu_stat_idle"`
+	LastMetricAtUnix       int64  `json:"last_metric_at_unix"`
 }
 
 type Store struct {
