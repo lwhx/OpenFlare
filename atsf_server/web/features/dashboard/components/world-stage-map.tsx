@@ -36,7 +36,17 @@ type Tone = 'healthy' | 'warning' | 'danger';
 
 type WorldGeoJson = {
   type: string;
-  features?: unknown[];
+  features?: WorldFeature[];
+};
+
+type WorldFeature = {
+  properties?: {
+    name?: string;
+  };
+  geometry?: {
+    type?: 'Polygon' | 'MultiPolygon';
+    coordinates?: number[][][] | number[][][][];
+  };
 };
 
 type MapNodeDatum = {
@@ -60,6 +70,20 @@ type MapNodeDatum = {
     itemStyle: {
       borderColor: string;
       borderWidth: number;
+    };
+  };
+};
+
+type CountryRegionDatum = {
+  name: string;
+  itemStyle: {
+    areaColor: string;
+    borderColor: string;
+  };
+  emphasis: {
+    itemStyle: {
+      areaColor: string;
+      borderColor: string;
     };
   };
 };
@@ -152,6 +176,70 @@ function ensureWorldMapRegistered() {
   }
 }
 
+function isPointInRing(point: [number, number], ring: number[][]) {
+  let inside = false;
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const [xi, yi] = ring[i] ?? [];
+    const [xj, yj] = ring[j] ?? [];
+
+    if (
+      yi > point[1] !== yj > point[1] &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi || Number.EPSILON) + xi
+    ) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
+}
+
+function isPointInPolygon(point: [number, number], rings: number[][][]) {
+  if (rings.length === 0 || !isPointInRing(point, rings[0] ?? [])) {
+    return false;
+  }
+
+  for (let index = 1; index < rings.length; index += 1) {
+    if (isPointInRing(point, rings[index] ?? [])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getCountryNameByCoordinates(
+  coordinates: [number, number],
+  geoJson: WorldGeoJson,
+) {
+  for (const feature of geoJson.features ?? []) {
+    const name = feature.properties?.name;
+    const geometryType = feature.geometry?.type;
+    const geometryCoordinates = feature.geometry?.coordinates;
+
+    if (!name || !geometryType || !geometryCoordinates) {
+      continue;
+    }
+
+    if (
+      geometryType === 'Polygon' &&
+      isPointInPolygon(coordinates, geometryCoordinates as number[][][])
+    ) {
+      return name;
+    }
+
+    if (geometryType === 'MultiPolygon') {
+      for (const polygon of geometryCoordinates as number[][][][]) {
+        if (isPointInPolygon(coordinates, polygon)) {
+          return name;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 export function WorldStageMap({
   isDark,
   nodes,
@@ -176,6 +264,10 @@ export function WorldStageMap({
             areaColor: '#13233b',
             borderColor: 'rgba(125,211,252,0.14)',
             labelColor: '#e2e8f0',
+            healthyAreaColor: 'rgba(74, 222, 128, 0.18)',
+            dangerAreaColor: 'rgba(251, 113, 133, 0.18)',
+            healthyAreaBorder: 'rgba(134, 239, 172, 0.4)',
+            dangerAreaBorder: 'rgba(253, 164, 175, 0.42)',
             healthyColor: '#34d399',
             warningColor: '#fbbf24',
             dangerColor: '#fb7185',
@@ -187,6 +279,10 @@ export function WorldStageMap({
             areaColor: '#eaf2ff',
             borderColor: 'rgba(71,85,105,0.12)',
             labelColor: '#0f172a',
+            healthyAreaColor: '#dcfce7',
+            dangerAreaColor: '#ffe4e6',
+            healthyAreaBorder: '#86efac',
+            dangerAreaBorder: '#fda4af',
             healthyColor: '#10b981',
             warningColor: '#f59e0b',
             dangerColor: '#f43f5e',
@@ -243,6 +339,56 @@ export function WorldStageMap({
     [mapPalette, nodes],
   );
 
+  const countryRegions = useMemo<CountryRegionDatum[]>(() => {
+    const geoJson = worldGeoJson as WorldGeoJson;
+    const countryToneMap = new Map<string, Tone>();
+
+    nodes.forEach((node, index) => {
+      const { coordinates, derivedFromGeo } = getNodeCoordinates(node, index);
+      if (!derivedFromGeo) {
+        return;
+      }
+
+      const countryName = getCountryNameByCoordinates(coordinates, geoJson);
+      if (!countryName) {
+        return;
+      }
+
+      const nextTone = getNodeTone(node);
+      const normalizedTone = nextTone === 'healthy' ? 'healthy' : 'danger';
+      const currentTone = countryToneMap.get(countryName);
+
+      if (!currentTone || currentTone === 'healthy') {
+        countryToneMap.set(countryName, normalizedTone);
+      }
+    });
+
+    return Array.from(countryToneMap.entries()).map(([name, tone]) => {
+      const areaColor =
+        tone === 'healthy'
+          ? mapPalette.healthyAreaColor
+          : mapPalette.dangerAreaColor;
+      const borderColor =
+        tone === 'healthy'
+          ? mapPalette.healthyAreaBorder
+          : mapPalette.dangerAreaBorder;
+
+      return {
+        name,
+        itemStyle: {
+          areaColor,
+          borderColor,
+        },
+        emphasis: {
+          itemStyle: {
+            areaColor,
+            borderColor,
+          },
+        },
+      };
+    });
+  }, [mapPalette, nodes]);
+
   const mapOption = useMemo<EChartsCoreOption>(
     () => ({
       animation: false,
@@ -287,6 +433,7 @@ export function WorldStageMap({
         layoutCenter: ['50%', '50%'],
         layoutSize: '180%',
         zoom: 1,
+        regions: countryRegions,
         itemStyle: {
           areaColor: mapPalette.areaColor,
           borderColor: mapPalette.borderColor,
@@ -334,7 +481,7 @@ export function WorldStageMap({
         },
       ],
     }),
-    [isDark, mapNodes, mapPalette],
+    [countryRegions, isDark, mapNodes, mapPalette],
   );
 
   if (!mapReady) {

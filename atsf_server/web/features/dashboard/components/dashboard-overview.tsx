@@ -84,49 +84,6 @@ function buildNodeRankItems(
     }));
 }
 
-function OverviewMetric({
-  label,
-  value,
-  hint,
-  accent = 'sky',
-}: {
-  label: string;
-  value: string | number;
-  hint?: string;
-  accent?: 'sky' | 'amber' | 'emerald' | 'rose';
-}) {
-  const accentClass =
-    accent === 'amber'
-      ? 'from-amber-400/14 to-transparent'
-      : accent === 'emerald'
-        ? 'from-emerald-400/14 to-transparent'
-        : accent === 'rose'
-          ? 'from-rose-400/14 to-transparent'
-          : 'from-sky-400/14 to-transparent';
-
-  return (
-    <div
-      className={`rounded-3xl border border-[var(--border-default)] bg-[linear-gradient(180deg,var(--surface-elevated),var(--surface-card))] px-5 py-5 shadow-[var(--shadow-soft)]`}
-    >
-      <div className={`rounded-2xl bg-gradient-to-r ${accentClass} p-0.5`}>
-        <div className="rounded-[15px] bg-transparent">
-          <p className="text-xs tracking-[0.24em] text-[var(--foreground-muted)] uppercase">
-            {label}
-          </p>
-          <p className="mt-3 text-3xl font-semibold text-[var(--foreground-primary)]">
-            {value}
-          </p>
-          {hint ? (
-            <p className="mt-2 text-sm text-[var(--foreground-secondary)]">
-              {hint}
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function NodeHealthRow({ node }: { node: DashboardNodeHealth }) {
   return (
     <Link
@@ -241,50 +198,6 @@ export function DashboardOverview() {
         nodes={overview.nodes}
         sourceCountries={overview.distributions.source_countries}
       />
-
-      <AppCard
-        title="系统健康摘要"
-        description="聚焦在线率、运行质量、流量体量与资源负载，保留首屏最核心的运营信号。"
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <OverviewMetric
-            label="在线节点"
-            value={`${overview.summary.online_nodes}/${overview.summary.total_nodes}`}
-            hint={`${overview.summary.offline_nodes} 离线 · ${overview.summary.pending_nodes} 待接入`}
-            accent="sky"
-          />
-          <OverviewMetric
-            label="OpenResty 异常"
-            value={overview.summary.unhealthy_nodes}
-            hint="当前运行态已出现不健康节点"
-            accent="rose"
-          />
-          <OverviewMetric
-            label="最近窗口请求"
-            value={overview.traffic.request_count.toLocaleString('zh-CN')}
-            hint={`QPS ${overview.traffic.estimated_qps.toFixed(1)} · UV ${overview.traffic.unique_visitors.toLocaleString('zh-CN')}`}
-            accent="emerald"
-          />
-          <OverviewMetric
-            label="平均 CPU"
-            value={formatPercent(overview.capacity.average_cpu_usage_percent)}
-            hint={`${overview.capacity.high_cpu_nodes} 个高 CPU 节点`}
-            accent="amber"
-          />
-          <OverviewMetric
-            label="平均内存"
-            value={formatPercent(overview.capacity.average_memory_usage_percent)}
-            hint={`${overview.capacity.high_memory_nodes} 个高内存节点`}
-            accent="sky"
-          />
-          <OverviewMetric
-            label="高存储节点"
-            value={overview.capacity.high_storage_nodes}
-            hint={`${overview.traffic.reported_nodes} 个节点参与当前窗口上报`}
-            accent="amber"
-          />
-        </div>
-      </AppCard>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <AppCard

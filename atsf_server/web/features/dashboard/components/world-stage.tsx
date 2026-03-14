@@ -233,18 +233,28 @@ export function WorldStage({
         )}
       >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <p
-              className={cn(
-                  'text-[11px] tracking-[0.34em] uppercase',
-                  isDark ? 'text-sky-200/80' : 'text-sky-700/80',
-              )}
-          >
-            Global Stage
-          </p>
+          <div className="space-y-2">
+            <p
+                className={cn(
+                    'text-[11px] tracking-[0.34em] uppercase',
+                    isDark ? 'text-sky-200/80' : 'text-sky-700/80',
+                )}
+            >
+              Global Stage
+            </p>
+            <h2
+                className={cn(
+                    'text-2xl font-semibold',
+                    isDark ? 'text-white' : 'text-slate-950',
+                )}
+            >
+              全球态势板
+            </h2>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-6 px-6 py-7 md:px-7 md:py-8 xl:grid-cols-[1.4fr_0.8fr]">
+      <div className="grid gap-6 px-6 py-7 md:px-7 md:py-8 xl:grid-cols-[1.32fr_0.88fr]">
         <div className="space-y-5">
           <div
             className={cn(
@@ -328,18 +338,6 @@ export function WorldStage({
               )}
             </div>
           </div>
-
-          <div
-            className={cn(
-              'rounded-[24px] border px-5 py-4 text-xs leading-6 backdrop-blur',
-              isDark
-                ? 'border-white/10 bg-white/5 text-slate-300'
-                : 'border-slate-200/80 bg-white/80 text-slate-600',
-            )}
-          >
-            当前已有 {geoConfiguredNodes}/{summary.total_nodes} 个节点配置了地理坐标。
-            未配置坐标的节点会映射到预设城市点位，用于维持全球覆盖视图的连续性。
-          </div>
         </div>
 
         <div className="space-y-5">
@@ -366,6 +364,18 @@ export function WorldStage({
               label="平均 CPU"
               value={formatPercent(capacity.average_cpu_usage_percent)}
               hint={`${capacity.high_cpu_nodes} 个节点 CPU 偏高`}
+              isDark={isDark}
+            />
+            <HeroMetric
+              label="平均内存"
+              value={formatPercent(capacity.average_memory_usage_percent)}
+              hint={`${capacity.high_memory_nodes} 个高内存节点`}
+              isDark={isDark}
+            />
+            <HeroMetric
+              label="高存储节点"
+              value={capacity.high_storage_nodes.toLocaleString('zh-CN')}
+              hint={`${summary.offline_nodes} 离线 · ${summary.pending_nodes} 待接入`}
               isDark={isDark}
             />
           </div>
