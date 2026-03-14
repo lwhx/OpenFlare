@@ -89,6 +89,7 @@ type NodeView struct {
 	GeoName                   string     `json:"geo_name"`
 	GeoLatitude               *float64   `json:"geo_latitude"`
 	GeoLongitude              *float64   `json:"geo_longitude"`
+	GeoManualOverride         bool       `json:"geo_manual_override"`
 	AgentToken                string     `json:"agent_token"`
 	AutoUpdateEnabled         bool       `json:"auto_update_enabled"`
 	UpdateRequested           bool       `json:"update_requested"`
@@ -324,6 +325,7 @@ func collectNodeHeartbeatChanges(previous *model.Node, current *model.Node) map[
 	}
 	appendIfChanged("name", previous.Name, current.Name)
 	appendIfChanged("ip", previous.IP, current.IP)
+	appendIfChanged("geo_name", previous.GeoName, current.GeoName)
 	appendIfChanged("agent_version", previous.AgentVersion, current.AgentVersion)
 	appendIfChanged("nginx_version", previous.NginxVersion, current.NginxVersion)
 	appendIfChanged("openresty_status", previous.OpenrestyStatus, current.OpenrestyStatus)
@@ -335,8 +337,21 @@ func collectNodeHeartbeatChanges(previous *model.Node, current *model.Node) map[
 	appendIfChanged("update_channel", previous.UpdateChannel, current.UpdateChannel)
 	appendIfChanged("update_tag", previous.UpdateTag, current.UpdateTag)
 	appendIfChanged("restart_openresty_requested", previous.RestartOpenrestyRequested, current.RestartOpenrestyRequested)
+	if !coordinatesEqual(previous.GeoLatitude, current.GeoLatitude) {
+		changes["geo_latitude"] = current.GeoLatitude
+	}
+	if !coordinatesEqual(previous.GeoLongitude, current.GeoLongitude) {
+		changes["geo_longitude"] = current.GeoLongitude
+	}
 	if !previous.LastSeenAt.Equal(current.LastSeenAt) {
 		changes["last_seen_at"] = current.LastSeenAt
 	}
 	return changes
+}
+
+func coordinatesEqual(before *float64, after *float64) bool {
+	if before == nil || after == nil {
+		return before == after
+	}
+	return *before == *after
 }

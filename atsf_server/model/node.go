@@ -10,6 +10,7 @@ type Node struct {
 	GeoName                   string    `json:"geo_name" gorm:"size:128"`
 	GeoLatitude               *float64  `json:"geo_latitude"`
 	GeoLongitude              *float64  `json:"geo_longitude"`
+	GeoManualOverride         bool      `json:"geo_manual_override" gorm:"not null;default:false"`
 	AgentToken                string    `json:"-" gorm:"size:128;index"`
 	AutoUpdateEnabled         bool      `json:"auto_update_enabled" gorm:"not null;default:false"`
 	UpdateRequested           bool      `json:"update_requested" gorm:"not null;default:false"`

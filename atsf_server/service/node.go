@@ -3,21 +3,25 @@ package service
 import (
 	"atsflare/common"
 	"atsflare/model"
+	"atsflare/utils/geoip"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"net"
 	"strings"
 	"time"
 )
 
 type NodeInput struct {
 	Name              string   `json:"name"`
+	IP                string   `json:"ip"`
 	AutoUpdateEnabled bool     `json:"auto_update_enabled"`
 	GeoName           string   `json:"geo_name"`
 	GeoLatitude       *float64 `json:"geo_latitude"`
 	GeoLongitude      *float64 `json:"geo_longitude"`
+	GeoManualOverride bool     `json:"geo_manual_override"`
 }
 
 type NodeAgentUpdateInput struct {
@@ -50,16 +54,17 @@ type AgentRegistrationResponse struct {
 }
 
 func CreateNode(input NodeInput) (*NodeView, error) {
-	name, geoName, geoLatitude, geoLongitude, err := normalizeNodeInput(input)
+	name, ip, geoName, geoLatitude, geoLongitude, geoManualOverride, err := normalizeNodeInput(input)
 	if name == "" {
 		return nil, errors.New("节点名不能为空")
 	}
 	node := &model.Node{
 		Name:              name,
-		IP:                "",
+		IP:                ip,
 		GeoName:           geoName,
 		GeoLatitude:       geoLatitude,
 		GeoLongitude:      geoLongitude,
+		GeoManualOverride: geoManualOverride,
 		AgentVersion:      "",
 		NginxVersion:      "",
 		Status:            NodeStatusPending,
@@ -73,6 +78,9 @@ func CreateNode(input NodeInput) (*NodeView, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !node.GeoManualOverride {
+		applyGeoInfoFromIP(node, node.IP)
+	}
 	if err := node.Insert(); err != nil {
 		if isUniqueConstraintError(err) {
 			return nil, errors.New("节点标识生成冲突，请重试")
@@ -84,7 +92,7 @@ func CreateNode(input NodeInput) (*NodeView, error) {
 }
 
 func UpdateNode(id uint, input NodeInput) (*NodeView, error) {
-	name, geoName, geoLatitude, geoLongitude, err := normalizeNodeInput(input)
+	name, ip, geoName, geoLatitude, geoLongitude, geoManualOverride, err := normalizeNodeInput(input)
 	if name == "" {
 		return nil, errors.New("节点名不能为空")
 	}
@@ -93,10 +101,15 @@ func UpdateNode(id uint, input NodeInput) (*NodeView, error) {
 		return nil, err
 	}
 	node.Name = name
+	node.IP = ip
 	node.GeoName = geoName
 	node.GeoLatitude = geoLatitude
 	node.GeoLongitude = geoLongitude
+	node.GeoManualOverride = geoManualOverride
 	node.AutoUpdateEnabled = input.AutoUpdateEnabled
+	if !node.GeoManualOverride {
+		applyGeoInfoFromIP(node, strings.TrimSpace(node.IP))
+	}
 	if err = node.Update(); err != nil {
 		return nil, err
 	}
@@ -242,6 +255,7 @@ func buildNodeView(node *model.Node) *NodeView {
 		GeoName:                   strings.TrimSpace(node.GeoName),
 		GeoLatitude:               node.GeoLatitude,
 		GeoLongitude:              node.GeoLongitude,
+		GeoManualOverride:         node.GeoManualOverride,
 		AgentToken:                node.AgentToken,
 		UpdateChannel:             strings.TrimSpace(node.UpdateChannel),
 		UpdateTag:                 strings.TrimSpace(node.UpdateTag),
@@ -265,26 +279,41 @@ func buildNodeView(node *model.Node) *NodeView {
 	return view
 }
 
-func normalizeNodeInput(input NodeInput) (string, string, *float64, *float64, error) {
+func normalizeNodeInput(input NodeInput) (string, string, string, *float64, *float64, bool, error) {
 	name := strings.TrimSpace(input.Name)
+	ip := strings.TrimSpace(input.IP)
 	geoName := strings.TrimSpace(input.GeoName)
+	manualOverride := input.GeoManualOverride || geoName != "" || input.GeoLatitude != nil || input.GeoLongitude != nil
+	if len(ip) > 64 {
+		return "", "", "", nil, nil, false, errors.New("节点 IP 不能超过 64 个字符")
+	}
+	if ip != "" && net.ParseIP(ip) == nil {
+		return "", "", "", nil, nil, false, errors.New("节点 IP 格式无效")
+	}
 	if len(geoName) > 128 {
-		return "", "", nil, nil, errors.New("节点位置名不能超过 128 个字符")
+		return "", "", "", nil, nil, false, errors.New("节点位置名不能超过 128 个字符")
 	}
 
 	geoLatitude := cloneCoordinate(input.GeoLatitude)
 	geoLongitude := cloneCoordinate(input.GeoLongitude)
 	if (geoLatitude == nil) != (geoLongitude == nil) {
-		return "", "", nil, nil, errors.New("地图坐标必须同时填写纬度和经度")
+		return "", "", "", nil, nil, false, errors.New("地图坐标必须同时填写纬度和经度")
 	}
 	if geoLatitude != nil && (*geoLatitude < -90 || *geoLatitude > 90) {
-		return "", "", nil, nil, errors.New("纬度必须在 -90 到 90 之间")
+		return "", "", "", nil, nil, false, errors.New("纬度必须在 -90 到 90 之间")
 	}
 	if geoLongitude != nil && (*geoLongitude < -180 || *geoLongitude > 180) {
-		return "", "", nil, nil, errors.New("经度必须在 -180 到 180 之间")
+		return "", "", "", nil, nil, false, errors.New("经度必须在 -180 到 180 之间")
 	}
 
-	return name, geoName, geoLatitude, geoLongitude, nil
+	if !manualOverride {
+		return name, ip, "", nil, nil, false, nil
+	}
+	if geoLatitude == nil && geoLongitude == nil && geoName == "" {
+		return name, ip, "", nil, nil, false, nil
+	}
+
+	return name, ip, geoName, geoLatitude, geoLongitude, true, nil
 }
 
 func cloneCoordinate(value *float64) *float64 {
@@ -410,6 +439,33 @@ func applyNodeRuntime(node *model.Node, payload AgentNodePayload, preserveName b
 	node.CurrentVersion = strings.TrimSpace(payload.CurrentVersion)
 	node.LastSeenAt = time.Now()
 	node.LastError = strings.TrimSpace(payload.LastError)
+	if !node.GeoManualOverride {
+		applyGeoInfoFromIP(node, node.IP)
+	}
+}
+
+func applyGeoInfoFromIP(node *model.Node, rawIP string) {
+	if node == nil {
+		return
+	}
+	node.GeoName = ""
+	node.GeoLatitude = nil
+	node.GeoLongitude = nil
+	ip := net.ParseIP(strings.TrimSpace(rawIP))
+	if ip == nil {
+		return
+	}
+	info, err := geoip.GetGeoInfo(ip)
+	if err != nil || info == nil {
+		return
+	}
+	if strings.TrimSpace(info.Name) != "" {
+		node.GeoName = strings.TrimSpace(info.Name)
+	}
+	if info.Latitude != nil && info.Longitude != nil {
+		node.GeoLatitude = cloneCoordinate(info.Latitude)
+		node.GeoLongitude = cloneCoordinate(info.Longitude)
+	}
 }
 
 func normalizeOpenrestyStatus(status string) string {

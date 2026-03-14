@@ -72,7 +72,7 @@ const defaultOperationFields = {
   AgentHeartbeatInterval: '10000',
   NodeOfflineThreshold: '120000',
   AgentUpdateRepo: 'Rain-kl/ATSFlare',
-  GeoIPProvider: 'disabled',
+  GeoIPProvider: 'ipinfo',
   OpenRestyWorkerProcesses: 'auto',
   OpenRestyWorkerConnections: '4096',
   OpenRestyWorkerRlimitNofile: '65535',
@@ -339,7 +339,7 @@ export function SettingsPage() {
       AgentHeartbeatInterval: optionMap.AgentHeartbeatInterval ?? '10000',
       NodeOfflineThreshold: optionMap.NodeOfflineThreshold ?? '120000',
       AgentUpdateRepo: optionMap.AgentUpdateRepo ?? 'Rain-kl/ATSFlare',
-      GeoIPProvider: optionMap.GeoIPProvider ?? 'disabled',
+      GeoIPProvider: optionMap.GeoIPProvider ?? 'ipinfo',
       OpenRestyWorkerProcesses: optionMap.OpenRestyWorkerProcesses ?? 'auto',
       OpenRestyWorkerConnections:
         optionMap.OpenRestyWorkerConnections ?? '4096',
@@ -919,171 +919,147 @@ export function SettingsPage() {
         <div className="space-y-6">
           <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
             <AppCard
-              title="接口文档与 Agent 运行参数"
-              description="这些参数会通过心跳响应下发到 Agent，修改后下个周期即可生效。"
+              title="Agent 接入设置"
+              description="集中维护 Agent 运行参数、更新仓库与 IP 归属方式。运行参数会通过心跳响应下发到 Agent。"
               action={
-                <div className="flex flex-wrap gap-2">
-                  <SecondaryButton
-                    type="button"
-                    onClick={() =>
-                      window.open(
-                        '/swagger/index.html',
-                        '_blank',
-                        'noopener,noreferrer',
-                      )
-                    }
-                  >
-                    打开接口文档
-                  </SecondaryButton>
-                  <PrimaryButton
-                    type="button"
-                    onClick={() =>
-                      void runBusyAction('operation-intervals', async () => {
-                        const heartbeat = Number.parseInt(
-                          operationFields.AgentHeartbeatInterval,
-                          10,
-                        );
-                        const offline = Number.parseInt(
-                          operationFields.NodeOfflineThreshold,
-                          10,
-                        );
+                <PrimaryButton
+                  type="button"
+                  onClick={() =>
+                    void runBusyAction('operation-settings', async () => {
+                      const heartbeat = Number.parseInt(
+                        operationFields.AgentHeartbeatInterval,
+                        10,
+                      );
+                      const offline = Number.parseInt(
+                        operationFields.NodeOfflineThreshold,
+                        10,
+                      );
 
-                        if (Number.isNaN(heartbeat) || heartbeat < 5000) {
-                          throw new Error('心跳间隔不能小于 5000 毫秒。');
-                        }
-                        if (Number.isNaN(offline) || offline < 10000) {
-                          throw new Error('离线阈值不能小于 10000 毫秒。');
-                        }
+                      if (Number.isNaN(heartbeat) || heartbeat < 5000) {
+                        throw new Error('心跳间隔不能小于 5000 毫秒。');
+                      }
+                      if (Number.isNaN(offline) || offline < 10000) {
+                        throw new Error('离线阈值不能小于 10000 毫秒。');
+                      }
 
-                        await saveOptionEntries(
-                          [
-                            ['AgentHeartbeatInterval', String(heartbeat)],
-                            ['NodeOfflineThreshold', String(offline)],
-                          ],
-                          'Agent 运行参数已保存。',
-                        );
-                      })
-                    }
-                    disabled={busyKey === 'operation-intervals'}
-                  >
-                    {busyKey === 'operation-intervals'
-                      ? '保存中...'
-                      : '保存运行参数'}
-                  </PrimaryButton>
-                </div>
+                      await saveOptionEntries(
+                        [
+                          ['AgentHeartbeatInterval', String(heartbeat)],
+                          ['NodeOfflineThreshold', String(offline)],
+                          ['AgentUpdateRepo', operationFields.AgentUpdateRepo.trim()],
+                          ['GeoIPProvider', operationFields.GeoIPProvider],
+                        ],
+                        '运维设置已保存。',
+                      );
+                    })
+                  }
+                >
+                  {busyKey === 'operation-settings' ? '保存中...' : '保存设置'}
+                </PrimaryButton>
               }
             >
-              <div className="grid gap-5 md:grid-cols-2">
-                <ResourceField
-                  label={`心跳间隔 (${formatDurationLabel(operationFields.AgentHeartbeatInterval)})`}
-                >
-                  <ResourceInput
-                    type="number"
-                    value={operationFields.AgentHeartbeatInterval}
-                    onChange={(event) =>
-                      setOperationFields((previous) => ({
-                        ...previous,
-                        AgentHeartbeatInterval: event.target.value,
-                      }))
-                    }
-                  />
-                </ResourceField>
-                <ResourceField
-                  label={`离线阈值 (${formatDurationLabel(operationFields.NodeOfflineThreshold)})`}
-                >
-                  <ResourceInput
-                    type="number"
-                    value={operationFields.NodeOfflineThreshold}
-                    onChange={(event) =>
-                      setOperationFields((previous) => ({
-                        ...previous,
-                        NodeOfflineThreshold: event.target.value,
-                      }))
-                    }
-                  />
-                </ResourceField>
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-[var(--foreground-primary)]">
+                      Agent 运行参数
+                    </p>
+                    <p className="text-sm text-[var(--foreground-muted)]">
+                      修改后会在下个心跳周期同步到节点。
+                    </p>
+                  </div>
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <ResourceField
+                      label={`心跳间隔 (${formatDurationLabel(operationFields.AgentHeartbeatInterval)})`}
+                    >
+                      <ResourceInput
+                        type="number"
+                        value={operationFields.AgentHeartbeatInterval}
+                        onChange={(event) =>
+                          setOperationFields((previous) => ({
+                            ...previous,
+                            AgentHeartbeatInterval: event.target.value,
+                          }))
+                        }
+                      />
+                    </ResourceField>
+                    <ResourceField
+                      label={`离线阈值 (${formatDurationLabel(operationFields.NodeOfflineThreshold)})`}
+                    >
+                      <ResourceInput
+                        type="number"
+                        value={operationFields.NodeOfflineThreshold}
+                        onChange={(event) =>
+                          setOperationFields((previous) => ({
+                            ...previous,
+                            NodeOfflineThreshold: event.target.value,
+                          }))
+                        }
+                      />
+                    </ResourceField>
+                  </div>
+                </div>
+
+                <div className="border-t border-[var(--border-default)] pt-6">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-[var(--foreground-primary)]">
+                      Agent 更新仓库
+                    </p>
+                    <p className="text-sm text-[var(--foreground-muted)]">
+                      自动更新和手动更新动作在节点页触发，这里维护 Agent 自更新使用的仓库地址。
+                    </p>
+                  </div>
+                  <div className="mt-4">
+                    <ResourceField label="GitHub 仓库">
+                      <ResourceInput
+                        value={operationFields.AgentUpdateRepo}
+                        onChange={(event) =>
+                          setOperationFields((previous) => ({
+                            ...previous,
+                            AgentUpdateRepo: event.target.value,
+                          }))
+                        }
+                        placeholder="Rain-kl/ATSFlare"
+                      />
+                    </ResourceField>
+                  </div>
+                </div>
+
+                <div className="border-t border-[var(--border-default)] pt-6">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-[var(--foreground-primary)]">
+                      IP 归属方式
+                    </p>
+                    <p className="text-sm text-[var(--foreground-muted)]">
+                      控制世界地图等场景使用的 IP 归属解析来源。选择 MaxMind 时会按需下载本地 mmdb 数据库。
+                    </p>
+                  </div>
+                  <div className="mt-4">
+                    <ResourceField
+                      label="归属方式"
+                      hint="disabled 关闭解析；mmdb 使用本地数据库；其余选项调用外部 GeoIP 服务。"
+                    >
+                      <ResourceSelect
+                        value={operationFields.GeoIPProvider}
+                        onChange={(event) =>
+                          setOperationFields((previous) => ({
+                            ...previous,
+                            GeoIPProvider: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="disabled">关闭</option>
+                        <option value="mmdb">MaxMind mmdb</option>
+                        <option value="ip-api">ip-api.com</option>
+                        <option value="geojs">geojs.io</option>
+                        <option value="ipinfo">ipinfo.io</option>
+                      </ResourceSelect>
+                    </ResourceField>
+                  </div>
+                </div>
               </div>
             </AppCard>
 
-            <AppCard
-              title="Agent 更新仓库"
-              description="自动更新和手动更新动作在节点页触发，这里只维护 Agent 自更新时使用的仓库地址。"
-              action={
-                <PrimaryButton
-                  type="button"
-                  onClick={() =>
-                    void runBusyAction('operation-repo', async () => {
-                      await saveOptionEntries(
-                        [
-                          [
-                            'AgentUpdateRepo',
-                            operationFields.AgentUpdateRepo.trim(),
-                          ],
-                        ],
-                        'Agent 更新仓库已保存。',
-                      );
-                    })
-                  }
-                  disabled={busyKey === 'operation-repo'}
-                >
-                  {busyKey === 'operation-repo' ? '保存中...' : '保存更新仓库'}
-                </PrimaryButton>
-              }
-            >
-              <ResourceField label="GitHub 仓库">
-                <ResourceInput
-                  value={operationFields.AgentUpdateRepo}
-                  onChange={(event) =>
-                    setOperationFields((previous) => ({
-                      ...previous,
-                      AgentUpdateRepo: event.target.value,
-                    }))
-                  }
-                  placeholder="Rain-kl/ATSFlare"
-                />
-              </ResourceField>
-            </AppCard>
-            <AppCard
-              title="IP 归属方式"
-              description="控制世界地图等场景使用的 IP 归属解析来源。选择 MaxMind 时会按需下载本地 mmdb 数据库。"
-              action={
-                <PrimaryButton
-                  type="button"
-                  onClick={() =>
-                    void runBusyAction('operation-geoip', async () => {
-                      await saveOptionEntries(
-                        [['GeoIPProvider', operationFields.GeoIPProvider]],
-                        'IP 归属方式已保存。',
-                      );
-                    })
-                  }
-                  disabled={busyKey === 'operation-geoip'}
-                >
-                  {busyKey === 'operation-geoip' ? '保存中...' : '保存归属方式'}
-                </PrimaryButton>
-              }
-            >
-              <ResourceField
-                label="归属方式"
-                hint="disabled 关闭解析；mmdb 使用本地数据库；其余选项调用外部 GeoIP 服务。"
-              >
-                <ResourceSelect
-                  value={operationFields.GeoIPProvider}
-                  onChange={(event) =>
-                    setOperationFields((previous) => ({
-                      ...previous,
-                      GeoIPProvider: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="disabled">关闭</option>
-                  <option value="mmdb">MaxMind mmdb</option>
-                  <option value="ip-api">ip-api.com</option>
-                  <option value="geojs">geojs.io</option>
-                  <option value="ipinfo">ipinfo.io</option>
-                </ResourceSelect>
-              </ResourceField>
-            </AppCard>
             <AppCard
               title="Discovery Token 与部署命令"
               description="适用于新节点首次接入。可直接复制一键安装命令。"
@@ -1275,25 +1251,39 @@ export function SettingsPage() {
               title="通用设置"
               description="服务器地址会影响邮件链接、OAuth 回调和部署命令展示。"
               action={
-                <PrimaryButton
-                  type="button"
-                  onClick={() =>
-                    void runBusyAction('system-general', async () => {
-                      await saveOptionEntries(
-                        [
+                <div className="flex flex-wrap gap-2">
+                  <SecondaryButton
+                    type="button"
+                    onClick={() =>
+                      window.open(
+                        '/swagger/index.html',
+                        '_blank',
+                        'noopener,noreferrer',
+                      )
+                    }
+                  >
+                    打开接口文档
+                  </SecondaryButton>
+                  <PrimaryButton
+                    type="button"
+                    onClick={() =>
+                      void runBusyAction('system-general', async () => {
+                        await saveOptionEntries(
                           [
-                            'ServerAddress',
-                            normalizeServerUrl(systemFields.ServerAddress),
+                            [
+                              'ServerAddress',
+                              normalizeServerUrl(systemFields.ServerAddress),
+                            ],
                           ],
-                        ],
-                        '通用设置已保存。',
-                      );
-                    })
-                  }
-                  disabled={busyKey === 'system-general'}
-                >
-                  {busyKey === 'system-general' ? '保存中...' : '保存通用设置'}
-                </PrimaryButton>
+                          '通用设置已保存。',
+                        );
+                      })
+                    }
+                    disabled={busyKey === 'system-general'}
+                  >
+                    {busyKey === 'system-general' ? '保存中...' : '保存通用设置'}
+                  </PrimaryButton>
+                </div>
               }
             >
               <ResourceField label="服务器地址">

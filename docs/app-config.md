@@ -111,7 +111,7 @@ volumes:
 | `AgentHeartbeatInterval` | Agent 心跳间隔（毫秒） | `10000` |
 | `NodeOfflineThreshold` | 节点离线判定阈值（毫秒） | `120000` |
 | `AgentUpdateRepo` | Agent 自更新仓库 | `Rain-kl/ATSFlare` |
-| `GeoIPProvider` | IP 归属解析方式；支持 `disabled`、`mmdb`、`ip-api`、`geojs`、`ipinfo` | `disabled` |
+| `GeoIPProvider` | IP 归属解析方式；支持 `disabled`、`mmdb`、`ip-api`、`geojs`、`ipinfo` | `ipinfo` |
 | `GlobalApiRateLimitNum` / `GlobalApiRateLimitDuration` | 全局 API 限流次数 / 时间窗口（秒） | `300` / `180` |
 | `GlobalWebRateLimitNum` / `GlobalWebRateLimitDuration` | 全局 Web 限流次数 / 时间窗口（秒） | `300` / `180` |
 | `UploadRateLimitNum` / `UploadRateLimitDuration` | 上传接口限流次数 / 时间窗口（秒） | `50` / `60` |

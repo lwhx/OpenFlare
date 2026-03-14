@@ -24,8 +24,10 @@ const (
 )
 
 type GeoInfo struct {
-	ISOCode string
-	Name    string
+	ISOCode   string
+	Name      string
+	Latitude  *float64
+	Longitude *float64
 }
 
 func init() {
@@ -201,4 +203,8 @@ func getProvider() GeoIPService {
 		return &EmptyProvider{}
 	}
 	return CurrentProvider
+}
+
+func float64Pointer(value float64) *float64 {
+	return &value
 }

@@ -2,18 +2,14 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
-import { z } from 'zod';
 
 import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
 import { InlineMessage } from '@/components/feedback/inline-message';
 import { LoadingState } from '@/components/feedback/loading-state';
 import { PageHeader } from '@/components/layout/page-header';
-import { AppModal } from '@/components/ui/app-modal';
 import { AppCard } from '@/components/ui/app-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { getConfigVersions } from '@/features/config-versions/api/config-versions';
@@ -23,14 +19,11 @@ import {
   getNodes,
   updateNode,
 } from '@/features/nodes/api/nodes';
-import type { NodeMutationPayload } from '@/features/nodes/types';
+import { NodeEditorModal } from '@/features/nodes/components/node-editor-modal';
+import type { NodeItem, NodeMutationPayload } from '@/features/nodes/types';
 import {
   DangerButton,
-  PrimaryButton,
-  ResourceField,
-  ResourceInput,
   SecondaryButton,
-  ToggleField,
 } from '@/features/shared/components/resource-primitives';
 import { formatDateTime, formatRelativeTime } from '@/lib/utils/date';
 import {
@@ -53,104 +46,21 @@ const supportedRiskFilters = [
 
 type NodeRiskFilter = (typeof supportedRiskFilters)[number];
 
-const nodeSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, '请输入节点名')
-    .max(128, '节点名不能超过 128 个字符'),
-  auto_update_enabled: z.boolean(),
-  geo_name: z.string().trim().max(128, '位置名不能超过 128 个字符'),
-  geo_latitude: z.string().trim(),
-  geo_longitude: z.string().trim(),
-}).superRefine((values, ctx) => {
-  const hasLatitude = values.geo_latitude !== '';
-  const hasLongitude = values.geo_longitude !== '';
-
-  if (hasLatitude !== hasLongitude) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['geo_latitude'],
-      message: '纬度和经度需要同时填写',
-    });
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['geo_longitude'],
-      message: '纬度和经度需要同时填写',
-    });
-    return;
-  }
-
-  if (hasLatitude) {
-    const latitude = Number(values.geo_latitude);
-    if (Number.isNaN(latitude) || latitude < -90 || latitude > 90) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['geo_latitude'],
-        message: '纬度必须在 -90 到 90 之间',
-      });
-    }
-  }
-
-  if (hasLongitude) {
-    const longitude = Number(values.geo_longitude);
-    if (Number.isNaN(longitude) || longitude < -180 || longitude > 180) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['geo_longitude'],
-        message: '经度必须在 -180 到 180 之间',
-      });
-    }
-  }
-});
-
-type NodeFormValues = z.infer<typeof nodeSchema>;
-
 type FeedbackState = {
   tone: 'info' | 'success' | 'danger';
   message: string;
-};
-
-const defaultValues: NodeFormValues = {
-  name: '',
-  auto_update_enabled: false,
-  geo_name: '',
-  geo_latitude: '',
-  geo_longitude: '',
 };
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '请求失败，请稍后重试。';
 }
 
-function toPayload(values: NodeFormValues): NodeMutationPayload {
-  return {
-    name: values.name.trim(),
-    auto_update_enabled: values.auto_update_enabled,
-    geo_name: values.geo_name.trim(),
-    geo_latitude:
-      values.geo_latitude.trim() === '' ? null : Number(values.geo_latitude),
-    geo_longitude:
-      values.geo_longitude.trim() === '' ? null : Number(values.geo_longitude),
-  };
-}
-
 export function NodesPage() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
-  const [editingNodeId, setEditingNodeId] = useState<number | null>(null);
+  const [editingNode, setEditingNode] = useState<NodeItem | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-
-  const form = useForm<NodeFormValues>({
-    resolver: zodResolver(nodeSchema),
-    defaultValues,
-  });
-
-  const watchedAutoUpdate = useWatch({
-    control: form.control,
-    name: 'auto_update_enabled',
-  });
 
   const nodesQuery = useQuery({
     queryKey: nodesQueryKey,
@@ -165,20 +75,18 @@ export function NodesPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (values: NodeFormValues) => {
-      const payload = toPayload(values);
-      return editingNodeId
-        ? updateNode(editingNodeId, payload)
+    mutationFn: async (payload: NodeMutationPayload) => {
+      return editingNode
+        ? updateNode(editingNode.id, payload)
         : createNode(payload);
     },
     onSuccess: async () => {
       setFeedback({
         tone: 'success',
-        message: editingNodeId ? '节点已更新。' : '节点已创建。',
+        message: editingNode ? '节点已更新。' : '节点已创建。',
       });
-      setEditingNodeId(null);
+      setEditingNode(null);
       setIsEditorOpen(false);
-      form.reset(defaultValues);
       await queryClient.invalidateQueries({ queryKey: nodesQueryKey });
     },
     onError: (error) => {
@@ -190,8 +98,7 @@ export function NodesPage() {
     mutationFn: deleteNode,
     onSuccess: async () => {
       setFeedback({ tone: 'success', message: '节点已删除。' });
-      setEditingNodeId(null);
-      form.reset(defaultValues);
+      setEditingNode(null);
       await queryClient.invalidateQueries({ queryKey: nodesQueryKey });
     },
     onError: (error) => {
@@ -247,41 +154,19 @@ export function NodesPage() {
 
   const handleReset = () => {
     setFeedback(null);
-    setEditingNodeId(null);
+    setEditingNode(null);
     setIsEditorOpen(false);
-    form.reset(defaultValues);
   };
 
   const handleCreate = () => {
     setFeedback(null);
-    setEditingNodeId(null);
-    form.reset(defaultValues);
+    setEditingNode(null);
     setIsEditorOpen(true);
   };
 
-  const handleEdit = (
-    nodeId: number,
-    name: string,
-    autoUpdateEnabled: boolean,
-    geoName: string,
-    geoLatitude?: number | null,
-    geoLongitude?: number | null,
-  ) => {
+  const handleEdit = (node: NodeItem) => {
     setFeedback(null);
-    setEditingNodeId(nodeId);
-    form.reset({
-      name,
-      auto_update_enabled: autoUpdateEnabled,
-      geo_name: geoName,
-      geo_latitude:
-        geoLatitude === undefined || geoLatitude === null
-          ? ''
-          : String(geoLatitude),
-      geo_longitude:
-        geoLongitude === undefined || geoLongitude === null
-          ? ''
-          : String(geoLongitude),
-    });
+    setEditingNode(node);
     setIsEditorOpen(true);
   };
 
@@ -297,12 +182,6 @@ export function NodesPage() {
     setFeedback(null);
     deleteMutation.mutate(nodeId);
   };
-
-  const handleSubmit = form.handleSubmit((values) => {
-    setFeedback(null);
-    saveMutation.mutate(values);
-  });
-
   return (
     <>
       <div className="space-y-6">
@@ -487,16 +366,7 @@ export function NodesPage() {
                             </Link>
                             <SecondaryButton
                               type="button"
-                              onClick={() =>
-                                handleEdit(
-                                  node.id,
-                                  node.name,
-                                  node.auto_update_enabled,
-                                  node.geo_name,
-                                  node.geo_latitude,
-                                  node.geo_longitude,
-                                )
-                              }
+                              onClick={() => handleEdit(node)}
                               className="px-3 py-2 text-xs"
                             >
                               编辑
@@ -520,98 +390,19 @@ export function NodesPage() {
           )}
         </AppCard>
       </div>
-      <AppModal
+      <NodeEditorModal
         isOpen={isEditorOpen}
+        node={editingNode}
+        isSubmitting={saveMutation.isPending}
+        title={editingNode ? '编辑节点' : '新增节点'}
         onClose={handleReset}
-        title={editingNodeId ? '编辑节点' : '新增节点'}
         description="预创建节点后可在详情页查看专属 Token、部署命令与更新控制。"
-        footer={
-          <div className="flex flex-wrap justify-end gap-3">
-            <SecondaryButton
-              type="button"
-              onClick={handleReset}
-              disabled={saveMutation.isPending}
-            >
-              取消
-            </SecondaryButton>
-            <PrimaryButton
-              type="submit"
-              form="node-editor-form"
-              disabled={saveMutation.isPending}
-            >
-              {saveMutation.isPending
-                ? '保存中...'
-                : editingNodeId
-                  ? '保存修改'
-                  : '新增节点'}
-            </PrimaryButton>
-          </div>
-        }
-      >
-        <form
-          id="node-editor-form"
-          className="space-y-5"
-          onSubmit={handleSubmit}
-        >
-          <ResourceField
-            label="节点名"
-            hint="示例：shanghai-edge-1"
-            error={form.formState.errors.name?.message}
-          >
-            <ResourceInput
-              placeholder="shanghai-edge-1"
-              {...form.register('name')}
-            />
-          </ResourceField>
-
-          <ToggleField
-            label="启用自动更新"
-            description="开启后 Agent 心跳返回会提示节点自动执行自更新。"
-            checked={watchedAutoUpdate}
-            onChange={(checked) =>
-              form.setValue('auto_update_enabled', checked, {
-                shouldDirty: true,
-                shouldValidate: true,
-              })
-            }
-          />
-
-          <ResourceField
-            label="地图位置名"
-            hint="示例：Shanghai / Tokyo / Frankfurt，可用于总览世界板标注。"
-            error={form.formState.errors.geo_name?.message}
-          >
-            <ResourceInput
-              placeholder="Shanghai"
-              {...form.register('geo_name')}
-            />
-          </ResourceField>
-
-          <div className="grid gap-5 md:grid-cols-2">
-            <ResourceField
-              label="纬度"
-              hint="范围 -90 到 90，例如上海约为 31.2304"
-              error={form.formState.errors.geo_latitude?.message}
-            >
-              <ResourceInput
-                placeholder="31.2304"
-                {...form.register('geo_latitude')}
-              />
-            </ResourceField>
-
-            <ResourceField
-              label="经度"
-              hint="范围 -180 到 180，例如上海约为 121.4737"
-              error={form.formState.errors.geo_longitude?.message}
-            >
-              <ResourceInput
-                placeholder="121.4737"
-                {...form.register('geo_longitude')}
-              />
-            </ResourceField>
-          </div>
-        </form>
-      </AppModal>
+        submitLabel={editingNode ? '保存修改' : '新增节点'}
+        onSubmit={(payload) => {
+          setFeedback(null);
+          saveMutation.mutate(payload);
+        }}
+      />
     </>
   );
 }

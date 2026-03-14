@@ -3,7 +3,9 @@ package service
 import (
 	"atsflare/common"
 	"atsflare/model"
+	"atsflare/utils/geoip"
 	"io"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
@@ -13,8 +15,41 @@ import (
 
 type roundTripFunc func(req *http.Request) (*http.Response, error)
 
+type fakeGeoIPProvider struct {
+	info *geoip.GeoInfo
+}
+
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func (f *fakeGeoIPProvider) Name() string {
+	return "fake-geoip"
+}
+
+func (f *fakeGeoIPProvider) GetGeoInfo(ip net.IP) (*geoip.GeoInfo, error) {
+	return f.info, nil
+}
+
+func (f *fakeGeoIPProvider) UpdateDatabase() error {
+	return nil
+}
+
+func (f *fakeGeoIPProvider) Close() error {
+	return nil
+}
+
+func withFakeGeoIPProvider(t *testing.T, info *geoip.GeoInfo) {
+	t.Helper()
+	previous := geoip.CurrentProvider
+	geoip.CurrentProvider = &fakeGeoIPProvider{info: info}
+	t.Cleanup(func() {
+		geoip.CurrentProvider = previous
+	})
+}
+
+func geoipFloat(value float64) *float64 {
+	return &value
 }
 
 func TestRequestNodeAgentPreviewUpdate(t *testing.T) {
@@ -23,10 +58,11 @@ func TestRequestNodeAgentPreviewUpdate(t *testing.T) {
 	latitude := 31.2304
 	longitude := 121.4737
 	node, err := CreateNode(NodeInput{
-		Name:         "preview-edge-1",
-		GeoName:      "Shanghai",
-		GeoLatitude:  &latitude,
-		GeoLongitude: &longitude,
+		Name:              "preview-edge-1",
+		GeoManualOverride: true,
+		GeoName:           "Shanghai",
+		GeoLatitude:       &latitude,
+		GeoLongitude:      &longitude,
 	})
 	if err != nil {
 		t.Fatalf("failed to create node: %v", err)
@@ -173,6 +209,7 @@ func TestUpdateNodeValidatesAndPersistsGeoMetadata(t *testing.T) {
 	updated, err := UpdateNode(node.ID, NodeInput{
 		Name:              "geo-edge-updated",
 		AutoUpdateEnabled: true,
+		GeoManualOverride: true,
 		GeoName:           "San Francisco",
 		GeoLatitude:       &latitude,
 		GeoLongitude:      &longitude,
@@ -203,10 +240,145 @@ func TestUpdateNodeRejectsPartialGeoMetadata(t *testing.T) {
 
 	latitude := 37.7749
 	if _, err = UpdateNode(node.ID, NodeInput{
-		Name:        "geo-edge-invalid",
-		GeoLatitude: &latitude,
+		Name:              "geo-edge-invalid",
+		GeoManualOverride: true,
+		GeoLatitude:       &latitude,
 	}); err == nil {
 		t.Fatal("expected partial geo metadata to be rejected")
+	}
+}
+
+func TestUpdateNodeRejectsInvalidIP(t *testing.T) {
+	setupServiceTestDB(t)
+
+	node, err := CreateNode(NodeInput{Name: "geo-edge-invalid-ip"})
+	if err != nil {
+		t.Fatalf("failed to create node: %v", err)
+	}
+
+	if _, err = UpdateNode(node.ID, NodeInput{
+		Name: "geo-edge-invalid-ip",
+		IP:   "not-an-ip",
+	}); err == nil {
+		t.Fatal("expected invalid IP to be rejected")
+	}
+}
+
+func TestUpdateNodeCanChangeIPAndAutoResolveGeo(t *testing.T) {
+	setupServiceTestDB(t)
+	withFakeGeoIPProvider(t, &geoip.GeoInfo{
+		ISOCode:   "US",
+		Name:      "United States",
+		Latitude:  geoipFloat(37.7749),
+		Longitude: geoipFloat(-122.4194),
+	})
+
+	node, err := CreateNode(NodeInput{Name: "geo-edge-auto-ip"})
+	if err != nil {
+		t.Fatalf("failed to create node: %v", err)
+	}
+
+	updated, err := UpdateNode(node.ID, NodeInput{
+		Name: "geo-edge-auto-ip",
+		IP:   "8.8.8.8",
+	})
+	if err != nil {
+		t.Fatalf("expected node update to succeed: %v", err)
+	}
+	if updated.IP != "8.8.8.8" {
+		t.Fatalf("expected updated IP to be persisted, got %+v", updated.IP)
+	}
+	if updated.GeoName != "United States" {
+		t.Fatalf("expected geo name to be auto resolved, got %+v", updated)
+	}
+	if updated.GeoLatitude == nil || updated.GeoLongitude == nil {
+		t.Fatalf("expected geo coordinates to be auto resolved, got %+v", updated)
+	}
+}
+
+func TestHeartbeatNodeResolvesGeoMetadataFromIPWhenNotManuallyOverridden(t *testing.T) {
+	setupServiceTestDB(t)
+	withFakeGeoIPProvider(t, &geoip.GeoInfo{
+		ISOCode:   "US",
+		Name:      "United States",
+		Latitude:  geoipFloat(37.7749),
+		Longitude: geoipFloat(-122.4194),
+	})
+
+	node := &model.Node{
+		NodeID:       "node-geo-auto",
+		Name:         "geo-auto",
+		IP:           "10.0.0.8",
+		AgentToken:   "agent-token",
+		AgentVersion: "v0.4.0",
+		NginxVersion: "1.27.1.2",
+		Status:       NodeStatusOnline,
+	}
+	if err := node.Insert(); err != nil {
+		t.Fatalf("failed to seed node: %v", err)
+	}
+
+	resp, err := HeartbeatNode(node, AgentNodePayload{
+		NodeID:       node.NodeID,
+		Name:         node.Name,
+		IP:           "8.8.8.8",
+		AgentVersion: node.AgentVersion,
+		NginxVersion: node.NginxVersion,
+	})
+	if err != nil {
+		t.Fatalf("expected heartbeat to succeed: %v", err)
+	}
+	if resp.Node.GeoName != "United States" {
+		t.Fatalf("expected auto geo name, got %+v", resp.Node)
+	}
+	if resp.Node.GeoLatitude == nil || resp.Node.GeoLongitude == nil {
+		t.Fatalf("expected auto geo coordinates, got %+v", resp.Node)
+	}
+}
+
+func TestHeartbeatNodePreservesManualGeoOverride(t *testing.T) {
+	setupServiceTestDB(t)
+	withFakeGeoIPProvider(t, &geoip.GeoInfo{
+		ISOCode:   "US",
+		Name:      "United States",
+		Latitude:  geoipFloat(37.7749),
+		Longitude: geoipFloat(-122.4194),
+	})
+
+	latitude := 31.2304
+	longitude := 121.4737
+	node := &model.Node{
+		NodeID:            "node-geo-manual",
+		Name:              "geo-manual",
+		IP:                "10.0.0.8",
+		GeoName:           "Shanghai",
+		GeoLatitude:       &latitude,
+		GeoLongitude:      &longitude,
+		GeoManualOverride: true,
+		AgentToken:        "agent-token",
+		AgentVersion:      "v0.4.0",
+		NginxVersion:      "1.27.1.2",
+		Status:            NodeStatusOnline,
+	}
+	if err := node.Insert(); err != nil {
+		t.Fatalf("failed to seed node: %v", err)
+	}
+
+	resp, err := HeartbeatNode(node, AgentNodePayload{
+		NodeID:       node.NodeID,
+		Name:         node.Name,
+		IP:           "8.8.8.8",
+		AgentVersion: node.AgentVersion,
+		NginxVersion: node.NginxVersion,
+	})
+	if err != nil {
+		t.Fatalf("expected heartbeat to succeed: %v", err)
+	}
+	if resp.Node.GeoName != "Shanghai" {
+		t.Fatalf("expected manual geo name to be preserved, got %+v", resp.Node)
+	}
+	if resp.Node.GeoLatitude == nil || *resp.Node.GeoLatitude != latitude {
+		t.Fatalf("expected manual latitude to be preserved, got %+v", resp.Node.GeoLatitude)
 	}
 }
 

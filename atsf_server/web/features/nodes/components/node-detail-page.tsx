@@ -2,11 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
-import { z } from 'zod';
 
 import { RankChart } from '@/components/data/rank-chart';
 import { TrendChart } from '@/components/data/trend-chart';
@@ -31,9 +28,9 @@ import {
   requestNodeAgentUpdate,
   updateNode,
 } from '@/features/nodes/api/nodes';
+import { NodeEditorModal } from '@/features/nodes/components/node-editor-modal';
 import type {
   NodeAgentReleaseInfo,
-  NodeMutationPayload,
   NodeObservability,
 } from '@/features/nodes/types';
 import {
@@ -43,7 +40,6 @@ import {
   ResourceField,
   ResourceInput,
   SecondaryButton,
-  ToggleField,
 } from '@/features/shared/components/resource-primitives';
 import type { ReleaseChannel } from '@/features/update/types';
 import { formatDateTime, formatRelativeTime } from '@/lib/utils/date';
@@ -62,17 +58,6 @@ import {
 
 const nodesQueryKey = ['nodes'];
 
-const nodeSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, '请输入节点名')
-    .max(128, '节点名不能超过 128 个字符'),
-  auto_update_enabled: z.boolean(),
-});
-
-type NodeFormValues = z.infer<typeof nodeSchema>;
-
 type FeedbackState = {
   tone: 'info' | 'success' | 'danger';
   message: string;
@@ -80,30 +65,8 @@ type FeedbackState = {
 
 type HealthEventFilter = 'all' | 'active' | 'resolved';
 
-const defaultValues: NodeFormValues = {
-  name: '',
-  auto_update_enabled: false,
-};
-
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '请求失败，请稍后重试。';
-}
-
-function toPayload(
-  values: NodeFormValues,
-  currentNode?: {
-    geo_name?: string;
-    geo_latitude?: number | null;
-    geo_longitude?: number | null;
-  } | null,
-): NodeMutationPayload {
-  return {
-    name: values.name.trim(),
-    auto_update_enabled: values.auto_update_enabled,
-    geo_name: currentNode?.geo_name ?? '',
-    geo_latitude: currentNode?.geo_latitude ?? null,
-    geo_longitude: currentNode?.geo_longitude ?? null,
-  };
 }
 
 async function copyToClipboard(value: string) {
@@ -303,16 +266,6 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
   const [healthEventFilter, setHealthEventFilter] =
     useState<HealthEventFilter>('all');
 
-  const form = useForm<NodeFormValues>({
-    resolver: zodResolver(nodeSchema),
-    defaultValues,
-  });
-
-  const watchedAutoUpdate = useWatch({
-    control: form.control,
-    name: 'auto_update_enabled',
-  });
-
   const nodesQuery = useQuery({
     queryKey: nodesQueryKey,
     queryFn: getNodes,
@@ -364,27 +317,12 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
     }
   }, [serverUrl]);
 
-  useEffect(() => {
-    if (!node || isEditorOpen) {
-      return;
-    }
-
-    form.reset({
-      name: node.name,
-      auto_update_enabled: node.auto_update_enabled,
-    });
-  }, [form, isEditorOpen, node]);
-
   const saveMutation = useMutation({
-    mutationFn: async (values: NodeFormValues) =>
-      updateNode(Number(nodeId), toPayload(values, node)),
+    mutationFn: async (payload: Parameters<typeof updateNode>[1]) =>
+      updateNode(Number(nodeId), payload),
     onSuccess: async (updatedNode) => {
       setFeedback({ tone: 'success', message: '节点已更新。' });
       setIsEditorOpen(false);
-      form.reset({
-        name: updatedNode.name,
-        auto_update_enabled: updatedNode.auto_update_enabled,
-      });
       await queryClient.invalidateQueries({ queryKey: nodesQueryKey });
     },
     onError: (error) => {
@@ -443,11 +381,6 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
     onError: (error) => {
       setFeedback({ tone: 'danger', message: getErrorMessage(error) });
     },
-  });
-
-  const handleSubmit = form.handleSubmit((values) => {
-    setFeedback(null);
-    saveMutation.mutate(values);
   });
 
   const handleDelete = () => {
@@ -1697,59 +1630,19 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
         onClose={() => setIsTargetSnapshotOpen(false)}
       />
 
-      <AppModal
+      <NodeEditorModal
         isOpen={isEditorOpen}
+        node={node}
+        isSubmitting={saveMutation.isPending}
         onClose={() => setIsEditorOpen(false)}
-        title="编辑"
+        title="编辑节点"
         description="更新模式和节点名都在详情页维护。"
-        footer={
-          <div className="flex flex-wrap justify-end gap-3">
-            <SecondaryButton
-              type="button"
-              onClick={() => setIsEditorOpen(false)}
-              disabled={saveMutation.isPending}
-            >
-              取消
-            </SecondaryButton>
-            <PrimaryButton
-              type="submit"
-              form="node-detail-editor-form"
-              disabled={saveMutation.isPending}
-            >
-              {saveMutation.isPending ? '保存中...' : '保存修改'}
-            </PrimaryButton>
-          </div>
-        }
-      >
-        <form
-          id="node-detail-editor-form"
-          className="space-y-5"
-          onSubmit={handleSubmit}
-        >
-          <ResourceField
-            label="节点名"
-            hint="示例：shanghai-edge-1"
-            error={form.formState.errors.name?.message}
-          >
-            <ResourceInput
-              placeholder="shanghai-edge-1"
-              {...form.register('name')}
-            />
-          </ResourceField>
-
-          <ToggleField
-            label="启用自动更新"
-            description="开启后 Agent 心跳返回会提示节点自动执行自更新。"
-            checked={watchedAutoUpdate}
-            onChange={(checked) =>
-              form.setValue('auto_update_enabled', checked, {
-                shouldDirty: true,
-                shouldValidate: true,
-              })
-            }
-          />
-        </form>
-      </AppModal>
+        submitLabel="保存修改"
+        onSubmit={(payload) => {
+          setFeedback(null);
+          saveMutation.mutate(payload);
+        }}
+      />
 
       <AppModal
         isOpen={isAgentUpdateModalOpen}

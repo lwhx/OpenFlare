@@ -184,10 +184,11 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 	}
 
 	createdNodeResp := performJSONRequest(t, engine, adminToken, http.MethodPost, "/api/nodes/", map[string]any{
-		"name":          "shanghai-edge-1",
-		"geo_name":      "Shanghai",
-		"geo_latitude":  31.2304,
-		"geo_longitude": 121.4737,
+		"name":                "shanghai-edge-1",
+		"geo_manual_override": true,
+		"geo_name":            "Shanghai",
+		"geo_latitude":        31.2304,
+		"geo_longitude":       121.4737,
 	})
 	var createdNode service.NodeView
 	decodeResponseData(t, createdNodeResp, &createdNode)
@@ -330,10 +331,11 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 	}
 
 	updatedNodeResp := performJSONRequest(t, engine, adminToken, http.MethodPut, "/api/nodes/"+toString(createdNode.ID), map[string]any{
-		"name":          "shanghai-edge-1-renamed",
-		"geo_name":      "Tokyo",
-		"geo_latitude":  35.6762,
-		"geo_longitude": 139.6503,
+		"name":                "shanghai-edge-1-renamed",
+		"geo_manual_override": true,
+		"geo_name":            "Tokyo",
+		"geo_latitude":        35.6762,
+		"geo_longitude":       139.6503,
 	})
 	decodeResponseData(t, updatedNodeResp, &createdNode)
 	if createdNode.Name != "shanghai-edge-1-renamed" {

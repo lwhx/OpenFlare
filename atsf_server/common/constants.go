@@ -53,7 +53,7 @@ var NodeOfflineThreshold = 2 * time.Minute
 // V3 operational settings (hot-reloadable via Option table)
 var AgentHeartbeatInterval = 10000 // milliseconds
 var AgentUpdateRepo = "Rain-kl/ATSFlare"
-var GeoIPProvider = "disabled"
+var GeoIPProvider = "ipinfo"
 
 // V5 OpenResty performance settings (hot-reloadable via Option table)
 var OpenRestyWorkerProcesses = "auto"

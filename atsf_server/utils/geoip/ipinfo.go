@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -65,6 +67,8 @@ func (s *IPInfoService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 		return nil, fmt.Errorf("failed to decode ipinfo.io response: %w", err)
 	}
 
+	latitude, longitude := parseIPInfoCoordinates(apiResp.Loc)
+
 	// IPinfo 的 "country" 字段直接返回 ISO 2-letter code，例如 "US", "CN"
 	// 我们需要将 "country" 字段作为 ISOCode，并尝试获取其对应的国家名称。
 	// IPinfo 响应中通常不直接提供完整的国家名称，但我们可以通过 CountryCode 映射。
@@ -73,8 +77,10 @@ func (s *IPInfoService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	// 如果需要完整的国家名称，可能需要一个本地的 ISO 代码到名称的映射。
 	// 为了与 GetRegionUnicodeEmoji 函数兼容，我们直接使用 country 作为 ISOCode。
 	return &GeoInfo{
-		ISOCode: apiResp.Country, // IPinfo 的 'country' 字段就是 ISO 2-letter code
-		Name:    apiResp.Country, // 免费额度通常只提供 ISO 编码，这里暂时用 ISO 编码作为名称
+		ISOCode:   apiResp.Country,
+		Name:      apiResp.Country,
+		Latitude:  latitude,
+		Longitude: longitude,
 	}, nil
 }
 
@@ -88,4 +94,19 @@ func (s *IPInfoService) UpdateDatabase() error {
 func (s *IPInfoService) Close() error {
 	// 无需执行任何操作
 	return nil
+}
+
+func parseIPInfoCoordinates(value string) (*float64, *float64) {
+	parts := strings.Split(strings.TrimSpace(value), ",")
+	if len(parts) != 2 {
+		return nil, nil
+	}
+
+	latitudeValue, latErr := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+	longitudeValue, lonErr := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+	if latErr != nil || lonErr != nil {
+		return nil, nil
+	}
+
+	return float64Pointer(latitudeValue), float64Pointer(longitudeValue)
 }

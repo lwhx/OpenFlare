@@ -16,8 +16,10 @@ type GeoJSService struct {
 // geoJSResponse 定义了 geojs.io 服务返回的 JSON 响应的结构。
 // 我们只定义我们需要的字段。
 type geoJSResponse struct {
-	Country     string `json:"country"`
-	CountryCode string `json:"country_code"`
+	Country     string  `json:"country"`
+	CountryCode string  `json:"country_code"`
+	Latitude    float64 `json:"latitude,string"`
+	Longitude   float64 `json:"longitude,string"`
 	// 可以根据需要添加其他字段，例如:
 	// City    string `json:"city"`
 	// Region  string `json:"region"`
@@ -64,8 +66,10 @@ func (s *GeoJSService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	}
 
 	return &GeoInfo{
-		ISOCode: apiResp.CountryCode,
-		Name:    apiResp.Country,
+		ISOCode:   apiResp.CountryCode,
+		Name:      apiResp.Country,
+		Latitude:  float64Pointer(apiResp.Latitude),
+		Longitude: float64Pointer(apiResp.Longitude),
 	}, nil
 }
 
