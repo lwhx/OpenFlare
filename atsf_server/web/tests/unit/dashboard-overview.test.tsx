@@ -55,6 +55,49 @@ describe('DashboardOverview', () => {
                     lagging_nodes: 1,
                     pending_nodes: 0,
                   },
+                  risk: {
+                    critical_alerts: 1,
+                    warning_alerts: 2,
+                    info_alerts: 0,
+                    offline_nodes: 0,
+                    unhealthy_nodes: 1,
+                    lagging_nodes: 1,
+                    high_cpu_nodes: 1,
+                    high_memory_nodes: 1,
+                    high_storage_nodes: 1,
+                  },
+                  peaks: {
+                    peak_request_hour: {
+                      bucket_started_at: '2026-03-14T08:00:00Z',
+                      request_count: 900,
+                      error_count: 36,
+                    },
+                    peak_error_hour: {
+                      bucket_started_at: '2026-03-14T09:00:00Z',
+                      request_count: 400,
+                      error_count: 60,
+                    },
+                    busiest_node: {
+                      node_id: 'node-a',
+                      node_name: 'edge-a',
+                      request_count: 600,
+                      error_count: 6,
+                      cpu_usage_percent: 45,
+                      active_event_count: 0,
+                      openresty_status: 'healthy',
+                      storage_usage_percent: 60,
+                    },
+                    riskiest_node: {
+                      node_id: 'node-b',
+                      node_name: 'edge-b',
+                      request_count: 300,
+                      error_count: 30,
+                      cpu_usage_percent: 92,
+                      active_event_count: 2,
+                      openresty_status: 'unhealthy',
+                      storage_usage_percent: 95,
+                    },
+                  },
                   trends: {
                     traffic_24h: Array.from({ length: 24 }, (_, index) => ({
                       bucket_started_at: `2026-03-13T${String(index).padStart(2, '0')}:00:00Z`,
@@ -123,6 +166,7 @@ describe('DashboardOverview', () => {
     );
 
     expect(await screen.findByText('系统运行总览')).toBeInTheDocument();
+    expect(await screen.findByText('风险态势')).toBeInTheDocument();
     expect(await screen.findByText('24 小时请求趋势')).toBeInTheDocument();
     expect(await screen.findByText('节点健康列表')).toBeInTheDocument();
   });

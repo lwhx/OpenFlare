@@ -13,6 +13,7 @@ import { getDashboardOverview } from '@/features/dashboard/api/overview';
 import type {
   DashboardAlert,
   DashboardNodeHealth,
+  DashboardPeakNode,
 } from '@/features/dashboard/types';
 import {
   getNodeStatusLabel,
@@ -54,6 +55,84 @@ function getAlertVariant(
     return 'warning';
   }
   return 'info';
+}
+
+function formatPeakHour(value: string) {
+  if (!value) {
+    return '暂无';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '暂无';
+  }
+  return `${formatTrendHour(value)} - ${date
+    .getMinutes()
+    .toString()
+    .padStart(2, '0')}`;
+}
+
+function RiskSignal({
+  label,
+  value,
+  tone,
+  hint,
+}: {
+  label: string;
+  value: number;
+  tone: 'danger' | 'warning' | 'info' | 'success';
+  hint: string;
+}) {
+  const toneClass =
+    tone === 'danger'
+      ? 'border-rose-400/30 bg-rose-500/10 text-rose-100'
+      : tone === 'warning'
+        ? 'border-amber-400/30 bg-amber-500/10 text-amber-100'
+        : tone === 'success'
+          ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+          : 'border-sky-400/30 bg-sky-500/10 text-sky-100';
+
+  return (
+    <div className={`rounded-3xl border px-4 py-4 ${toneClass}`}>
+      <p className="text-xs tracking-[0.22em] uppercase opacity-75">{label}</p>
+      <p className="mt-3 text-3xl font-semibold">{value}</p>
+      <p className="mt-2 text-sm opacity-80">{hint}</p>
+    </div>
+  );
+}
+
+function PeakCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4">
+      <p className="text-xs tracking-[0.22em] text-[var(--foreground-muted)] uppercase">
+        {label}
+      </p>
+      <p className="mt-3 text-xl font-semibold text-[var(--foreground-primary)]">
+        {value}
+      </p>
+      <p className="mt-2 text-sm text-[var(--foreground-secondary)]">{hint}</p>
+    </div>
+  );
+}
+
+function formatPeakNode(node: DashboardPeakNode | null) {
+  if (!node) {
+    return {
+      title: '暂无',
+      hint: '当前没有可用节点数据',
+    };
+  }
+  return {
+    title: node.node_name,
+    hint: `请求 ${node.request_count} · 错误 ${node.error_count} · CPU ${formatPercent(node.cpu_usage_percent)}`,
+  };
 }
 
 function OverviewMetric({
@@ -223,6 +302,86 @@ export function DashboardOverview() {
           />
         </div>
       </AppCard>
+
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <AppCard
+          title="风险态势"
+          description="把异常、容量压力和配置落后聚到同一层，方便先确定今天该盯哪里。"
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <RiskSignal
+              label="Critical"
+              value={overview.risk.critical_alerts}
+              tone="danger"
+              hint="当前仍在触发中的严重异常"
+            />
+            <RiskSignal
+              label="Warning"
+              value={overview.risk.warning_alerts}
+              tone="warning"
+              hint="需要尽快介入但尚未到故障级"
+            />
+            <RiskSignal
+              label="配置落后"
+              value={overview.risk.lagging_nodes}
+              tone="info"
+              hint="当前版本未追平全局激活配置"
+            />
+            <RiskSignal
+              label="OpenResty 异常"
+              value={overview.risk.unhealthy_nodes}
+              tone="danger"
+              hint="运行态已出现不健康节点"
+            />
+            <RiskSignal
+              label="高 CPU / 内存"
+              value={
+                overview.risk.high_cpu_nodes + overview.risk.high_memory_nodes
+              }
+              tone="warning"
+              hint={`${overview.risk.high_cpu_nodes} 个高 CPU · ${overview.risk.high_memory_nodes} 个高内存`}
+            />
+            <RiskSignal
+              label="高存储压力"
+              value={overview.risk.high_storage_nodes}
+              tone="warning"
+              hint={`${overview.risk.offline_nodes} 个离线节点`}
+            />
+          </div>
+        </AppCard>
+
+        <AppCard
+          title="峰值摘要"
+          description="快速回答什么时候最忙、什么时候最危险，以及该先看哪台节点。"
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <PeakCard
+              label="请求峰值时段"
+              value={formatPeakHour(
+                overview.peaks.peak_request_hour.bucket_started_at,
+              )}
+              hint={`峰值请求 ${overview.peaks.peak_request_hour.request_count}`}
+            />
+            <PeakCard
+              label="错误峰值时段"
+              value={formatPeakHour(
+                overview.peaks.peak_error_hour.bucket_started_at,
+              )}
+              hint={`峰值错误 ${overview.peaks.peak_error_hour.error_count}`}
+            />
+            <PeakCard
+              label="最忙节点"
+              value={formatPeakNode(overview.peaks.busiest_node).title}
+              hint={formatPeakNode(overview.peaks.busiest_node).hint}
+            />
+            <PeakCard
+              label="优先排查节点"
+              value={formatPeakNode(overview.peaks.riskiest_node).title}
+              hint={formatPeakNode(overview.peaks.riskiest_node).hint}
+            />
+          </div>
+        </AppCard>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <AppCard

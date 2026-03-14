@@ -721,6 +721,9 @@ func TestGetDashboardOverview(t *testing.T) {
 	if view.Config.ActiveVersion != "20260314-001" || view.Config.LaggingNodes != 1 {
 		t.Fatalf("unexpected dashboard config summary: %+v", view.Config)
 	}
+	if view.Risk.CriticalAlerts != 1 || view.Risk.HighCPUNodes != 1 || view.Risk.HighMemoryNodes != 1 {
+		t.Fatalf("unexpected dashboard risk summary: %+v", view.Risk)
+	}
 	if len(view.Nodes) != 2 || len(view.ActiveAlerts) != 1 {
 		t.Fatalf("unexpected dashboard nodes/alerts: %+v %+v", view.Nodes, view.ActiveAlerts)
 	}
@@ -729,5 +732,11 @@ func TestGetDashboardOverview(t *testing.T) {
 	}
 	if view.Trends.Traffic24h[len(view.Trends.Traffic24h)-1].RequestCount != 900 {
 		t.Fatalf("unexpected dashboard traffic trend tail: %+v", view.Trends.Traffic24h[len(view.Trends.Traffic24h)-1])
+	}
+	if view.Peaks.BusiestNode == nil || view.Peaks.BusiestNode.NodeID != "node-dashboard-a" {
+		t.Fatalf("unexpected busiest node: %+v", view.Peaks.BusiestNode)
+	}
+	if view.Peaks.RiskiestNode == nil || view.Peaks.RiskiestNode.NodeID != "node-dashboard-b" {
+		t.Fatalf("unexpected riskiest node: %+v", view.Peaks.RiskiestNode)
 	}
 }

@@ -30,6 +30,42 @@ export interface DashboardConfig {
   pending_nodes: number;
 }
 
+export interface DashboardRiskSummary {
+  critical_alerts: number;
+  warning_alerts: number;
+  info_alerts: number;
+  offline_nodes: number;
+  unhealthy_nodes: number;
+  lagging_nodes: number;
+  high_cpu_nodes: number;
+  high_memory_nodes: number;
+  high_storage_nodes: number;
+}
+
+export interface DashboardPeakHour {
+  bucket_started_at: string;
+  request_count: number;
+  error_count: number;
+}
+
+export interface DashboardPeakNode {
+  node_id: string;
+  node_name: string;
+  request_count: number;
+  error_count: number;
+  cpu_usage_percent: number;
+  active_event_count: number;
+  openresty_status: 'healthy' | 'unhealthy' | 'unknown';
+  storage_usage_percent: number;
+}
+
+export interface DashboardPeakSummary {
+  peak_request_hour: DashboardPeakHour;
+  peak_error_hour: DashboardPeakHour;
+  busiest_node: DashboardPeakNode | null;
+  riskiest_node: DashboardPeakNode | null;
+}
+
 export interface TrafficTrendPoint {
   bucket_started_at: string;
   request_count: number;
@@ -82,6 +118,8 @@ export interface DashboardOverview {
   traffic: DashboardTraffic;
   capacity: DashboardCapacity;
   config: DashboardConfig;
+  risk: DashboardRiskSummary;
+  peaks: DashboardPeakSummary;
   trends: DashboardTrends;
   nodes: DashboardNodeHealth[];
   active_alerts: DashboardAlert[];

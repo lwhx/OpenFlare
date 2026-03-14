@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"atsflare/common"
@@ -130,7 +130,7 @@ func ScheduleServerUpgrade(channel string) (*LatestServerRelease, error) {
 	serverUpgradeState.Lock()
 	if serverUpgradeState.inProgress {
 		serverUpgradeState.Unlock()
-		return nil, fmt.Errorf("鏈嶅姟鍗囩骇宸插湪鎵ц涓紝璇风◢鍚庡啀璇?)
+		return nil, fmt.Errorf("服务升级正在执行中，请稍后再试")
 	}
 
 	resetServerUpgradeLogsLocked()
@@ -164,19 +164,18 @@ func ScheduleServerUpgrade(channel string) (*LatestServerRelease, error) {
 func UploadManualServerBinary(ctx context.Context, fileName string, reader io.Reader) (*UploadedServerBinary, error) {
 	inProgress, _, _ := snapshotServerUpgradeState()
 	if inProgress {
-		return nil, fmt.Errorf("鏈嶅姟鍗囩骇宸插湪鎵ц涓紝璇风◢鍚庡啀璇?)
+		return nil, fmt.Errorf("服务升级正在执行中，请稍后再试")
 	}
 	if strings.TrimSpace(fileName) == "" {
-		return nil, fmt.Errorf("缂哄皯涓婁紶鏂囦欢鍚?)
+		return nil, fmt.Errorf("缺少上传文件名")
 	}
 	if reader == nil {
-		return nil, fmt.Errorf("缂哄皯涓婁紶鏂囦欢鍐呭")
+		return nil, fmt.Errorf("缺少上传文件内容")
 	}
-
 
 	execPath, err := os.Executable()
 	if err != nil {
-		return nil, fmt.Errorf("鑾峰彇褰撳墠鏈嶅姟绋嬪簭璺緞澶辫触: %v", err)
+		return nil, fmt.Errorf("获取当前服务程序路径失败: %v", err)
 	}
 	if err = verifyExecutableDirectoryWritable(execPath); err != nil {
 		return nil, err
@@ -203,7 +202,7 @@ func UploadManualServerBinary(ctx context.Context, fileName string, reader io.Re
 	uploadToken, err := newUpgradeToken()
 	if err != nil {
 		_ = os.Remove(tempPath)
-		return nil, fmt.Errorf("鐢熸垚鍗囩骇浠ょ墝澶辫触: %v", err)
+		return nil, fmt.Errorf("生成升级令牌失败: %v", err)
 	}
 
 	manualServerBinaryState.Lock()
@@ -226,13 +225,13 @@ func UploadManualServerBinary(ctx context.Context, fileName string, reader io.Re
 func ConfirmManualServerUpgrade(uploadToken string) (*UploadedServerBinary, error) {
 	uploadToken = strings.TrimSpace(uploadToken)
 	if uploadToken == "" {
-		return nil, fmt.Errorf("缂哄皯鍗囩骇浠ょ墝")
+		return nil, fmt.Errorf("缺少升级令牌")
 	}
 
 	serverUpgradeState.Lock()
 	if serverUpgradeState.inProgress {
 		serverUpgradeState.Unlock()
-		return nil, fmt.Errorf("鏈嶅姟鍗囩骇宸插湪鎵ц涓紝璇风◢鍚庡啀璇?)
+		return nil, fmt.Errorf("服务升级正在执行中，请稍后再试")
 	}
 	serverUpgradeState.Unlock()
 
@@ -240,11 +239,11 @@ func ConfirmManualServerUpgrade(uploadToken string) (*UploadedServerBinary, erro
 	candidate := manualServerBinaryState.candidate
 	if candidate == nil {
 		manualServerBinaryState.Unlock()
-		return nil, fmt.Errorf("鏈壘鍒板緟纭鐨勪笂浼犲崌绾у寘锛岃閲嶆柊涓婁紶")
+		return nil, fmt.Errorf("未找到待确认的上传升级包，请重新上传")
 	}
 	if candidate.UploadToken != uploadToken {
 		manualServerBinaryState.Unlock()
-		return nil, fmt.Errorf("鍗囩骇浠ょ墝鏃犳晥鎴栧凡杩囨湡锛岃閲嶆柊涓婁紶")
+		return nil, fmt.Errorf("升级令牌无效或已过期，请重新上传")
 	}
 	manualServerBinaryState.candidate = nil
 	manualServerBinaryState.Unlock()
@@ -253,7 +252,7 @@ func ConfirmManualServerUpgrade(uploadToken string) (*UploadedServerBinary, erro
 	info.UploadToken = candidate.UploadToken
 	if !info.ReadyToUpgrade {
 		_ = os.Remove(candidate.TempPath)
-		return nil, fmt.Errorf("褰撳墠涓婁紶鐨勪簩杩涘埗涓嶆弧瓒冲崌绾ф潯浠?)
+		return nil, fmt.Errorf("当前上传的二进制不满足升级条件")
 	}
 
 	serverUpgradeState.Lock()
@@ -292,17 +291,17 @@ func fetchLatestStableGitHubRelease(ctx context.Context, repo string) (*githubRe
 	url := fmt.Sprintf(githubReleasesAPIBase+"/latest", strings.TrimSpace(repo))
 	req, err := newGitHubReleaseRequest(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("鍒涘缓鏇存柊璇锋眰澶辫触")
+		return nil, fmt.Errorf("创建更新请求失败")
 	}
 
 	resp, err := updateHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("鑾峰彇鏈€鏂扮増鏈け璐? %v", err)
+		return nil, fmt.Errorf("获取最新版本失败: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub 杩斿洖寮傚父鐘舵€? %s", resp.Status)
+		return nil, fmt.Errorf("GitHub 返回异常状态: %s", resp.Status)
 	}
 
 	return decodeGitHubRelease(resp.Body)
@@ -312,22 +311,22 @@ func fetchLatestPreviewGitHubRelease(ctx context.Context, repo string) (*githubR
 	url := fmt.Sprintf(githubReleasesAPIBase+"?per_page=20", strings.TrimSpace(repo))
 	req, err := newGitHubReleaseRequest(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("鍒涘缓鏇存柊璇锋眰澶辫触")
+		return nil, fmt.Errorf("创建更新请求失败")
 	}
 
 	resp, err := updateHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("鑾峰彇 preview 鐗堟湰澶辫触: %v", err)
+		return nil, fmt.Errorf("获取 preview 版本失败: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub 杩斿洖寮傚父鐘舵€? %s", resp.Status)
+		return nil, fmt.Errorf("GitHub 返回异常状态: %s", resp.Status)
 	}
 
 	var releases []githubReleaseResponse
 	if err = json.NewDecoder(resp.Body).Decode(&releases); err != nil {
-		return nil, fmt.Errorf("瑙ｆ瀽 preview 鐗堟湰淇℃伅澶辫触")
+		return nil, fmt.Errorf("解析 preview 版本信息失败")
 	}
 	for _, release := range releases {
 		if release.Draft || !release.Prerelease {
@@ -336,31 +335,31 @@ func fetchLatestPreviewGitHubRelease(ctx context.Context, repo string) (*githubR
 		releaseCopy := release
 		return &releaseCopy, nil
 	}
-	return nil, fmt.Errorf("褰撳墠娌℃湁鍙敤鐨?preview 鍙戝竷")
+	return nil, fmt.Errorf("当前没有可用的 preview 发布")
 }
 
 func fetchGitHubReleaseByTag(ctx context.Context, repo string, tag string) (*githubReleaseResponse, error) {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
-		return nil, fmt.Errorf("缂哄皯鍙戝竷鐗堟湰鍙?)
+		return nil, fmt.Errorf("缺少发布版本号")
 	}
 	url := fmt.Sprintf(githubReleasesAPIBase+"/tags/%s", strings.TrimSpace(repo), tag)
 	req, err := newGitHubReleaseRequest(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("鍒涘缓鏇存柊璇锋眰澶辫触")
+		return nil, fmt.Errorf("创建更新请求失败")
 	}
 
 	resp, err := updateHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("鑾峰彇鎸囧畾鐗堟湰澶辫触: %v", err)
+		return nil, fmt.Errorf("获取指定版本失败: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("鏈壘鍒版寚瀹氱増鏈? %s", tag)
+		return nil, fmt.Errorf("未找到指定版本: %s", tag)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub 杩斿洖寮傚父鐘舵€? %s", resp.Status)
+		return nil, fmt.Errorf("GitHub 返回异常状态: %s", resp.Status)
 	}
 
 	return decodeGitHubRelease(resp.Body)
@@ -379,7 +378,7 @@ func newGitHubReleaseRequest(ctx context.Context, url string) (*http.Request, er
 func decodeGitHubRelease(reader io.Reader) (*githubReleaseResponse, error) {
 	var release githubReleaseResponse
 	if err := json.NewDecoder(reader).Decode(&release); err != nil {
-		return nil, fmt.Errorf("瑙ｆ瀽鏈€鏂扮増鏈俊鎭け璐?)
+		return nil, fmt.Errorf("解析版本信息失败")
 	}
 	return &release, nil
 }
@@ -400,9 +399,7 @@ func buildLatestServerReleaseView(release *githubReleaseResponse, channel Releas
 		}
 	}
 
-	serverUpgradeState.Lock()
-	inProgress := serverUpgradeState.inProgress
-	serverUpgradeState.Unlock()
+	inProgress, upgradeStatus, upgradeLogs := snapshotServerUpgradeState()
 
 	view := &LatestServerRelease{
 		Channel:          channel.String(),
@@ -431,10 +428,10 @@ func prepareServerUpgrade(ctx context.Context, channel ReleaseChannel) (*prepare
 
 	view := buildLatestServerReleaseView(release, channel)
 	if !view.HasUpdate {
-		return nil, fmt.Errorf("褰撳墠宸叉槸鏈€鏂扮増鏈?)
+		return nil, fmt.Errorf("当前已经是最新版本")
 	}
 	if !view.UpgradeSupported {
-		return nil, fmt.Errorf("褰撳墠骞冲彴鏆備笉鏀寔鑷姩鍗囩骇")
+		return nil, fmt.Errorf("当前平台暂不支持自动升级")
 	}
 
 	assetName := serverAssetName(runtime.GOOS, runtime.GOARCH)
@@ -448,18 +445,17 @@ func prepareServerUpgrade(ctx context.Context, channel ReleaseChannel) (*prepare
 		}
 	}
 	if downloadURL == "" {
-		return nil, fmt.Errorf("鏈€鏂扮増鏈己灏戝綋鍓嶅钩鍙扮殑鏈嶅姟绔簩杩涘埗: %s", assetName)
+		return nil, fmt.Errorf("最新版本缺少当前平台的服务端二进制: %s", assetName)
 	}
 
 	execPath, err := os.Executable()
 	if err != nil {
-		return nil, fmt.Errorf("鑾峰彇褰撳墠鏈嶅姟绋嬪簭璺緞澶辫触: %v", err)
+		return nil, fmt.Errorf("获取当前服务程序路径失败: %v", err)
 	}
 	if err = verifyExecutableDirectoryWritable(execPath); err != nil {
 		return nil, err
 	}
 	recordServerUpgradeLog("info", "Verified current executable directory is writable.")
-
 
 	return &preparedServerUpgrade{
 		release:     view,
@@ -472,15 +468,15 @@ func verifyExecutableDirectoryWritable(execPath string) error {
 	dir := filepath.Dir(execPath)
 	tempFile, err := os.CreateTemp(dir, "atsflare-server-upgrade-check-*")
 	if err != nil {
-		return fmt.Errorf("褰撳墠鏈嶅姟浜岃繘鍒剁洰褰曚笉鍙啓锛屾棤娉曞崌绾? %v", err)
+		return fmt.Errorf("当前服务二进制目录不可写，无法升级: %v", err)
 	}
 	tempPath := tempFile.Name()
 	if closeErr := tempFile.Close(); closeErr != nil {
 		_ = os.Remove(tempPath)
-		return fmt.Errorf("鏍￠獙鏈嶅姟鍗囩骇鐩綍澶辫触: %v", closeErr)
+		return fmt.Errorf("校验服务升级目录失败: %v", closeErr)
 	}
 	if err = os.Remove(tempPath); err != nil {
-		return fmt.Errorf("娓呯悊鍗囩骇鏍￠獙鏂囦欢澶辫触: %v", err)
+		return fmt.Errorf("清理升级校验文件失败: %v", err)
 	}
 	return nil
 }
@@ -504,7 +500,7 @@ func executeServerUpgrade(task *preparedServerUpgrade) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("涓嬭浇鏈嶅姟绔崌绾у寘澶辫触: %s", resp.Status)
+		return fmt.Errorf("下载服务端升级包失败: %s", resp.Status)
 	}
 
 	recordServerUpgradeLog("info", "Download finished, validating binary version.")
@@ -707,14 +703,14 @@ func buildUploadedServerBinaryView(fileName string, currentVersion string, detec
 
 	switch {
 	case !upgradeSupported:
-		comparisonMessage = "褰撳墠鏈嶅姟鐗堟湰涓嶆敮鎸佹墜鍔ㄥ崌绾х‘璁ゆ祦绋?
+		comparisonMessage = "当前服务版本不支持手动升级确认流程"
 	case normalizeVersion(currentVersion) == normalizeVersion(detectedVersion):
-		comparisonMessage = "涓婁紶浜岃繘鍒朵笌褰撳墠鏈嶅姟鐗堟湰涓€鑷达紝鏃犻渶鍗囩骇"
+		comparisonMessage = "上传二进制与当前服务版本一致，无需升级"
 	case isVersionNewer(currentVersion, detectedVersion):
 		hasUpdate = true
-		comparisonMessage = fmt.Sprintf("妫€娴嬪埌鍙崌绾х増鏈細%s -> %s", strings.TrimSpace(currentVersion), strings.TrimSpace(detectedVersion))
+		comparisonMessage = fmt.Sprintf("检测到可升级版本：%s -> %s", strings.TrimSpace(currentVersion), strings.TrimSpace(detectedVersion))
 	default:
-		comparisonMessage = "涓婁紶浜岃繘鍒剁増鏈笉楂樹簬褰撳墠鏈嶅姟鐗堟湰锛屽凡鎷掔粷鍗囩骇"
+		comparisonMessage = "上传二进制版本不高于当前服务版本，已拒绝升级"
 	}
 
 	return &UploadedServerBinary{
@@ -745,21 +741,21 @@ func persistUploadedServerBinary(tempDir string, fileName string, reader io.Read
 	}
 	tempFile, err := os.CreateTemp(tempDir, "atsflare-server-manual-upgrade-*"+suffix)
 	if err != nil {
-		return "", fmt.Errorf("鍒涘缓涓存椂鍗囩骇鏂囦欢澶辫触: %v", err)
+		return "", fmt.Errorf("创建临时升级文件失败: %v", err)
 	}
 	tempPath := tempFile.Name()
 	if _, err = io.Copy(tempFile, reader); err != nil {
 		_ = tempFile.Close()
 		_ = os.Remove(tempPath)
-		return "", fmt.Errorf("鍐欏叆涓婁紶浜岃繘鍒跺け璐? %v", err)
+		return "", fmt.Errorf("写入上传二进制失败: %v", err)
 	}
 	if err = tempFile.Close(); err != nil {
 		_ = os.Remove(tempPath)
-		return "", fmt.Errorf("鍏抽棴涓存椂鍗囩骇鏂囦欢澶辫触: %v", err)
+		return "", fmt.Errorf("关闭临时升级文件失败: %v", err)
 	}
 	if err = os.Chmod(tempPath, 0o755); err != nil && runtime.GOOS != "windows" {
 		_ = os.Remove(tempPath)
-		return "", fmt.Errorf("璁剧疆涓存椂鍗囩骇鏂囦欢鏉冮檺澶辫触: %v", err)
+		return "", fmt.Errorf("设置临时升级文件权限失败: %v", err)
 	}
 	return tempPath, nil
 }
@@ -772,11 +768,11 @@ func detectUploadedServerBinaryVersion(ctx context.Context, filePath string) (st
 	cmd := exec.CommandContext(commandCtx, filePath, "--version")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("妫€鏌ヤ笂浼犱簩杩涘埗鐗堟湰澶辫触: %w: %s", err, strings.TrimSpace(string(output)))
+		return "", fmt.Errorf("检查上传二进制版本失败: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	version := strings.TrimSpace(string(output))
 	if version == "" {
-		return "", fmt.Errorf("涓婁紶浜岃繘鍒舵湭杩斿洖鏈夋晥鐗堟湰鍙?)
+		return "", fmt.Errorf("上传二进制未返回有效版本号")
 	}
 	for _, line := range strings.Split(version, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -784,7 +780,7 @@ func detectUploadedServerBinaryVersion(ctx context.Context, filePath string) (st
 			return trimmed, nil
 		}
 	}
-	return "", fmt.Errorf("涓婁紶浜岃繘鍒舵湭杩斿洖鏈夋晥鐗堟湰鍙?)
+	return "", fmt.Errorf("上传二进制未返回有效版本号")
 }
 
 func persistDownloadedServerBinary(ctx context.Context, execPath string, releaseTag string, reader io.Reader) (*manualServerBinaryCandidate, error) {
@@ -803,7 +799,7 @@ func persistDownloadedServerBinary(ctx context.Context, execPath string, release
 
 	if normalizeVersion(detectedVersion) != normalizeVersion(releaseTag) {
 		_ = os.Remove(tempPath)
-		return nil, fmt.Errorf("涓嬭浇鍖呯増鏈牎楠屽け璐ワ細release=%s锛宐inary=%s", strings.TrimSpace(releaseTag), strings.TrimSpace(detectedVersion))
+		return nil, fmt.Errorf("下载包版本校验失败：release=%s，binary=%s", strings.TrimSpace(releaseTag), strings.TrimSpace(detectedVersion))
 	}
 
 	info := buildUploadedServerBinaryView(fileName, common.Version, detectedVersion, time.Now())
@@ -924,6 +920,3 @@ func SetServerUpgradeDispatchDelayForTest(delay time.Duration) {
 	}
 	serverUpgradeDispatchDelay = delay
 }
-
-
-

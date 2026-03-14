@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
+import { RankChart } from '@/components/data/rank-chart';
 import { TrendChart } from '@/components/data/trend-chart';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
@@ -150,6 +151,48 @@ function formatTrendHour(value: string) {
     return '—';
   }
   return `${date.getHours().toString().padStart(2, '0')}:00`;
+}
+
+function parseTrafficMap(value?: string | null) {
+  if (!value) {
+    return {} as Record<string, number>;
+  }
+  try {
+    const parsed = JSON.parse(value) as Record<string, number>;
+    return Object.entries(parsed).reduce<Record<string, number>>(
+      (result, [key, count]) => {
+        if (typeof count === 'number' && Number.isFinite(count)) {
+          result[key] = count;
+        }
+        return result;
+      },
+      {},
+    );
+  } catch {
+    return {} as Record<string, number>;
+  }
+}
+
+function aggregateTrafficBreakdown(
+  reports: NodeObservability['traffic_reports'],
+  field: 'status_codes_json' | 'top_domains_json',
+) {
+  const summary = new Map<string, number>();
+  for (const report of reports) {
+    const parsed = parseTrafficMap(report[field]);
+    for (const [key, value] of Object.entries(parsed)) {
+      summary.set(key, (summary.get(key) ?? 0) + value);
+    }
+  }
+  return Array.from(summary.entries())
+    .sort((left, right) => {
+      if (right[1] === left[1]) {
+        return left[0].localeCompare(right[0]);
+      }
+      return right[1] - left[1];
+    })
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
 }
 
 function getHealthEventVariant(
@@ -467,6 +510,22 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
   const activeHealthEvents =
     observability?.health_events.filter((event) => event.status === 'active') ??
     [];
+  const statusCodeDistribution = useMemo(
+    () =>
+      aggregateTrafficBreakdown(
+        observability?.traffic_reports ?? [],
+        'status_codes_json',
+      ),
+    [observability?.traffic_reports],
+  );
+  const topDomains = useMemo(
+    () =>
+      aggregateTrafficBreakdown(
+        observability?.traffic_reports ?? [],
+        'top_domains_json',
+      ),
+    [observability?.traffic_reports],
+  );
   const memoryUsageRatio = formatUsageRatio(
     latestMetricSnapshot?.memory_used_bytes,
     latestMetricSnapshot?.memory_total_bytes,
@@ -905,6 +964,93 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                 },
               ]}
             />
+          </AppCard>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <AppCard
+            title="请求结构分布"
+            description="聚合最近 24 小时窗口上报，帮助判断错误集中在哪些状态码、流量集中在哪些域名。"
+          >
+            <div className="grid gap-6 xl:grid-cols-2">
+              <div>
+                <p className="mb-4 text-xs tracking-[0.2em] text-[var(--foreground-muted)] uppercase">
+                  状态码分布
+                </p>
+                <RankChart
+                  items={statusCodeDistribution}
+                  color="#f59e0b"
+                  emptyMessage="暂无状态码分布"
+                />
+              </div>
+              <div>
+                <p className="mb-4 text-xs tracking-[0.2em] text-[var(--foreground-muted)] uppercase">
+                  Top Domain
+                </p>
+                <RankChart
+                  items={topDomains}
+                  color="#2563eb"
+                  emptyMessage="暂无域名分布"
+                />
+              </div>
+            </div>
+          </AppCard>
+
+          <AppCard
+            title="健康事件时间线"
+            description="保留活动与已恢复事件，帮助判断问题是持续中、间歇性还是已经恢复。"
+          >
+            {observability?.health_events.length ? (
+              <div className="space-y-4">
+                {observability.health_events.slice(0, 8).map((event) => (
+                  <div
+                    key={`${event.event_type}-${event.last_triggered_at}-${event.status}`}
+                    className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        label={getHealthEventLabel(event)}
+                        variant={getHealthEventVariant(event)}
+                      />
+                      <StatusBadge
+                        label={event.status === 'active' ? '活动中' : '已恢复'}
+                        variant={
+                          event.status === 'active' ? 'warning' : 'success'
+                        }
+                      />
+                    </div>
+                    <p className="mt-3 text-sm text-[var(--foreground-secondary)]">
+                      {event.message || '暂无详细消息'}
+                    </p>
+                    <div className="mt-3 grid gap-2 text-xs text-[var(--foreground-muted)] md:grid-cols-3">
+                      <p>
+                        首次触发：
+                        {isMeaningfulTime(event.first_triggered_at)
+                          ? ` ${formatDateTime(event.first_triggered_at)}`
+                          : ' —'}
+                      </p>
+                      <p>
+                        最近触发：
+                        {isMeaningfulTime(event.last_triggered_at)
+                          ? ` ${formatDateTime(event.last_triggered_at)}`
+                          : ' —'}
+                      </p>
+                      <p>
+                        恢复时间：
+                        {isMeaningfulTime(event.resolved_at)
+                          ? ` ${formatDateTime(event.resolved_at)}`
+                          : ' —'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="暂无健康事件时间线"
+                description="节点当前还没有上报可展示的健康事件记录。"
+              />
+            )}
           </AppCard>
         </div>
 

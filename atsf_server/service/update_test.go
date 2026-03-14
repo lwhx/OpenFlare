@@ -14,9 +14,9 @@ import (
 	"time"
 )
 
-type roundTripFunc func(req *http.Request) (*http.Response, error)
+type serverUpdateRoundTripFunc func(req *http.Request) (*http.Response, error)
 
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+func (f serverUpdateRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
@@ -338,7 +338,7 @@ func TestScheduleServerUpgradeUsesDownloadedBinaryValidation(t *testing.T) {
 	called := make(chan string, 1)
 
 	SetUpdateHTTPClientForTest(&http.Client{
-		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		Transport: serverUpdateRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			switch req.URL.String() {
 			case "https://api.github.com/repos/Rain-kl/ATSFlare/releases/latest":
 				return &http.Response{
