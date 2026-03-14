@@ -1,5 +1,11 @@
 export type ReleaseChannel = 'stable' | 'preview';
 
+export interface UpgradeLogItem {
+  level: string;
+  message: string;
+  created_at: string;
+}
+
 export interface LatestReleaseInfo {
   tag_name: string;
   body: string;
@@ -11,6 +17,8 @@ export interface LatestReleaseInfo {
   has_update: boolean;
   upgrade_supported: boolean;
   in_progress: boolean;
+  upgrade_status: 'idle' | 'running' | 'succeeded' | 'failed' | string;
+  upgrade_logs: UpgradeLogItem[];
 }
 
 export interface UploadedServerBinaryInfo {

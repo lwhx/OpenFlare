@@ -9,7 +9,11 @@ import {LoadingState} from '@/components/feedback/loading-state';
 import {AppCard} from '@/components/ui/app-card';
 import {AppModal} from '@/components/ui/app-modal';
 import {StatusBadge} from '@/components/ui/status-badge';
-import type {LatestReleaseInfo, ReleaseChannel, UploadedServerBinaryInfo,} from '@/features/update/types';
+import type {
+    LatestReleaseInfo,
+    ReleaseChannel,
+    UploadedServerBinaryInfo,
+} from '@/features/update/types';
 import {
     PrimaryButton,
     ResourceField,
@@ -93,6 +97,7 @@ export function VersionUpgradeModal({
         uploadedBinary?.ready_to_upgrade && uploadedBinary.upload_token,
     );
     const showConfirmManualUpgradeAction = canConfirmManualUpgrade;
+    const upgradeLogs = release?.upgrade_logs ?? [];
 
     useEffect(() => {
         if (!isOpen) {
@@ -238,6 +243,61 @@ export function VersionUpgradeModal({
                                 </div>
                             ) : null}
                         </div>
+                    </AppCard>
+                ) : null}
+
+                {release ? (
+                    <AppCard
+                        title="升级日志"
+                        description="展示当前自动升级任务的下载、校验与替换进度。"
+                    >
+                        {upgradeLogs.length > 0 ? (
+                            <div className="space-y-3">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <StatusBadge
+                                        label={
+                                            release.upgrade_status === 'failed'
+                                                ? '升级失败'
+                                                : release.upgrade_status === 'succeeded'
+                                                    ? '准备重启'
+                                                    : release.in_progress
+                                                        ? '升级中'
+                                                        : '空闲'
+                                        }
+                                        variant={
+                                            release.upgrade_status === 'failed'
+                                                ? 'danger'
+                                                : release.in_progress
+                                                    ? 'warning'
+                                                    : release.upgrade_status === 'succeeded'
+                                                        ? 'success'
+                                                        : 'info'
+                                        }
+                                    />
+                                </div>
+                                <div className="max-h-72 space-y-2 overflow-y-auto rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] p-4">
+                                    {upgradeLogs.map((log, index) => (
+                                        <div
+                                            key={`${log.created_at}-${index}`}
+                                            className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-panel)] px-4 py-3"
+                                        >
+                                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--foreground-secondary)]">
+                                                <span>{formatDateTime(log.created_at)}</span>
+                                                <span className="uppercase">{log.level || 'info'}</span>
+                                            </div>
+                                            <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-[var(--foreground-primary)]">
+                                                {log.message}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <EmptyState
+                                title="暂无升级日志"
+                                description="开始自动升级后，这里会滚动展示后端返回的执行日志。"
+                            />
+                        )}
                     </AppCard>
                 ) : null}
 
