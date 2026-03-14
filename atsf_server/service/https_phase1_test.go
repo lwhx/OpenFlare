@@ -60,8 +60,11 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	if !strings.Contains(result.Version.MainConfig, "log_by_lua_file __ATSF_LUA_DIR__/observability/log.lua;") {
 		t.Fatal("expected main config to include managed openresty lua log hook")
 	}
-	if !strings.Contains(result.Version.MainConfig, "listen 127.0.0.1:__ATSF_OBSERVABILITY_PORT__;") {
-		t.Fatal("expected main config to include managed openresty observability port placeholder")
+	if !strings.Contains(result.Version.MainConfig, "listen __ATSF_OBSERVABILITY_LISTEN__;") {
+		t.Fatal("expected main config to include managed openresty observability listen placeholder")
+	}
+	if strings.Contains(result.Version.MainConfig, "allow 127.0.0.1;") {
+		t.Fatal("expected main config to avoid hard-coded allow rules on observability server")
 	}
 	if !strings.Contains(result.Version.RenderedConfig, "listen 443 ssl;") {
 		t.Fatal("expected rendered config to include https server block")
@@ -77,6 +80,12 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	}
 	if !strings.Contains(result.Version.SupportFilesJSON, "observability/log.lua") || !strings.Contains(result.Version.SupportFilesJSON, "observability/read.lua") {
 		t.Fatal("expected support files to contain managed openresty observability lua scripts")
+	}
+	if !strings.Contains(result.Version.SupportFilesJSON, "/atsflare/observability") || !strings.Contains(result.Version.SupportFilesJSON, "/atsflare/stub_status") {
+		t.Fatal("expected observability log lua to skip self-observability requests")
+	}
+	if !strings.Contains(result.Version.SupportFilesJSON, "window_start = now - (now % window_size)") || !strings.Contains(result.Version.SupportFilesJSON, "local window_size = 60") {
+		t.Fatal("expected support files to use fixed 60-second observability windows")
 	}
 }
 

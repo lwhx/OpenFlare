@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"atsflare-agent/internal/config"
+	"atsflare-agent/internal/protocol"
 	"atsflare-agent/internal/state"
 )
 
@@ -105,5 +106,26 @@ func TestBuildTrafficReportParsesCombinedAccessLog(t *testing.T) {
 	}
 	if len(report.TopDomains) != 0 {
 		t.Fatalf("expected combined access log to omit top domains when host is unavailable, got %+v", report.TopDomains)
+	}
+}
+
+func TestBuildTrafficReportReturnsManagedWindowEvenWhenRequestCountZero(t *testing.T) {
+	report := BuildTrafficReport(nil, nil, &managedOpenRestyMetrics{
+		TrafficReport: &protocol.NodeTrafficReport{
+			WindowStartedAtUnix: 1710403200,
+			WindowEndedAtUnix:   1710403260,
+			RequestCount:        0,
+			ErrorCount:          0,
+			UniqueVisitorCount:  0,
+			StatusCodes:         map[string]int64{},
+			TopDomains:          map[string]int64{},
+			SourceCountries:     map[string]int64{},
+		},
+	})
+	if report == nil {
+		t.Fatal("expected managed traffic report to be returned even when request count is zero")
+	}
+	if report.RequestCount != 0 || report.WindowStartedAtUnix != 1710403200 || report.WindowEndedAtUnix != 1710403260 {
+		t.Fatalf("unexpected managed traffic report: %+v", report)
 	}
 }

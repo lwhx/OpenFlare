@@ -115,11 +115,12 @@ type configBundle struct {
 }
 
 const (
-	nginxSupportDirPlaceholder        = "__ATSF_SUPPORT_DIR__"
-	nginxRouteConfigPlaceholder       = "__ATSF_ROUTE_CONFIG__"
-	nginxAccessLogPlaceholder         = "__ATSF_ACCESS_LOG__"
-	nginxLuaDirPlaceholder            = "__ATSF_LUA_DIR__"
-	nginxObservabilityPortPlaceholder = "__ATSF_OBSERVABILITY_PORT__"
+	nginxSupportDirPlaceholder          = "__ATSF_SUPPORT_DIR__"
+	nginxRouteConfigPlaceholder         = "__ATSF_ROUTE_CONFIG__"
+	nginxAccessLogPlaceholder           = "__ATSF_ACCESS_LOG__"
+	nginxLuaDirPlaceholder              = "__ATSF_LUA_DIR__"
+	nginxObservabilityListenPlaceholder = "__ATSF_OBSERVABILITY_LISTEN__"
+	nginxObservabilityPortPlaceholder   = "__ATSF_OBSERVABILITY_PORT__"
 )
 
 var requiredMainConfigTemplatePlaceholders = []string{

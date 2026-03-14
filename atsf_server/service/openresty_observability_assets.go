@@ -8,6 +8,7 @@ const (
 	openRestyObservabilityLogLuaPath  = openRestyObservabilitySupportDir + "/log.lua"
 	openRestyObservabilityReadLuaPath = openRestyObservabilitySupportDir + "/read.lua"
 	openRestyObservabilityWindowTTL   = 7200
+	openRestyObservabilityWindowSize  = 60
 )
 
 const openRestyObservabilityInitLua = `local dict = ngx.shared.atsflare_observability
@@ -15,12 +16,7 @@ if not dict then
     return
 end
 
-local now = ngx.time()
-local current_window = dict:get("current_window")
-if not current_window then
-    dict:set("current_window", now)
-    dict:set("window_started_at:" .. now, now)
-end
+return
 `
 
 const openRestyObservabilityLogLua = `local dict = ngx.shared.atsflare_observability
@@ -28,14 +24,15 @@ if not dict then
     return
 end
 
-local ttl = ` + "7200" + `
-local current_window = dict:get("current_window")
-local now = ngx.time()
-if not current_window then
-    current_window = now
-    dict:set("current_window", current_window)
-    dict:set("window_started_at:" .. current_window, now)
+local request_uri = tostring(ngx.var.uri or "")
+if request_uri == "/atsflare/observability" or request_uri == "/atsflare/stub_status" then
+    return
 end
+
+local ttl = ` + "7200" + `
+local now = ngx.time()
+local window_size = ` + "60" + `
+local window_start = now - (now % window_size)
 
 local function ensure_counter(key)
     dict:add(key, 0, ttl)
@@ -64,7 +61,7 @@ local function remember_value(list_key, marker_key, value)
     dict:set(list_key, existing .. "\n" .. value, ttl)
 end
 
-local window_prefix = tostring(current_window)
+local window_prefix = tostring(window_start)
 incr("request_count:" .. window_prefix, 1)
 
 local status = tostring(ngx.status or 0)
@@ -116,12 +113,9 @@ if not dict then
 end
 
 local now = ngx.time()
-local current_window = dict:get("current_window")
-if not current_window then
-    current_window = now
-    dict:set("current_window", current_window)
-    dict:set("window_started_at:" .. current_window, now)
-end
+local window_size = ` + "60" + `
+local window_start = now - (now % window_size)
+local current_window = tostring(window_start)
 
 local function read_counter(key)
     return tonumber(dict:get(key) or 0) or 0
@@ -140,7 +134,7 @@ local function read_map(window_id, prefix, list_key)
 end
 
 local payload = {
-    window_started_at_unix = read_counter("window_started_at:" .. current_window),
+    window_started_at_unix = window_start,
     window_ended_at_unix = now,
     request_count = read_counter("request_count:" .. current_window),
     error_count = read_counter("error_count:" .. current_window),
@@ -151,13 +145,6 @@ local payload = {
     openresty_rx_bytes = read_counter("openresty_rx_bytes:" .. current_window),
     openresty_tx_bytes = read_counter("openresty_tx_bytes:" .. current_window)
 }
-
-local next_window = now
-if next_window <= current_window then
-    next_window = current_window + 1
-end
-dict:set("current_window", next_window)
-dict:set("window_started_at:" .. next_window, now)
 
 ngx.header.content_type = "application/json"
 ngx.say(cjson.encode(payload))
@@ -178,11 +165,9 @@ func renderOpenRestyObservabilityTemplateBlock() string {
 		fmt.Sprintf("    log_by_lua_file %s/%s;", nginxLuaDirPlaceholder, openRestyObservabilityLogLuaPath),
 		"",
 		fmt.Sprintf("    server {"),
-		fmt.Sprintf("        listen 127.0.0.1:%s;", nginxObservabilityPortPlaceholder),
+		fmt.Sprintf("        listen %s;", nginxObservabilityListenPlaceholder),
 		"        server_name atsflare-observability;",
 		"        access_log off;",
-		"        allow 127.0.0.1;",
-		"        deny all;",
 		"",
 		"        location = /atsflare/observability {",
 		"            default_type application/json;",

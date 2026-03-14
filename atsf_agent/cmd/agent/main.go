@@ -60,12 +60,13 @@ func main() {
 		runtimeRouteConfigPath = nginx.DockerRouteConfigPath
 	}
 	runtimeManager := &nginx.Manager{
-		MainConfigPath:             cfg.MainConfigPath,
-		RouteConfigPath:            cfg.RouteConfigPath,
-		RuntimeRouteConfigPath:     runtimeRouteConfigPath,
-		SupportDir:                 cfg.SupportDir,
-		NginxSupportDir:            cfg.OpenrestySupportDir,
-		OpenrestyObservabilityPort: cfg.OpenrestyObservabilityPort,
+		MainConfigPath:               cfg.MainConfigPath,
+		RouteConfigPath:              cfg.RouteConfigPath,
+		RuntimeRouteConfigPath:       runtimeRouteConfigPath,
+		SupportDir:                   cfg.SupportDir,
+		NginxSupportDir:              cfg.OpenrestySupportDir,
+		OpenrestyObservabilityListen: nginx.ObservabilityListenAddress(cfg.OpenrestyPath, cfg.OpenrestyObservabilityPort),
+		OpenrestyObservabilityPort:   cfg.OpenrestyObservabilityPort,
 		Executor: nginx.NewExecutor(nginx.ExecutorOptions{
 			NginxPath:                  cfg.OpenrestyPath,
 			DockerBinary:               cfg.DockerBinary,

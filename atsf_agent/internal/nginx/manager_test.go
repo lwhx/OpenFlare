@@ -460,14 +460,15 @@ func TestParseNginxVersionIgnoresDockerEntrypointPaths(t *testing.T) {
 func TestManagerApplyWritesSupportFilesAndReplacesPlaceholder(t *testing.T) {
 	tempDir := t.TempDir()
 	manager := &Manager{
-		MainConfigPath:  filepath.Join(tempDir, "nginx.conf"),
-		RouteConfigPath: filepath.Join(tempDir, "routes.conf"),
-		SupportDir:      filepath.Join(tempDir, "support"),
-		NginxSupportDir: "/etc/nginx/atsflare-support",
-		Executor:        &fakeExecutor{},
+		MainConfigPath:               filepath.Join(tempDir, "nginx.conf"),
+		RouteConfigPath:              filepath.Join(tempDir, "routes.conf"),
+		SupportDir:                   filepath.Join(tempDir, "support"),
+		NginxSupportDir:              "/etc/nginx/atsflare-support",
+		OpenrestyObservabilityListen: "18081",
+		Executor:                     &fakeExecutor{},
 	}
 
-	err := manager.Apply(context.Background(), "include __ATSF_ROUTE_CONFIG__;", "ssl_certificate __ATSF_SUPPORT_DIR__/1.crt;", []protocol.SupportFile{
+	err := manager.Apply(context.Background(), "include __ATSF_ROUTE_CONFIG__;\nserver { listen __ATSF_OBSERVABILITY_LISTEN__; }", "ssl_certificate __ATSF_SUPPORT_DIR__/1.crt;", []protocol.SupportFile{
 		{Path: "1.crt", Content: "cert-data"},
 		{Path: "1.key", Content: "key-data"},
 	})
@@ -481,6 +482,13 @@ func TestManagerApplyWritesSupportFilesAndReplacesPlaceholder(t *testing.T) {
 	}
 	if !strings.Contains(string(routeData), "/etc/nginx/atsflare-support/1.crt") {
 		t.Fatalf("expected placeholder replacement in route config, got %s", string(routeData))
+	}
+	mainData, err := os.ReadFile(manager.MainConfigPath)
+	if err != nil {
+		t.Fatalf("failed to read main config: %v", err)
+	}
+	if !strings.Contains(string(mainData), "listen 18081;") {
+		t.Fatalf("expected observability listen placeholder replacement in main config, got %s", string(mainData))
 	}
 	certData, err := os.ReadFile(filepath.Join(manager.SupportDir, "1.crt"))
 	if err != nil {
@@ -606,5 +614,14 @@ func TestManagerApplyRejectsSupportFilePathTraversal(t *testing.T) {
 
 	if _, statErr := os.Stat(filepath.Join(tempDir, "escape.crt")); !os.IsNotExist(statErr) {
 		t.Fatalf("expected escaped file to not exist, stat err = %v", statErr)
+	}
+}
+
+func TestObservabilityListenAddress(t *testing.T) {
+	if got := ObservabilityListenAddress("", 18081); got != "18081" {
+		t.Fatalf("unexpected docker observability listen address: %s", got)
+	}
+	if got := ObservabilityListenAddress("/usr/local/openresty/nginx/sbin/openresty", 18081); got != "127.0.0.1:18081" {
+		t.Fatalf("unexpected path observability listen address: %s", got)
 	}
 }

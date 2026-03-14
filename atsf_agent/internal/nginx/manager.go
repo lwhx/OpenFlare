@@ -21,6 +21,7 @@ const SupportDirPlaceholder = "__ATSF_SUPPORT_DIR__"
 const RouteConfigPlaceholder = "__ATSF_ROUTE_CONFIG__"
 const AccessLogPlaceholder = "__ATSF_ACCESS_LOG__"
 const LuaDirPlaceholder = "__ATSF_LUA_DIR__"
+const ObservabilityListenPlaceholder = "__ATSF_OBSERVABILITY_LISTEN__"
 const ObservabilityPortPlaceholder = "__ATSF_OBSERVABILITY_PORT__"
 const DockerMainConfigPath = "/usr/local/openresty/nginx/conf/nginx.conf"
 const DockerRouteConfigPath = "/etc/nginx/conf.d/atsflare_routes.conf"
@@ -198,13 +199,14 @@ func (e *DockerExecutor) runContainer(ctx context.Context) error {
 }
 
 type Manager struct {
-	MainConfigPath             string
-	RouteConfigPath            string
-	RuntimeRouteConfigPath     string
-	SupportDir                 string
-	NginxSupportDir            string
-	OpenrestyObservabilityPort int
-	Executor                   Executor
+	MainConfigPath               string
+	RouteConfigPath              string
+	RuntimeRouteConfigPath       string
+	SupportDir                   string
+	NginxSupportDir              string
+	OpenrestyObservabilityListen string
+	OpenrestyObservabilityPort   int
+	Executor                     Executor
 }
 
 func (m *Manager) Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) error {
@@ -297,6 +299,9 @@ func (m *Manager) CurrentChecksum() (string, error) {
 	}
 	if luaDir := m.luaRuntimePath(); luaDir != "" {
 		normalizedMain = strings.ReplaceAll(normalizedMain, luaDir, LuaDirPlaceholder)
+	}
+	if listen := strings.TrimSpace(m.OpenrestyObservabilityListen); listen != "" {
+		normalizedMain = strings.ReplaceAll(normalizedMain, listen, ObservabilityListenPlaceholder)
 	}
 	if m.OpenrestyObservabilityPort > 0 {
 		normalizedMain = strings.ReplaceAll(normalizedMain, fmt.Sprintf("%d", m.OpenrestyObservabilityPort), ObservabilityPortPlaceholder)
@@ -641,10 +646,23 @@ func (m *Manager) renderMainConfig(content string) string {
 	if luaDir := m.luaRuntimePath(); luaDir != "" {
 		rendered = strings.ReplaceAll(rendered, LuaDirPlaceholder, luaDir)
 	}
+	if listen := strings.TrimSpace(m.OpenrestyObservabilityListen); listen != "" {
+		rendered = strings.ReplaceAll(rendered, ObservabilityListenPlaceholder, listen)
+	}
 	if m.OpenrestyObservabilityPort > 0 {
 		rendered = strings.ReplaceAll(rendered, ObservabilityPortPlaceholder, fmt.Sprintf("%d", m.OpenrestyObservabilityPort))
 	}
 	return rendered
+}
+
+func ObservabilityListenAddress(openrestyPath string, port int) string {
+	if port <= 0 {
+		return ""
+	}
+	if strings.TrimSpace(openrestyPath) != "" {
+		return fmt.Sprintf("127.0.0.1:%d", port)
+	}
+	return fmt.Sprintf("%d", port)
 }
 
 func (m *Manager) routeConfigIncludePath() string {

@@ -37,7 +37,7 @@ type trafficAggregate struct {
 }
 
 func BuildTrafficReport(cfg *config.Config, stateStore *state.Store, managed *managedOpenRestyMetrics) *protocol.NodeTrafficReport {
-	if managed != nil && managed.TrafficReport != nil && managed.TrafficReport.RequestCount > 0 {
+	if managed != nil && managed.TrafficReport != nil {
 		return managed.TrafficReport
 	}
 	if cfg == nil || stateStore == nil {
