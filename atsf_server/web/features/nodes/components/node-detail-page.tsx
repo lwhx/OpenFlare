@@ -64,6 +64,7 @@ type FeedbackState = {
 };
 
 type HealthEventFilter = 'all' | 'active' | 'resolved';
+type NodeDetailTab = 'dashboard' | 'info';
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '请求失败，请稍后重试。';
@@ -265,6 +266,7 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
   const [serverUrl, setServerUrl] = useState('');
   const [healthEventFilter, setHealthEventFilter] =
     useState<HealthEventFilter>('all');
+  const [activeTab, setActiveTab] = useState<NodeDetailTab>('dashboard');
 
   const nodesQuery = useQuery({
     queryKey: nodesQueryKey,
@@ -475,9 +477,29 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
   }, [
     activeHealthEvents,
     healthEventFilter,
-    observability?.health_events,
-    resolvedHealthEvents,
+      observability?.health_events,
+      resolvedHealthEvents,
   ]);
+  const tabs = useMemo(
+    () =>
+      [
+        {
+          key: 'dashboard' as const,
+          label: '数据看板',
+          description: '系统画像、资源快照、流量趋势与健康事件。',
+        },
+        {
+          key: 'info' as const,
+          label: '节点信息',
+          description: '更新模式、版本状态、部署信息与应用记录。',
+        },
+      ] satisfies Array<{
+        key: NodeDetailTab;
+        label: string;
+        description: string;
+      }>,
+    [],
+  );
 
   if (nodesQuery.isLoading) {
     return <LoadingState />;
@@ -632,6 +654,29 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
           <InlineMessage tone={feedback.tone} message={feedback.message} />
         ) : null}
 
+        <div className="flex flex-wrap gap-3">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={[
+                'rounded-2xl border px-4 py-3 text-left transition',
+                activeTab === tab.key
+                  ? 'border-[var(--border-strong)] bg-[var(--accent-soft)] text-[var(--foreground-primary)]'
+                  : 'border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--foreground-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--foreground-primary)]',
+              ].join(' ')}
+            >
+              <p className="text-sm font-semibold">{tab.label}</p>
+              <p className="mt-1 text-xs leading-5 text-inherit/80">
+                {tab.description}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'dashboard' ? (
+          <>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryStat
             label="运行诊断"
@@ -1260,7 +1305,11 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
             )}
           </AppCard>
         </div>
+          </>
+        ) : null}
 
+        {activeTab === 'info' ? (
+          <>
         <div className="grid gap-4 xl:grid-cols-3">
           <AppCard title="更新模式">
             <div className="space-y-3">
@@ -1623,6 +1672,8 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
             </div>
           )}
         </AppCard>
+          </>
+        ) : null}
       </div>
 
       <ConfigVersionSnapshotModal
