@@ -7,6 +7,9 @@ type Node struct {
 	NodeID                    string    `json:"node_id" gorm:"uniqueIndex;size:64;not null"`
 	Name                      string    `json:"name" gorm:"size:128;not null"`
 	IP                        string    `json:"ip" gorm:"size:64;not null"`
+	GeoName                   string    `json:"geo_name" gorm:"size:128"`
+	GeoLatitude               *float64  `json:"geo_latitude"`
+	GeoLongitude              *float64  `json:"geo_longitude"`
 	AgentToken                string    `json:"-" gorm:"size:128;index"`
 	AutoUpdateEnabled         bool      `json:"auto_update_enabled" gorm:"not null;default:false"`
 	UpdateRequested           bool      `json:"update_requested" gorm:"not null;default:false"`

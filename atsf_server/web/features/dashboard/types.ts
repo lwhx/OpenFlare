@@ -118,6 +118,9 @@ export interface DashboardNodeHealth {
   id: number;
   node_id: string;
   name: string;
+  geo_name: string;
+  geo_latitude?: number | null;
+  geo_longitude?: number | null;
   status: 'online' | 'offline' | 'pending';
   openresty_status: 'healthy' | 'unhealthy' | 'unknown';
   current_version: string;

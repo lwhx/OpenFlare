@@ -20,9 +20,19 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestRequestNodeAgentPreviewUpdate(t *testing.T) {
 	setupServiceTestDB(t)
 
-	node, err := CreateNode(NodeInput{Name: "preview-edge-1"})
+	latitude := 31.2304
+	longitude := 121.4737
+	node, err := CreateNode(NodeInput{
+		Name:         "preview-edge-1",
+		GeoName:      "Shanghai",
+		GeoLatitude:  &latitude,
+		GeoLongitude: &longitude,
+	})
 	if err != nil {
 		t.Fatalf("failed to create node: %v", err)
+	}
+	if node.GeoName != "Shanghai" || node.GeoLatitude == nil || node.GeoLongitude == nil {
+		t.Fatalf("expected geo metadata to be returned, got %+v", node)
 	}
 
 	originalClient := UpdateHTTPClientForTest()
@@ -150,6 +160,56 @@ func TestHeartbeatNodeReturnsPreviewUpdateSettings(t *testing.T) {
 	}
 }
 
+func TestUpdateNodeValidatesAndPersistsGeoMetadata(t *testing.T) {
+	setupServiceTestDB(t)
+
+	node, err := CreateNode(NodeInput{Name: "geo-edge"})
+	if err != nil {
+		t.Fatalf("failed to create node: %v", err)
+	}
+
+	latitude := 37.7749
+	longitude := -122.4194
+	updated, err := UpdateNode(node.ID, NodeInput{
+		Name:              "geo-edge-updated",
+		AutoUpdateEnabled: true,
+		GeoName:           "San Francisco",
+		GeoLatitude:       &latitude,
+		GeoLongitude:      &longitude,
+	})
+	if err != nil {
+		t.Fatalf("expected node update to succeed: %v", err)
+	}
+	if updated.GeoName != "San Francisco" || updated.GeoLatitude == nil || updated.GeoLongitude == nil {
+		t.Fatalf("expected geo metadata in view, got %+v", updated)
+	}
+
+	stored, err := model.GetNodeByID(node.ID)
+	if err != nil {
+		t.Fatalf("failed to load node: %v", err)
+	}
+	if stored.GeoName != "San Francisco" || stored.GeoLatitude == nil || stored.GeoLongitude == nil {
+		t.Fatalf("expected geo metadata persisted, got %+v", stored)
+	}
+}
+
+func TestUpdateNodeRejectsPartialGeoMetadata(t *testing.T) {
+	setupServiceTestDB(t)
+
+	node, err := CreateNode(NodeInput{Name: "geo-edge-invalid"})
+	if err != nil {
+		t.Fatalf("failed to create node: %v", err)
+	}
+
+	latitude := 37.7749
+	if _, err = UpdateNode(node.ID, NodeInput{
+		Name:        "geo-edge-invalid",
+		GeoLatitude: &latitude,
+	}); err == nil {
+		t.Fatal("expected partial geo metadata to be rejected")
+	}
+}
+
 func TestRequestNodeOpenrestyRestart(t *testing.T) {
 	setupServiceTestDB(t)
 
@@ -176,6 +236,7 @@ func TestListNodeViewsIncludesLatestApplyLogsForMultipleNodes(t *testing.T) {
 			NodeID:       "node-a",
 			Name:         "edge-a",
 			IP:           "10.0.0.11",
+			GeoName:      "Shanghai",
 			AgentToken:   "token-a",
 			AgentVersion: "v0.5.0",
 			NginxVersion: "1.27.1.2",
@@ -224,6 +285,9 @@ func TestListNodeViewsIncludesLatestApplyLogsForMultipleNodes(t *testing.T) {
 
 	if views[0].NodeID != "node-a" || views[0].LatestApplyResult != ApplyResultFailed || views[0].LatestApplyMessage != "latest failure" {
 		t.Fatalf("unexpected latest apply log for node-a: %+v", views[0])
+	}
+	if views[0].GeoName != "Shanghai" {
+		t.Fatalf("expected geo name to be exposed on node view, got %+v", views[0])
 	}
 	if views[1].NodeID != "node-b" || views[1].LatestApplyResult != ApplyResultOK || views[1].LatestApplyMessage != "latest success" {
 		t.Fatalf("unexpected latest apply log for node-b: %+v", views[1])
@@ -658,6 +722,7 @@ func TestGetDashboardOverview(t *testing.T) {
 			NodeID:          "node-dashboard-a",
 			Name:            "edge-a",
 			IP:              "10.0.0.71",
+			GeoName:         "Shanghai",
 			AgentToken:      "token-a",
 			AgentVersion:    "v0.6.0",
 			NginxVersion:    "1.27.1.2",
@@ -670,6 +735,7 @@ func TestGetDashboardOverview(t *testing.T) {
 			NodeID:          "node-dashboard-b",
 			Name:            "edge-b",
 			IP:              "10.0.0.72",
+			GeoName:         "San Francisco",
 			AgentToken:      "token-b",
 			AgentVersion:    "v0.6.0",
 			NginxVersion:    "1.27.1.2",
@@ -781,6 +847,9 @@ func TestGetDashboardOverview(t *testing.T) {
 	}
 	if len(view.Nodes) != 2 || len(view.ActiveAlerts) != 1 {
 		t.Fatalf("unexpected dashboard nodes/alerts: %+v %+v", view.Nodes, view.ActiveAlerts)
+	}
+	if view.Nodes[0].GeoName == "" && view.Nodes[1].GeoName == "" {
+		t.Fatalf("expected dashboard nodes to expose geo metadata: %+v", view.Nodes)
 	}
 	if len(view.Trends.Traffic24h) != 24 || len(view.Trends.Capacity24h) != 24 || len(view.Trends.Network24h) != 24 || len(view.Trends.DiskIO24h) != 24 {
 		t.Fatalf("expected 24-point dashboard trends, got %+v", view.Trends)

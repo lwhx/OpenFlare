@@ -13,8 +13,11 @@ import (
 )
 
 type NodeInput struct {
-	Name              string `json:"name"`
-	AutoUpdateEnabled bool   `json:"auto_update_enabled"`
+	Name              string   `json:"name"`
+	AutoUpdateEnabled bool     `json:"auto_update_enabled"`
+	GeoName           string   `json:"geo_name"`
+	GeoLatitude       *float64 `json:"geo_latitude"`
+	GeoLongitude      *float64 `json:"geo_longitude"`
 }
 
 type NodeAgentUpdateInput struct {
@@ -47,19 +50,21 @@ type AgentRegistrationResponse struct {
 }
 
 func CreateNode(input NodeInput) (*NodeView, error) {
-	name := strings.TrimSpace(input.Name)
+	name, geoName, geoLatitude, geoLongitude, err := normalizeNodeInput(input)
 	if name == "" {
 		return nil, errors.New("节点名不能为空")
 	}
 	node := &model.Node{
 		Name:              name,
 		IP:                "",
+		GeoName:           geoName,
+		GeoLatitude:       geoLatitude,
+		GeoLongitude:      geoLongitude,
 		AgentVersion:      "",
 		NginxVersion:      "",
 		Status:            NodeStatusPending,
 		AutoUpdateEnabled: input.AutoUpdateEnabled,
 	}
-	var err error
 	node.NodeID, err = newServerNodeID()
 	if err != nil {
 		return nil, err
@@ -79,7 +84,7 @@ func CreateNode(input NodeInput) (*NodeView, error) {
 }
 
 func UpdateNode(id uint, input NodeInput) (*NodeView, error) {
-	name := strings.TrimSpace(input.Name)
+	name, geoName, geoLatitude, geoLongitude, err := normalizeNodeInput(input)
 	if name == "" {
 		return nil, errors.New("节点名不能为空")
 	}
@@ -88,6 +93,9 @@ func UpdateNode(id uint, input NodeInput) (*NodeView, error) {
 		return nil, err
 	}
 	node.Name = name
+	node.GeoName = geoName
+	node.GeoLatitude = geoLatitude
+	node.GeoLongitude = geoLongitude
 	node.AutoUpdateEnabled = input.AutoUpdateEnabled
 	if err = node.Update(); err != nil {
 		return nil, err
@@ -231,6 +239,9 @@ func buildNodeView(node *model.Node) *NodeView {
 		NodeID:                    node.NodeID,
 		Name:                      node.Name,
 		IP:                        node.IP,
+		GeoName:                   strings.TrimSpace(node.GeoName),
+		GeoLatitude:               node.GeoLatitude,
+		GeoLongitude:              node.GeoLongitude,
 		AgentToken:                node.AgentToken,
 		UpdateChannel:             strings.TrimSpace(node.UpdateChannel),
 		UpdateTag:                 strings.TrimSpace(node.UpdateTag),
@@ -252,6 +263,36 @@ func buildNodeView(node *model.Node) *NodeView {
 		view.UpdateChannel = ReleaseChannelStable.String()
 	}
 	return view
+}
+
+func normalizeNodeInput(input NodeInput) (string, string, *float64, *float64, error) {
+	name := strings.TrimSpace(input.Name)
+	geoName := strings.TrimSpace(input.GeoName)
+	if len(geoName) > 128 {
+		return "", "", nil, nil, errors.New("节点位置名不能超过 128 个字符")
+	}
+
+	geoLatitude := cloneCoordinate(input.GeoLatitude)
+	geoLongitude := cloneCoordinate(input.GeoLongitude)
+	if (geoLatitude == nil) != (geoLongitude == nil) {
+		return "", "", nil, nil, errors.New("地图坐标必须同时填写纬度和经度")
+	}
+	if geoLatitude != nil && (*geoLatitude < -90 || *geoLatitude > 90) {
+		return "", "", nil, nil, errors.New("纬度必须在 -90 到 90 之间")
+	}
+	if geoLongitude != nil && (*geoLongitude < -180 || *geoLongitude > 180) {
+		return "", "", nil, nil, errors.New("经度必须在 -180 到 180 之间")
+	}
+
+	return name, geoName, geoLatitude, geoLongitude, nil
+}
+
+func cloneCoordinate(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func buildNodeAgentReleaseView(node *model.Node, release *githubReleaseResponse, channel ReleaseChannel) *NodeAgentReleaseInfo {

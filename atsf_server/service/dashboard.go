@@ -102,6 +102,9 @@ type DashboardNodeHealth struct {
 	ID                  uint      `json:"id"`
 	NodeID              string    `json:"node_id"`
 	Name                string    `json:"name"`
+	GeoName             string    `json:"geo_name"`
+	GeoLatitude         *float64  `json:"geo_latitude"`
+	GeoLongitude        *float64  `json:"geo_longitude"`
 	Status              string    `json:"status"`
 	OpenrestyStatus     string    `json:"openresty_status"`
 	CurrentVersion      string    `json:"current_version"`
@@ -204,6 +207,9 @@ func GetDashboardOverview() (*DashboardOverviewView, error) {
 			ID:               node.ID,
 			NodeID:           node.NodeID,
 			Name:             node.Name,
+			GeoName:          node.GeoName,
+			GeoLatitude:      node.GeoLatitude,
+			GeoLongitude:     node.GeoLongitude,
 			Status:           computedStatus,
 			OpenrestyStatus:  node.OpenrestyStatus,
 			CurrentVersion:   node.CurrentVersion,

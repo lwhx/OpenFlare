@@ -5,6 +5,9 @@ export interface NodeItem {
   node_id: string;
   name: string;
   ip: string;
+  geo_name: string;
+  geo_latitude?: number | null;
+  geo_longitude?: number | null;
   agent_token: string;
   auto_update_enabled: boolean;
   update_requested: boolean;
@@ -37,6 +40,9 @@ export interface NodeBootstrapToken {
 export interface NodeMutationPayload {
   name: string;
   auto_update_enabled: boolean;
+  geo_name: string;
+  geo_latitude?: number | null;
+  geo_longitude?: number | null;
 }
 
 export interface NodeAgentReleaseInfo {

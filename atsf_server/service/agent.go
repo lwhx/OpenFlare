@@ -86,6 +86,9 @@ type NodeView struct {
 	NodeID                    string     `json:"node_id"`
 	Name                      string     `json:"name"`
 	IP                        string     `json:"ip"`
+	GeoName                   string     `json:"geo_name"`
+	GeoLatitude               *float64   `json:"geo_latitude"`
+	GeoLongitude              *float64   `json:"geo_longitude"`
 	AgentToken                string     `json:"agent_token"`
 	AutoUpdateEnabled         bool       `json:"auto_update_enabled"`
 	UpdateRequested           bool       `json:"update_requested"`

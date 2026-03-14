@@ -98,6 +98,22 @@ describe('DashboardOverview', () => {
                       storage_usage_percent: 95,
                     },
                   },
+                  distributions: {
+                    source_countries: [
+                      { key: 'CN', value: 440 },
+                      { key: 'US', value: 320 },
+                      { key: 'SG', value: 140 },
+                    ],
+                    status_codes: [
+                      { key: '200', value: 820 },
+                      { key: '502', value: 24 },
+                      { key: '500', value: 12 },
+                    ],
+                    top_domains: [
+                      { key: 'app.example.com', value: 580 },
+                      { key: 'api.example.com', value: 220 },
+                    ],
+                  },
                   trends: {
                     traffic_24h: Array.from({ length: 24 }, (_, index) => ({
                       bucket_started_at: `2026-03-13T${String(index).padStart(2, '0')}:00:00Z`,
@@ -111,12 +127,29 @@ describe('DashboardOverview', () => {
                       average_memory_usage_percent: index + 10,
                       reported_nodes: 2,
                     })),
+                    network_24h: Array.from({ length: 24 }, (_, index) => ({
+                      bucket_started_at: `2026-03-13T${String(index).padStart(2, '0')}:00:00Z`,
+                      network_rx_bytes: index * 100,
+                      network_tx_bytes: index * 120,
+                      openresty_rx_bytes: index * 140,
+                      openresty_tx_bytes: index * 160,
+                      reported_nodes: 2,
+                    })),
+                    disk_io_24h: Array.from({ length: 24 }, (_, index) => ({
+                      bucket_started_at: `2026-03-13T${String(index).padStart(2, '0')}:00:00Z`,
+                      disk_read_bytes: index * 50,
+                      disk_write_bytes: index * 70,
+                      reported_nodes: 2,
+                    })),
                   },
                   nodes: [
                     {
                       id: 1,
                       node_id: 'node-a',
                       name: 'edge-a',
+                      geo_name: 'Shanghai',
+                      geo_latitude: 31.2304,
+                      geo_longitude: 121.4737,
                       status: 'online',
                       openresty_status: 'healthy',
                       current_version: '20260314-001',
@@ -128,6 +161,25 @@ describe('DashboardOverview', () => {
                       request_count: 600,
                       error_count: 6,
                       unique_visitor_count: 120,
+                    },
+                    {
+                      id: 2,
+                      node_id: 'node-b',
+                      name: 'edge-b',
+                      geo_name: 'San Francisco',
+                      geo_latitude: 37.7749,
+                      geo_longitude: -122.4194,
+                      status: 'online',
+                      openresty_status: 'unhealthy',
+                      current_version: '20260313-001',
+                      last_seen_at: '2026-03-14T08:00:00Z',
+                      active_event_count: 2,
+                      cpu_usage_percent: 92,
+                      memory_usage_percent: 88,
+                      storage_usage_percent: 95,
+                      request_count: 300,
+                      error_count: 30,
+                      unique_visitor_count: 80,
                     },
                   ],
                   active_alerts: [
@@ -165,9 +217,13 @@ describe('DashboardOverview', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('系统运行总览')).toBeInTheDocument();
-    expect(await screen.findByText('风险态势')).toBeInTheDocument();
+    expect(await screen.findByText('全球态势板')).toBeInTheDocument();
+    expect(await screen.findByText('系统健康摘要')).toBeInTheDocument();
     expect(await screen.findByText('24 小时请求趋势')).toBeInTheDocument();
+    expect(await screen.findByText('来源分布')).toBeInTheDocument();
+    expect(await screen.findByText('Top Domain')).toBeInTheDocument();
+    expect(await screen.findByText('Top 节点榜单')).toBeInTheDocument();
+    expect(await screen.findByText('处置建议')).toBeInTheDocument();
     expect(await screen.findByText('节点健康列表')).toBeInTheDocument();
   });
 });

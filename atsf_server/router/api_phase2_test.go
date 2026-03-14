@@ -184,12 +184,18 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 	}
 
 	createdNodeResp := performJSONRequest(t, engine, adminToken, http.MethodPost, "/api/nodes/", map[string]any{
-		"name": "shanghai-edge-1",
+		"name":          "shanghai-edge-1",
+		"geo_name":      "Shanghai",
+		"geo_latitude":  31.2304,
+		"geo_longitude": 121.4737,
 	})
 	var createdNode service.NodeView
 	decodeResponseData(t, createdNodeResp, &createdNode)
 	if createdNode.AgentToken == "" || createdNode.Status != service.NodeStatusPending {
 		t.Fatal("expected created node to expose agent token with pending status")
+	}
+	if createdNode.GeoName != "Shanghai" || createdNode.GeoLatitude == nil || createdNode.GeoLongitude == nil {
+		t.Fatalf("expected created node to expose geo metadata, got %+v", createdNode)
 	}
 
 	heartbeatPayload := map[string]any{
@@ -324,11 +330,17 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 	}
 
 	updatedNodeResp := performJSONRequest(t, engine, adminToken, http.MethodPut, "/api/nodes/"+toString(createdNode.ID), map[string]any{
-		"name": "shanghai-edge-1-renamed",
+		"name":          "shanghai-edge-1-renamed",
+		"geo_name":      "Tokyo",
+		"geo_latitude":  35.6762,
+		"geo_longitude": 139.6503,
 	})
 	decodeResponseData(t, updatedNodeResp, &createdNode)
 	if createdNode.Name != "shanghai-edge-1-renamed" {
 		t.Fatal("expected node name to be editable")
+	}
+	if createdNode.GeoName != "Tokyo" || createdNode.GeoLatitude == nil || createdNode.GeoLongitude == nil {
+		t.Fatalf("expected node geo metadata to be editable, got %+v", createdNode)
 	}
 
 	oldTime := time.Now().Add(-common.NodeOfflineThreshold - time.Minute)

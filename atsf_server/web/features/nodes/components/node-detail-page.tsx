@@ -89,10 +89,20 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '请求失败，请稍后重试。';
 }
 
-function toPayload(values: NodeFormValues): NodeMutationPayload {
+function toPayload(
+  values: NodeFormValues,
+  currentNode?: {
+    geo_name?: string;
+    geo_latitude?: number | null;
+    geo_longitude?: number | null;
+  } | null,
+): NodeMutationPayload {
   return {
     name: values.name.trim(),
     auto_update_enabled: values.auto_update_enabled,
+    geo_name: currentNode?.geo_name ?? '',
+    geo_latitude: currentNode?.geo_latitude ?? null,
+    geo_longitude: currentNode?.geo_longitude ?? null,
   };
 }
 
@@ -345,7 +355,7 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
 
   const saveMutation = useMutation({
     mutationFn: async (values: NodeFormValues) =>
-      updateNode(Number(nodeId), toPayload(values)),
+      updateNode(Number(nodeId), toPayload(values, node)),
     onSuccess: async (updatedNode) => {
       setFeedback({ tone: 'success', message: '节点已更新。' });
       setIsEditorOpen(false);

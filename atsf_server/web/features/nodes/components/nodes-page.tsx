@@ -60,6 +60,48 @@ const nodeSchema = z.object({
     .min(1, '请输入节点名')
     .max(128, '节点名不能超过 128 个字符'),
   auto_update_enabled: z.boolean(),
+  geo_name: z.string().trim().max(128, '位置名不能超过 128 个字符'),
+  geo_latitude: z.string().trim(),
+  geo_longitude: z.string().trim(),
+}).superRefine((values, ctx) => {
+  const hasLatitude = values.geo_latitude !== '';
+  const hasLongitude = values.geo_longitude !== '';
+
+  if (hasLatitude !== hasLongitude) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['geo_latitude'],
+      message: '纬度和经度需要同时填写',
+    });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['geo_longitude'],
+      message: '纬度和经度需要同时填写',
+    });
+    return;
+  }
+
+  if (hasLatitude) {
+    const latitude = Number(values.geo_latitude);
+    if (Number.isNaN(latitude) || latitude < -90 || latitude > 90) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['geo_latitude'],
+        message: '纬度必须在 -90 到 90 之间',
+      });
+    }
+  }
+
+  if (hasLongitude) {
+    const longitude = Number(values.geo_longitude);
+    if (Number.isNaN(longitude) || longitude < -180 || longitude > 180) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['geo_longitude'],
+        message: '经度必须在 -180 到 180 之间',
+      });
+    }
+  }
 });
 
 type NodeFormValues = z.infer<typeof nodeSchema>;
@@ -72,6 +114,9 @@ type FeedbackState = {
 const defaultValues: NodeFormValues = {
   name: '',
   auto_update_enabled: false,
+  geo_name: '',
+  geo_latitude: '',
+  geo_longitude: '',
 };
 
 function getErrorMessage(error: unknown) {
@@ -82,6 +127,11 @@ function toPayload(values: NodeFormValues): NodeMutationPayload {
   return {
     name: values.name.trim(),
     auto_update_enabled: values.auto_update_enabled,
+    geo_name: values.geo_name.trim(),
+    geo_latitude:
+      values.geo_latitude.trim() === '' ? null : Number(values.geo_latitude),
+    geo_longitude:
+      values.geo_longitude.trim() === '' ? null : Number(values.geo_longitude),
   };
 }
 
@@ -213,12 +263,24 @@ export function NodesPage() {
     nodeId: number,
     name: string,
     autoUpdateEnabled: boolean,
+    geoName: string,
+    geoLatitude?: number | null,
+    geoLongitude?: number | null,
   ) => {
     setFeedback(null);
     setEditingNodeId(nodeId);
     form.reset({
       name,
       auto_update_enabled: autoUpdateEnabled,
+      geo_name: geoName,
+      geo_latitude:
+        geoLatitude === undefined || geoLatitude === null
+          ? ''
+          : String(geoLatitude),
+      geo_longitude:
+        geoLongitude === undefined || geoLongitude === null
+          ? ''
+          : String(geoLongitude),
     });
     setIsEditorOpen(true);
   };
@@ -368,6 +430,9 @@ export function NodesPage() {
                             <p className="text-xs text-[var(--foreground-secondary)]">
                               IP：{node.ip || 'null'}
                             </p>
+                            <p className="text-xs text-[var(--foreground-secondary)]">
+                              位置：{node.geo_name || '未配置地图点位'}
+                            </p>
                           </div>
                         </td>
                         <td className="px-3 py-4">
@@ -427,6 +492,9 @@ export function NodesPage() {
                                   node.id,
                                   node.name,
                                   node.auto_update_enabled,
+                                  node.geo_name,
+                                  node.geo_latitude,
+                                  node.geo_longitude,
                                 )
                               }
                               className="px-3 py-2 text-xs"
@@ -507,6 +575,41 @@ export function NodesPage() {
               })
             }
           />
+
+          <ResourceField
+            label="地图位置名"
+            hint="示例：Shanghai / Tokyo / Frankfurt，可用于总览世界板标注。"
+            error={form.formState.errors.geo_name?.message}
+          >
+            <ResourceInput
+              placeholder="Shanghai"
+              {...form.register('geo_name')}
+            />
+          </ResourceField>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <ResourceField
+              label="纬度"
+              hint="范围 -90 到 90，例如上海约为 31.2304"
+              error={form.formState.errors.geo_latitude?.message}
+            >
+              <ResourceInput
+                placeholder="31.2304"
+                {...form.register('geo_latitude')}
+              />
+            </ResourceField>
+
+            <ResourceField
+              label="经度"
+              hint="范围 -180 到 180，例如上海约为 121.4737"
+              error={form.formState.errors.geo_longitude?.message}
+            >
+              <ResourceInput
+                placeholder="121.4737"
+                {...form.register('geo_longitude')}
+              />
+            </ResourceField>
+          </div>
         </form>
       </AppModal>
     </>
