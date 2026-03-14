@@ -113,9 +113,65 @@ export interface NodeCapacityTrendPoint {
   reported_nodes: number;
 }
 
+export interface NodeNetworkTrendPoint {
+  bucket_started_at: string;
+  network_rx_bytes: number;
+  network_tx_bytes: number;
+  openresty_rx_bytes: number;
+  openresty_tx_bytes: number;
+  reported_nodes: number;
+}
+
+export interface NodeDiskIOTrendPoint {
+  bucket_started_at: string;
+  disk_read_bytes: number;
+  disk_write_bytes: number;
+  reported_nodes: number;
+}
+
+export interface NodeDistributionItem {
+  key: string;
+  value: number;
+}
+
+export interface NodeTrafficDistributions {
+  status_codes: NodeDistributionItem[];
+  top_domains: NodeDistributionItem[];
+  source_countries: NodeDistributionItem[];
+}
+
+export interface NodeTrafficSummary {
+  window_started_at: string;
+  window_ended_at: string;
+  request_count: number;
+  unique_visitor_count: number;
+  error_count: number;
+  estimated_qps: number;
+  error_rate_percent: number;
+}
+
+export interface NodeHealthSummary {
+  active_alerts: number;
+  critical_alerts: number;
+  warning_alerts: number;
+  info_alerts: number;
+  resolved_alerts: number;
+  has_capacity_risk: boolean;
+  has_traffic_risk: boolean;
+  has_runtime_risk: boolean;
+}
+
+export interface NodeObservabilityAnalytics {
+  traffic: NodeTrafficSummary;
+  distributions: NodeTrafficDistributions;
+  health: NodeHealthSummary;
+}
+
 export interface NodeObservabilityTrends {
   traffic_24h: NodeTrafficTrendPoint[];
   capacity_24h: NodeCapacityTrendPoint[];
+  network_24h: NodeNetworkTrendPoint[];
+  disk_io_24h: NodeDiskIOTrendPoint[];
 }
 
 export interface NodeHealthEvent {
@@ -135,5 +191,6 @@ export interface NodeObservability {
   metric_snapshots: NodeMetricSnapshot[];
   traffic_reports: NodeTrafficReport[];
   health_events: NodeHealthEvent[];
+  analytics: NodeObservabilityAnalytics;
   trends: NodeObservabilityTrends;
 }

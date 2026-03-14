@@ -25,12 +25,21 @@ type NodeObservabilityView struct {
 	MetricSnapshots []*model.NodeMetricSnapshot `json:"metric_snapshots"`
 	TrafficReports  []*model.NodeRequestReport  `json:"traffic_reports"`
 	HealthEvents    []*model.NodeHealthEvent    `json:"health_events"`
+	Analytics       NodeObservabilityAnalytics  `json:"analytics"`
 	Trends          NodeObservabilityTrends     `json:"trends"`
+}
+
+type NodeObservabilityAnalytics struct {
+	Traffic       TrafficWindowSummary       `json:"traffic"`
+	Distributions TrafficDistributions       `json:"distributions"`
+	Health        ObservabilityHealthSummary `json:"health"`
 }
 
 type NodeObservabilityTrends struct {
 	Traffic24h  []TrafficTrendPoint  `json:"traffic_24h"`
 	Capacity24h []CapacityTrendPoint `json:"capacity_24h"`
+	Network24h  []NetworkTrendPoint  `json:"network_24h"`
+	DiskIO24h   []DiskIOTrendPoint   `json:"disk_io_24h"`
 }
 
 func GetNodeObservability(id uint, query NodeObservabilityQuery) (*NodeObservabilityView, error) {
@@ -78,11 +87,36 @@ func GetNodeObservability(id uint, query NodeObservabilityQuery) (*NodeObservabi
 		MetricSnapshots: snapshots,
 		TrafficReports:  reports,
 		HealthEvents:    events,
+		Analytics: NodeObservabilityAnalytics{
+			Traffic:       buildTrafficWindowSummary(latestTrafficReport(reports)),
+			Distributions: buildTrafficDistributions(reports, 8),
+			Health:        buildObservabilityHealthSummary(latestMetricSnapshot(snapshots), latestTrafficReport(reports), events),
+		},
 		Trends: NodeObservabilityTrends{
 			Traffic24h:  buildTrafficTrendPoints(now, trendReports),
 			Capacity24h: buildCapacityTrendPoints(now, trendSnapshots),
+			Network24h:  buildNetworkTrendPoints(now, trendSnapshots),
+			DiskIO24h:   buildDiskIOTrendPoints(now, trendSnapshots),
 		},
 	}, nil
+}
+
+func latestMetricSnapshot(snapshots []*model.NodeMetricSnapshot) *model.NodeMetricSnapshot {
+	for _, snapshot := range snapshots {
+		if snapshot != nil {
+			return snapshot
+		}
+	}
+	return nil
+}
+
+func latestTrafficReport(reports []*model.NodeRequestReport) *model.NodeRequestReport {
+	for _, report := range reports {
+		if report != nil {
+			return report
+		}
+	}
+	return nil
 }
 
 func normalizeObservabilityLimit(limit int) int {

@@ -10,16 +10,17 @@ import (
 )
 
 type DashboardOverviewView struct {
-	GeneratedAt  time.Time             `json:"generated_at"`
-	Summary      DashboardSummary      `json:"summary"`
-	Traffic      DashboardTraffic      `json:"traffic"`
-	Capacity     DashboardCapacity     `json:"capacity"`
-	Config       DashboardConfig       `json:"config"`
-	Risk         DashboardRiskSummary  `json:"risk"`
-	Peaks        DashboardPeakSummary  `json:"peaks"`
-	Trends       DashboardTrends       `json:"trends"`
-	Nodes        []DashboardNodeHealth `json:"nodes"`
-	ActiveAlerts []DashboardAlert      `json:"active_alerts"`
+	GeneratedAt   time.Time             `json:"generated_at"`
+	Summary       DashboardSummary      `json:"summary"`
+	Traffic       DashboardTraffic      `json:"traffic"`
+	Capacity      DashboardCapacity     `json:"capacity"`
+	Config        DashboardConfig       `json:"config"`
+	Risk          DashboardRiskSummary  `json:"risk"`
+	Peaks         DashboardPeakSummary  `json:"peaks"`
+	Distributions TrafficDistributions  `json:"distributions"`
+	Trends        DashboardTrends       `json:"trends"`
+	Nodes         []DashboardNodeHealth `json:"nodes"`
+	ActiveAlerts  []DashboardAlert      `json:"active_alerts"`
 }
 
 type DashboardSummary struct {
@@ -93,6 +94,8 @@ type DashboardPeakNode struct {
 type DashboardTrends struct {
 	Traffic24h  []TrafficTrendPoint  `json:"traffic_24h"`
 	Capacity24h []CapacityTrendPoint `json:"capacity_24h"`
+	Network24h  []NetworkTrendPoint  `json:"network_24h"`
+	DiskIO24h   []DiskIOTrendPoint   `json:"disk_io_24h"`
 }
 
 type DashboardNodeHealth struct {
@@ -152,11 +155,14 @@ func GetDashboardOverview() (*DashboardOverviewView, error) {
 	}
 
 	view := &DashboardOverviewView{
-		GeneratedAt: now,
-		Nodes:       make([]DashboardNodeHealth, 0, len(nodes)),
+		GeneratedAt:   now,
+		Nodes:         make([]DashboardNodeHealth, 0, len(nodes)),
+		Distributions: buildTrafficDistributions(reports, 8),
 		Trends: DashboardTrends{
 			Traffic24h:  buildTrafficTrendPoints(now, reports),
 			Capacity24h: buildCapacityTrendPoints(now, snapshots),
+			Network24h:  buildNetworkTrendPoints(now, snapshots),
+			DiskIO24h:   buildDiskIOTrendPoints(now, snapshots),
 		},
 	}
 

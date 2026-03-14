@@ -519,16 +519,32 @@ func TestGetNodeObservability(t *testing.T) {
 		t.Fatalf("failed to insert node system profile: %v", err)
 	}
 	if err := (&model.NodeMetricSnapshot{
-		NodeID:     node.NodeID,
-		CapturedAt: time.Now(),
+		NodeID:            node.NodeID,
+		CapturedAt:        time.Now(),
+		CPUUsagePercent:   81,
+		MemoryUsedBytes:   15 * 1024 * 1024 * 1024,
+		MemoryTotalBytes:  16 * 1024 * 1024 * 1024,
+		StorageUsedBytes:  92 * 1024 * 1024 * 1024,
+		StorageTotalBytes: 100 * 1024 * 1024 * 1024,
+		DiskReadBytes:     1024,
+		DiskWriteBytes:    2048,
+		NetworkRxBytes:    4096,
+		NetworkTxBytes:    8192,
+		OpenrestyRxBytes:  16384,
+		OpenrestyTxBytes:  32768,
 	}).Insert(); err != nil {
 		t.Fatalf("failed to insert node metric snapshot: %v", err)
 	}
 	if err := (&model.NodeRequestReport{
-		NodeID:          node.NodeID,
-		WindowStartedAt: time.Now().Add(-time.Minute),
-		WindowEndedAt:   time.Now(),
-		RequestCount:    123,
+		NodeID:              node.NodeID,
+		WindowStartedAt:     time.Now().Add(-time.Minute),
+		WindowEndedAt:       time.Now(),
+		RequestCount:        123,
+		ErrorCount:          9,
+		UniqueVisitorCount:  87,
+		StatusCodesJSON:     `{"200":114,"502":9}`,
+		TopDomainsJSON:      `{"example.com":80,"api.example.com":43}`,
+		SourceCountriesJSON: `{"CN":90,"US":33}`,
 	}).Insert(); err != nil {
 		t.Fatalf("failed to insert node request report: %v", err)
 	}
@@ -564,11 +580,29 @@ func TestGetNodeObservability(t *testing.T) {
 	if len(view.HealthEvents) != 1 || view.HealthEvents[0].EventType != "sync_error" {
 		t.Fatalf("unexpected health events: %+v", view.HealthEvents)
 	}
-	if len(view.Trends.Traffic24h) != 24 || len(view.Trends.Capacity24h) != 24 {
+	if len(view.Trends.Traffic24h) != 24 || len(view.Trends.Capacity24h) != 24 || len(view.Trends.Network24h) != 24 || len(view.Trends.DiskIO24h) != 24 {
 		t.Fatalf("expected 24-point trends, got %+v", view.Trends)
 	}
 	if view.Trends.Traffic24h[len(view.Trends.Traffic24h)-1].RequestCount != 123 {
 		t.Fatalf("unexpected traffic trend tail: %+v", view.Trends.Traffic24h[len(view.Trends.Traffic24h)-1])
+	}
+	if view.Trends.Network24h[len(view.Trends.Network24h)-1].OpenrestyTxBytes != 32768 {
+		t.Fatalf("unexpected network trend tail: %+v", view.Trends.Network24h[len(view.Trends.Network24h)-1])
+	}
+	if view.Trends.DiskIO24h[len(view.Trends.DiskIO24h)-1].DiskWriteBytes != 2048 {
+		t.Fatalf("unexpected disk io trend tail: %+v", view.Trends.DiskIO24h[len(view.Trends.DiskIO24h)-1])
+	}
+	if view.Analytics.Traffic.RequestCount != 123 || view.Analytics.Traffic.ErrorRatePercent <= 7 {
+		t.Fatalf("unexpected traffic analytics: %+v", view.Analytics.Traffic)
+	}
+	if len(view.Analytics.Distributions.StatusCodes) != 2 || view.Analytics.Distributions.StatusCodes[0].Key != "200" {
+		t.Fatalf("unexpected traffic distributions: %+v", view.Analytics.Distributions)
+	}
+	if len(view.Analytics.Distributions.SourceCountries) != 2 || view.Analytics.Distributions.SourceCountries[0].Key != "CN" {
+		t.Fatalf("unexpected source countries: %+v", view.Analytics.Distributions.SourceCountries)
+	}
+	if !view.Analytics.Health.HasCapacityRisk || !view.Analytics.Health.HasTrafficRisk || !view.Analytics.Health.HasRuntimeRisk {
+		t.Fatalf("unexpected health analytics: %+v", view.Analytics.Health)
 	}
 }
 
@@ -595,8 +629,11 @@ func TestGetNodeObservabilityAllowsMissingProfile(t *testing.T) {
 	if view.Profile != nil {
 		t.Fatalf("expected nil profile when profile not reported, got %+v", view.Profile)
 	}
-	if len(view.Trends.Traffic24h) != 24 || len(view.Trends.Capacity24h) != 24 {
+	if len(view.Trends.Traffic24h) != 24 || len(view.Trends.Capacity24h) != 24 || len(view.Trends.Network24h) != 24 || len(view.Trends.DiskIO24h) != 24 {
 		t.Fatalf("expected empty 24-point trends, got %+v", view.Trends)
+	}
+	if view.Analytics.Traffic.RequestCount != 0 || len(view.Analytics.Distributions.StatusCodes) != 0 {
+		t.Fatalf("expected empty analytics, got %+v", view.Analytics)
 	}
 }
 
@@ -656,6 +693,12 @@ func TestGetDashboardOverview(t *testing.T) {
 		MemoryTotalBytes:  8 * 1024 * 1024 * 1024,
 		StorageUsedBytes:  50 * 1024 * 1024 * 1024,
 		StorageTotalBytes: 100 * 1024 * 1024 * 1024,
+		DiskReadBytes:     100,
+		DiskWriteBytes:    150,
+		NetworkRxBytes:    300,
+		NetworkTxBytes:    500,
+		OpenrestyRxBytes:  700,
+		OpenrestyTxBytes:  900,
 	}).Insert(); err != nil {
 		t.Fatalf("failed to insert node a metric snapshot: %v", err)
 	}
@@ -667,27 +710,39 @@ func TestGetDashboardOverview(t *testing.T) {
 		MemoryTotalBytes:  16 * 1024 * 1024 * 1024,
 		StorageUsedBytes:  95 * 1024 * 1024 * 1024,
 		StorageTotalBytes: 100 * 1024 * 1024 * 1024,
+		DiskReadBytes:     200,
+		DiskWriteBytes:    400,
+		NetworkRxBytes:    600,
+		NetworkTxBytes:    900,
+		OpenrestyRxBytes:  1200,
+		OpenrestyTxBytes:  1600,
 	}).Insert(); err != nil {
 		t.Fatalf("failed to insert node b metric snapshot: %v", err)
 	}
 
 	if err := (&model.NodeRequestReport{
-		NodeID:             "node-dashboard-a",
-		WindowStartedAt:    now.Add(-time.Minute),
-		WindowEndedAt:      now,
-		RequestCount:       600,
-		ErrorCount:         6,
-		UniqueVisitorCount: 120,
+		NodeID:              "node-dashboard-a",
+		WindowStartedAt:     now.Add(-time.Minute),
+		WindowEndedAt:       now,
+		RequestCount:        600,
+		ErrorCount:          6,
+		UniqueVisitorCount:  120,
+		StatusCodesJSON:     `{"200":570,"502":6,"304":24}`,
+		TopDomainsJSON:      `{"app.example.com":420,"api.example.com":180}`,
+		SourceCountriesJSON: `{"CN":320,"SG":280}`,
 	}).Insert(); err != nil {
 		t.Fatalf("failed to insert node a traffic report: %v", err)
 	}
 	if err := (&model.NodeRequestReport{
-		NodeID:             "node-dashboard-b",
-		WindowStartedAt:    now.Add(-time.Minute),
-		WindowEndedAt:      now,
-		RequestCount:       300,
-		ErrorCount:         30,
-		UniqueVisitorCount: 80,
+		NodeID:              "node-dashboard-b",
+		WindowStartedAt:     now.Add(-time.Minute),
+		WindowEndedAt:       now,
+		RequestCount:        300,
+		ErrorCount:          30,
+		UniqueVisitorCount:  80,
+		StatusCodesJSON:     `{"200":240,"500":18,"502":12,"404":30}`,
+		TopDomainsJSON:      `{"app.example.com":140,"edge.example.com":160}`,
+		SourceCountriesJSON: `{"US":180,"CN":120}`,
 	}).Insert(); err != nil {
 		t.Fatalf("failed to insert node b traffic report: %v", err)
 	}
@@ -727,11 +782,26 @@ func TestGetDashboardOverview(t *testing.T) {
 	if len(view.Nodes) != 2 || len(view.ActiveAlerts) != 1 {
 		t.Fatalf("unexpected dashboard nodes/alerts: %+v %+v", view.Nodes, view.ActiveAlerts)
 	}
-	if len(view.Trends.Traffic24h) != 24 || len(view.Trends.Capacity24h) != 24 {
+	if len(view.Trends.Traffic24h) != 24 || len(view.Trends.Capacity24h) != 24 || len(view.Trends.Network24h) != 24 || len(view.Trends.DiskIO24h) != 24 {
 		t.Fatalf("expected 24-point dashboard trends, got %+v", view.Trends)
 	}
 	if view.Trends.Traffic24h[len(view.Trends.Traffic24h)-1].RequestCount != 900 {
 		t.Fatalf("unexpected dashboard traffic trend tail: %+v", view.Trends.Traffic24h[len(view.Trends.Traffic24h)-1])
+	}
+	if view.Trends.Network24h[len(view.Trends.Network24h)-1].OpenrestyRxBytes != 1900 {
+		t.Fatalf("unexpected dashboard network trend tail: %+v", view.Trends.Network24h[len(view.Trends.Network24h)-1])
+	}
+	if view.Trends.DiskIO24h[len(view.Trends.DiskIO24h)-1].DiskWriteBytes != 550 {
+		t.Fatalf("unexpected dashboard disk io trend tail: %+v", view.Trends.DiskIO24h[len(view.Trends.DiskIO24h)-1])
+	}
+	if len(view.Distributions.StatusCodes) == 0 || view.Distributions.StatusCodes[0].Key != "200" {
+		t.Fatalf("unexpected dashboard status distributions: %+v", view.Distributions.StatusCodes)
+	}
+	if len(view.Distributions.SourceCountries) == 0 || view.Distributions.SourceCountries[0].Key != "CN" {
+		t.Fatalf("unexpected dashboard source distributions: %+v", view.Distributions.SourceCountries)
+	}
+	if len(view.Distributions.TopDomains) == 0 || view.Distributions.TopDomains[0].Key != "app.example.com" {
+		t.Fatalf("unexpected dashboard domain distributions: %+v", view.Distributions.TopDomains)
 	}
 	if view.Peaks.BusiestNode == nil || view.Peaks.BusiestNode.NodeID != "node-dashboard-a" {
 		t.Fatalf("unexpected busiest node: %+v", view.Peaks.BusiestNode)

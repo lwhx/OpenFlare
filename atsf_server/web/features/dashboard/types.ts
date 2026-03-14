@@ -66,6 +66,11 @@ export interface DashboardPeakSummary {
   riskiest_node: DashboardPeakNode | null;
 }
 
+export interface DistributionItem {
+  key: string;
+  value: number;
+}
+
 export interface TrafficTrendPoint {
   bucket_started_at: string;
   request_count: number;
@@ -80,9 +85,33 @@ export interface CapacityTrendPoint {
   reported_nodes: number;
 }
 
+export interface NetworkTrendPoint {
+  bucket_started_at: string;
+  network_rx_bytes: number;
+  network_tx_bytes: number;
+  openresty_rx_bytes: number;
+  openresty_tx_bytes: number;
+  reported_nodes: number;
+}
+
+export interface DiskIOTrendPoint {
+  bucket_started_at: string;
+  disk_read_bytes: number;
+  disk_write_bytes: number;
+  reported_nodes: number;
+}
+
+export interface TrafficDistributions {
+  status_codes: DistributionItem[];
+  top_domains: DistributionItem[];
+  source_countries: DistributionItem[];
+}
+
 export interface DashboardTrends {
   traffic_24h: TrafficTrendPoint[];
   capacity_24h: CapacityTrendPoint[];
+  network_24h: NetworkTrendPoint[];
+  disk_io_24h: DiskIOTrendPoint[];
 }
 
 export interface DashboardNodeHealth {
@@ -120,6 +149,7 @@ export interface DashboardOverview {
   config: DashboardConfig;
   risk: DashboardRiskSummary;
   peaks: DashboardPeakSummary;
+  distributions: TrafficDistributions;
   trends: DashboardTrends;
   nodes: DashboardNodeHealth[];
   active_alerts: DashboardAlert[];
