@@ -733,10 +733,9 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
           />
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_1.1fr_0.8fr]">
+        <div className="grid gap-6 xl:grid-cols-3">
           <AppCard
-            title="系统画像"
-            description="展示节点当前上报的主机事实信息，便于快速识别机器环境。"
+            title="系统信息"
           >
             {observabilityQuery.isLoading ? (
               <LoadingState />

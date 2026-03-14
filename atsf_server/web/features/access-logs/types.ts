@@ -8,3 +8,10 @@ export interface AccessLogItem {
   path: string;
   status_code: number;
 }
+
+export interface AccessLogList {
+  items: AccessLogItem[];
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}

@@ -14,13 +14,16 @@ type NodeAccessLog struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-func ListNodeAccessLogs(nodeID string, since time.Time, limit int) (logs []*NodeAccessLog, err error) {
+func ListNodeAccessLogs(nodeID string, since time.Time, offset int, limit int) (logs []*NodeAccessLog, err error) {
 	query := DB.Order("logged_at desc, id desc")
 	if nodeID != "" {
 		query = query.Where("node_id = ?", nodeID)
 	}
 	if !since.IsZero() {
 		query = query.Where("logged_at >= ?", since)
+	}
+	if offset > 0 {
+		query = query.Offset(offset)
 	}
 	if limit > 0 {
 		query = query.Limit(limit)

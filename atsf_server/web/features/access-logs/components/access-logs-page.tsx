@@ -54,13 +54,16 @@ export function AccessLogsPage() {
   const queryClient = useQueryClient();
   const [nodeFilterInput, setNodeFilterInput] = useState('');
   const [nodeFilter, setNodeFilter] = useState('');
+  const [page, setPage] = useState(0);
 
   const logsQuery = useQuery({
-    queryKey: accessLogsQueryKey(nodeFilter),
-    queryFn: () => getAccessLogs(nodeFilter),
+    queryKey: [...accessLogsQueryKey(nodeFilter), page],
+    queryFn: () => getAccessLogs(page, nodeFilter),
   });
 
-  const logs = useMemo(() => logsQuery.data ?? [], [logsQuery.data]);
+  const logs = useMemo(() => logsQuery.data?.items ?? [], [logsQuery.data]);
+  const hasMore = logsQuery.data?.has_more ?? false;
+  const pageSize = logsQuery.data?.page_size ?? 50;
   const summary = useMemo(() => buildSummary(logs), [logs]);
 
   return (
@@ -126,7 +129,10 @@ export function AccessLogsPage() {
             <div className="flex flex-wrap gap-2">
               <PrimaryButton
                 type="button"
-                onClick={() => setNodeFilter(nodeFilterInput.trim())}
+                onClick={() => {
+                  setNodeFilter(nodeFilterInput.trim());
+                  setPage(0);
+                }}
               >
                 筛选
               </PrimaryButton>
@@ -135,6 +141,7 @@ export function AccessLogsPage() {
                 onClick={() => {
                   setNodeFilter('');
                   setNodeFilterInput('');
+                  setPage(0);
                 }}
               >
                 清空
@@ -209,6 +216,27 @@ export function AccessLogsPage() {
               </table>
             </div>
           )}
+          <div className="flex flex-col gap-3 border-t border-[var(--border-default)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-[var(--foreground-secondary)]">
+              第 {page + 1} 页，每页 {pageSize} 条。
+            </p>
+            <div className="flex gap-2">
+              <SecondaryButton
+                type="button"
+                disabled={page === 0 || logsQuery.isLoading}
+                onClick={() => setPage((value) => Math.max(value - 1, 0))}
+              >
+                上一页
+              </SecondaryButton>
+              <SecondaryButton
+                type="button"
+                disabled={!hasMore || logsQuery.isLoading}
+                onClick={() => setPage((value) => value + 1)}
+              >
+                下一页
+              </SecondaryButton>
+            </div>
+          </div>
         </div>
       </AppCard>
     </div>

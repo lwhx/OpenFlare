@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-const accessLogListLimit = 500
+const (
+	defaultAccessLogPageSize = 50
+	maxAccessLogPageSize     = 200
+)
 
 type AccessLogView struct {
 	ID         uint      `json:"id"`
@@ -19,8 +22,23 @@ type AccessLogView struct {
 	StatusCode int       `json:"status_code"`
 }
 
-func ListAccessLogs(nodeID string) ([]AccessLogView, error) {
-	logs, err := model.ListNodeAccessLogs(strings.TrimSpace(nodeID), time.Now().Add(-nodeAccessLogRetentionWindow), accessLogListLimit)
+type AccessLogList struct {
+	Items    []AccessLogView `json:"items"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"page_size"`
+	HasMore  bool            `json:"has_more"`
+}
+
+func ListAccessLogs(nodeID string, page int, pageSize int) (*AccessLogList, error) {
+	normalizedPage := normalizeAccessLogPage(page)
+	normalizedPageSize := normalizeAccessLogPageSize(pageSize)
+	offset := normalizedPage * normalizedPageSize
+	logs, err := model.ListNodeAccessLogs(
+		strings.TrimSpace(nodeID),
+		time.Now().Add(-nodeAccessLogRetentionWindow),
+		offset,
+		normalizedPageSize+1,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +52,10 @@ func ListAccessLogs(nodeID string) ([]AccessLogView, error) {
 			continue
 		}
 		nodeNames[node.NodeID] = node.Name
+	}
+	hasMore := len(logs) > normalizedPageSize
+	if hasMore {
+		logs = logs[:normalizedPageSize]
 	}
 	views := make([]AccessLogView, 0, len(logs))
 	for _, item := range logs {
@@ -51,5 +73,27 @@ func ListAccessLogs(nodeID string) ([]AccessLogView, error) {
 			StatusCode: item.StatusCode,
 		})
 	}
-	return views, nil
+	return &AccessLogList{
+		Items:    views,
+		Page:     normalizedPage,
+		PageSize: normalizedPageSize,
+		HasMore:  hasMore,
+	}, nil
+}
+
+func normalizeAccessLogPage(page int) int {
+	if page < 0 {
+		return 0
+	}
+	return page
+}
+
+func normalizeAccessLogPageSize(pageSize int) int {
+	if pageSize <= 0 {
+		return defaultAccessLogPageSize
+	}
+	if pageSize > maxAccessLogPageSize {
+		return maxAccessLogPageSize
+	}
+	return pageSize
 }

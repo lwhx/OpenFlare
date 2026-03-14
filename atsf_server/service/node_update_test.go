@@ -673,7 +673,7 @@ func TestHeartbeatNodePersistsObservabilityPayload(t *testing.T) {
 		t.Fatalf("unexpected request reports: %+v", reports)
 	}
 
-	accessLogs, err := model.ListNodeAccessLogs(node.NodeID, time.Time{}, 10)
+	accessLogs, err := model.ListNodeAccessLogs(node.NodeID, time.Time{}, 0, 10)
 	if err != nil {
 		t.Fatalf("expected node access logs query to succeed: %v", err)
 	}
@@ -780,7 +780,7 @@ func TestHeartbeatNodePersistsBufferedObservabilityPayload(t *testing.T) {
 		t.Fatalf("expected current and buffered reports, got %+v", reports)
 	}
 
-	accessLogs, err := model.ListNodeAccessLogs(node.NodeID, time.Time{}, 10)
+	accessLogs, err := model.ListNodeAccessLogs(node.NodeID, time.Time{}, 0, 10)
 	if err != nil {
 		t.Fatalf("expected node access logs query to succeed: %v", err)
 	}
@@ -833,6 +833,75 @@ func TestHeartbeatNodePersistsBufferedObservabilityPayload(t *testing.T) {
 	}
 	if len(reports) != 2 {
 		t.Fatalf("expected replay dedupe to keep report count stable, got %+v", reports)
+	}
+}
+
+func TestListAccessLogsUsesPagination(t *testing.T) {
+	setupServiceTestDB(t)
+
+	node := &model.Node{
+		NodeID:       "node-access-log-page",
+		Name:         "access-log-edge",
+		IP:           "10.0.0.40",
+		AgentToken:   "token-access-log-page",
+		AgentVersion: "v0.6.0",
+		NginxVersion: "1.27.1.2",
+		Status:       NodeStatusOnline,
+	}
+	if err := node.Insert(); err != nil {
+		t.Fatalf("failed to seed node: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if err := model.DB.Create([]*model.NodeAccessLog{
+		{
+			NodeID:     node.NodeID,
+			LoggedAt:   now.Add(-10 * time.Second),
+			RemoteAddr: "203.0.113.1",
+			Host:       "example.com",
+			Path:       "/one",
+			StatusCode: 200,
+		},
+		{
+			NodeID:     node.NodeID,
+			LoggedAt:   now.Add(-9 * time.Second),
+			RemoteAddr: "203.0.113.2",
+			Host:       "example.com",
+			Path:       "/two",
+			StatusCode: 200,
+		},
+		{
+			NodeID:     node.NodeID,
+			LoggedAt:   now.Add(-8 * time.Second),
+			RemoteAddr: "203.0.113.3",
+			Host:       "example.com",
+			Path:       "/three",
+			StatusCode: 502,
+		},
+	}).Error; err != nil {
+		t.Fatalf("failed to seed access logs: %v", err)
+	}
+
+	pageOne, err := ListAccessLogs(node.NodeID, 0, 2)
+	if err != nil {
+		t.Fatalf("ListAccessLogs page 1 failed: %v", err)
+	}
+	if len(pageOne.Items) != 2 || !pageOne.HasMore {
+		t.Fatalf("unexpected first page: %+v", pageOne)
+	}
+	if pageOne.Items[0].Path != "/three" || pageOne.Items[1].Path != "/two" {
+		t.Fatalf("unexpected first page ordering: %+v", pageOne.Items)
+	}
+
+	pageTwo, err := ListAccessLogs(node.NodeID, 1, 2)
+	if err != nil {
+		t.Fatalf("ListAccessLogs page 2 failed: %v", err)
+	}
+	if len(pageTwo.Items) != 1 || pageTwo.HasMore {
+		t.Fatalf("unexpected second page: %+v", pageTwo)
+	}
+	if pageTwo.Items[0].Path != "/one" {
+		t.Fatalf("unexpected second page ordering: %+v", pageTwo.Items)
 	}
 }
 
