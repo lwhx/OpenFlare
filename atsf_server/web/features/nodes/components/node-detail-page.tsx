@@ -78,6 +78,8 @@ type FeedbackState = {
   message: string;
 };
 
+type HealthEventFilter = 'all' | 'active' | 'resolved';
+
 const defaultValues: NodeFormValues = {
   name: '',
   auto_update_enabled: false,
@@ -266,6 +268,8 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
   const [agentUpdateFeedback, setAgentUpdateFeedback] =
     useState<FeedbackState | null>(null);
   const [serverUrl, setServerUrl] = useState('');
+  const [healthEventFilter, setHealthEventFilter] =
+    useState<HealthEventFilter>('all');
 
   const form = useForm<NodeFormValues>({
     resolver: zodResolver(nodeSchema),
@@ -535,6 +539,21 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
       ) ?? [],
     [observability?.health_events],
   );
+  const filteredHealthEvents = useMemo(() => {
+    switch (healthEventFilter) {
+      case 'active':
+        return activeHealthEvents;
+      case 'resolved':
+        return resolvedHealthEvents;
+      default:
+        return observability?.health_events ?? [];
+    }
+  }, [
+    activeHealthEvents,
+    healthEventFilter,
+    observability?.health_events,
+    resolvedHealthEvents,
+  ]);
   const memoryUsageRatio = formatUsageRatio(
     latestMetricSnapshot?.memory_used_bytes,
     latestMetricSnapshot?.memory_total_bytes,
@@ -1051,7 +1070,43 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
           >
             {observability?.health_events.length ? (
               <div className="space-y-4">
-                {observability.health_events.slice(0, 8).map((event) => (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHealthEventFilter('all')}
+                    className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs transition ${
+                      healthEventFilter === 'all'
+                        ? 'border-[var(--border-strong)] bg-[var(--accent-soft)] text-[var(--foreground-primary)]'
+                        : 'border-[var(--border-default)] text-[var(--foreground-secondary)] hover:bg-[var(--control-background-hover)]'
+                    }`}
+                  >
+                    全部事件
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHealthEventFilter('active')}
+                    className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs transition ${
+                      healthEventFilter === 'active'
+                        ? 'border-[var(--border-strong)] bg-[var(--accent-soft)] text-[var(--foreground-primary)]'
+                        : 'border-[var(--border-default)] text-[var(--foreground-secondary)] hover:bg-[var(--control-background-hover)]'
+                    }`}
+                  >
+                    活动中
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHealthEventFilter('resolved')}
+                    className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs transition ${
+                      healthEventFilter === 'resolved'
+                        ? 'border-[var(--border-strong)] bg-[var(--accent-soft)] text-[var(--foreground-primary)]'
+                        : 'border-[var(--border-default)] text-[var(--foreground-secondary)] hover:bg-[var(--control-background-hover)]'
+                    }`}
+                  >
+                    已恢复
+                  </button>
+                </div>
+
+                {filteredHealthEvents.slice(0, 8).map((event) => (
                   <div
                     key={`${event.event_type}-${event.last_triggered_at}-${event.status}`}
                     className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4"
@@ -1093,6 +1148,11 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                     </div>
                   </div>
                 ))}
+                {filteredHealthEvents.length === 0 ? (
+                  <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4 text-sm text-[var(--foreground-secondary)]">
+                    当前筛选下没有健康事件。
+                  </div>
+                ) : null}
               </div>
             ) : (
               <EmptyState

@@ -104,10 +104,7 @@ function RiskSignal({
     return content;
   }
   return (
-    <Link
-      href={href}
-      className="block transition hover:opacity-90"
-    >
+    <Link href={href} className="block transition hover:opacity-90">
       {content}
     </Link>
   );
