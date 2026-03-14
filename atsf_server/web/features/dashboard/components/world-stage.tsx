@@ -275,6 +275,17 @@ export function WorldStage({
               {geoConfiguredNodes > 0 ? '节点地理坐标' : '节点覆盖信号'}
             </div>
 
+            <div
+              className={cn(
+                'absolute left-6 top-16 z-10 rounded-full px-3 py-1 text-[11px] backdrop-blur',
+                isDark
+                  ? 'bg-slate-900/45 text-slate-200'
+                  : 'bg-white/85 text-slate-600 shadow-[0_10px_24px_rgba(148,163,184,0.16)]',
+              )}
+            >
+              拖动平移，滚轮缩放
+            </div>
+
             <div className="absolute right-4 top-4 z-10 flex flex-wrap gap-2">
               <LegendPill label="绿色: 运行正常" tone="healthy" isDark={isDark} />
               <LegendPill label="黄色: 资源承压" tone="warning" isDark={isDark} />
@@ -285,7 +296,7 @@ export function WorldStage({
               ref={mapViewportRef}
               className="absolute inset-x-3 top-16 bottom-28 flex items-center justify-center md:inset-x-4 md:top-18 md:bottom-32"
             >
-              <div className="h-full max-w-full aspect-[2/1]">
+              <div className="h-full w-full min-w-0 overflow-hidden">
                 {shouldRenderMap ? (
                   <WorldStageMap isDark={isDark} nodes={nodes} />
                 ) : (

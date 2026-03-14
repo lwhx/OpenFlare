@@ -91,7 +91,7 @@ type CountryRegionDatum = {
 let worldMapRegistrationAttempted = false;
 let worldMapRegistrationSucceeded = false;
 
-const baseWorldMapLayoutSizePercent = 180;
+const baseWorldMapLayoutSizePercent = 168;
 const baseWorldMapZoom = 1;
 
 function buildNodeDetailHref(id?: number | null) {
@@ -435,10 +435,13 @@ export function WorldStageMap({
       return 1;
     }
 
-    const widthScale = Math.min(Math.max(width / 960, 0.76), 1.18);
-    const heightScale = Math.min(Math.max(height / 520, 0.82), 1.12);
+    const widthScale = Math.min(Math.max(width / 960, 0.52), 1.08);
+    const heightScale = Math.min(Math.max(height / 520, 0.72), 1.1);
+    const compactViewportScale = width < 640 ? 0.9 : 1;
 
-    return Number(Math.min(widthScale, heightScale).toFixed(3));
+    return Number(
+      (Math.min(widthScale, heightScale) * compactViewportScale).toFixed(3),
+    );
   }, [containerSize]);
 
   const computedLayoutSize = useMemo(
@@ -489,11 +492,15 @@ export function WorldStageMap({
       },
       geo: {
         map: 'world',
-        roam: false,
+        roam: true,
         silent: true,
         layoutCenter: ['50%', '50%'],
         layoutSize: computedLayoutSize,
         zoom: computedZoom,
+        scaleLimit: {
+          min: Math.max(Number((computedZoom * 0.78).toFixed(3)), 0.35),
+          max: Math.max(Number((computedZoom * 2.2).toFixed(3)), 1.4),
+        },
         regions: countryRegions,
         itemStyle: {
           areaColor: mapPalette.areaColor,
