@@ -590,3 +590,129 @@ func TestGetNodeObservabilityAllowsMissingProfile(t *testing.T) {
 		t.Fatalf("expected nil profile when profile not reported, got %+v", view.Profile)
 	}
 }
+
+func TestGetDashboardOverview(t *testing.T) {
+	setupServiceTestDB(t)
+
+	now := time.Now()
+	if err := model.DB.Create(&model.ConfigVersion{
+		Version:        "20260314-001",
+		SnapshotJSON:   "{}",
+		MainConfig:     "worker_processes auto;",
+		RenderedConfig: "server { listen 80; }",
+		Checksum:       "checksum-dashboard",
+		IsActive:       true,
+		CreatedBy:      "root",
+	}).Error; err != nil {
+		t.Fatalf("failed to seed active config version: %v", err)
+	}
+
+	nodes := []*model.Node{
+		{
+			NodeID:          "node-dashboard-a",
+			Name:            "edge-a",
+			IP:              "10.0.0.71",
+			AgentToken:      "token-a",
+			AgentVersion:    "v0.6.0",
+			NginxVersion:    "1.27.1.2",
+			OpenrestyStatus: OpenrestyStatusHealthy,
+			Status:          NodeStatusOnline,
+			CurrentVersion:  "20260314-001",
+			LastSeenAt:      now,
+		},
+		{
+			NodeID:          "node-dashboard-b",
+			Name:            "edge-b",
+			IP:              "10.0.0.72",
+			AgentToken:      "token-b",
+			AgentVersion:    "v0.6.0",
+			NginxVersion:    "1.27.1.2",
+			OpenrestyStatus: OpenrestyStatusUnhealthy,
+			Status:          NodeStatusOnline,
+			CurrentVersion:  "20260313-001",
+			LastSeenAt:      now,
+		},
+	}
+	for _, node := range nodes {
+		if err := node.Insert(); err != nil {
+			t.Fatalf("failed to insert node %s: %v", node.NodeID, err)
+		}
+	}
+
+	if err := (&model.NodeMetricSnapshot{
+		NodeID:            "node-dashboard-a",
+		CapturedAt:        now,
+		CPUUsagePercent:   45,
+		MemoryUsedBytes:   4 * 1024 * 1024 * 1024,
+		MemoryTotalBytes:  8 * 1024 * 1024 * 1024,
+		StorageUsedBytes:  50 * 1024 * 1024 * 1024,
+		StorageTotalBytes: 100 * 1024 * 1024 * 1024,
+	}).Insert(); err != nil {
+		t.Fatalf("failed to insert node a metric snapshot: %v", err)
+	}
+	if err := (&model.NodeMetricSnapshot{
+		NodeID:            "node-dashboard-b",
+		CapturedAt:        now,
+		CPUUsagePercent:   92,
+		MemoryUsedBytes:   15 * 1024 * 1024 * 1024,
+		MemoryTotalBytes:  16 * 1024 * 1024 * 1024,
+		StorageUsedBytes:  95 * 1024 * 1024 * 1024,
+		StorageTotalBytes: 100 * 1024 * 1024 * 1024,
+	}).Insert(); err != nil {
+		t.Fatalf("failed to insert node b metric snapshot: %v", err)
+	}
+
+	if err := (&model.NodeRequestReport{
+		NodeID:             "node-dashboard-a",
+		WindowStartedAt:    now.Add(-time.Minute),
+		WindowEndedAt:      now,
+		RequestCount:       600,
+		ErrorCount:         6,
+		UniqueVisitorCount: 120,
+	}).Insert(); err != nil {
+		t.Fatalf("failed to insert node a traffic report: %v", err)
+	}
+	if err := (&model.NodeRequestReport{
+		NodeID:             "node-dashboard-b",
+		WindowStartedAt:    now.Add(-time.Minute),
+		WindowEndedAt:      now,
+		RequestCount:       300,
+		ErrorCount:         30,
+		UniqueVisitorCount: 80,
+	}).Insert(); err != nil {
+		t.Fatalf("failed to insert node b traffic report: %v", err)
+	}
+
+	if err := model.DB.Create(&model.NodeHealthEvent{
+		NodeID:           "node-dashboard-b",
+		EventType:        "openresty_unhealthy",
+		Severity:         NodeHealthSeverityCritical,
+		Status:           NodeHealthEventStatusActive,
+		Message:          "reload failed",
+		FirstTriggeredAt: now.Add(-time.Minute),
+		LastTriggeredAt:  now,
+		ReportedAt:       now,
+	}).Error; err != nil {
+		t.Fatalf("failed to insert dashboard health event: %v", err)
+	}
+
+	view, err := GetDashboardOverview()
+	if err != nil {
+		t.Fatalf("GetDashboardOverview failed: %v", err)
+	}
+	if view.Summary.TotalNodes != 2 || view.Summary.OnlineNodes != 2 {
+		t.Fatalf("unexpected dashboard summary: %+v", view.Summary)
+	}
+	if view.Summary.UnhealthyNodes != 1 || view.Summary.ActiveAlerts != 1 {
+		t.Fatalf("unexpected unhealthy/alert summary: %+v", view.Summary)
+	}
+	if view.Traffic.RequestCount != 900 || view.Traffic.ErrorCount != 36 {
+		t.Fatalf("unexpected dashboard traffic: %+v", view.Traffic)
+	}
+	if view.Config.ActiveVersion != "20260314-001" || view.Config.LaggingNodes != 1 {
+		t.Fatalf("unexpected dashboard config summary: %+v", view.Config)
+	}
+	if len(view.Nodes) != 2 || len(view.ActiveAlerts) != 1 {
+		t.Fatalf("unexpected dashboard nodes/alerts: %+v %+v", view.Nodes, view.ActiveAlerts)
+	}
+}

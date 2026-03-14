@@ -169,6 +169,13 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 
 	createRouteAndPublishVersion(t, engine, adminToken)
 
+	dashboardResp := performJSONRequest(t, engine, adminToken, http.MethodGet, "/api/dashboard/overview", nil)
+	var dashboard service.DashboardOverviewView
+	decodeResponseData(t, dashboardResp, &dashboard)
+	if dashboard.Summary.TotalNodes != 0 {
+		t.Fatalf("expected empty dashboard node summary before node registration, got %+v", dashboard.Summary)
+	}
+
 	unauthorizedRequest := httptest.NewRequest(http.MethodPost, "/api/agent/nodes/register", bytes.NewReader([]byte(`{}`)))
 	unauthorizedRecorder := httptest.NewRecorder()
 	engine.ServeHTTP(unauthorizedRecorder, unauthorizedRequest)

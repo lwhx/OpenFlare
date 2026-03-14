@@ -1,0 +1,260 @@
+package service
+
+import (
+	"atsflare/model"
+	"errors"
+	"sort"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+type DashboardOverviewView struct {
+	GeneratedAt  time.Time             `json:"generated_at"`
+	Summary      DashboardSummary      `json:"summary"`
+	Traffic      DashboardTraffic      `json:"traffic"`
+	Capacity     DashboardCapacity     `json:"capacity"`
+	Config       DashboardConfig       `json:"config"`
+	Nodes        []DashboardNodeHealth `json:"nodes"`
+	ActiveAlerts []DashboardAlert      `json:"active_alerts"`
+}
+
+type DashboardSummary struct {
+	TotalNodes     int `json:"total_nodes"`
+	OnlineNodes    int `json:"online_nodes"`
+	OfflineNodes   int `json:"offline_nodes"`
+	PendingNodes   int `json:"pending_nodes"`
+	UnhealthyNodes int `json:"unhealthy_nodes"`
+	ActiveAlerts   int `json:"active_alerts"`
+	LaggingNodes   int `json:"lagging_nodes"`
+}
+
+type DashboardTraffic struct {
+	RequestCount   int64   `json:"request_count"`
+	UniqueVisitors int64   `json:"unique_visitors"`
+	ErrorCount     int64   `json:"error_count"`
+	EstimatedQPS   float64 `json:"estimated_qps"`
+	ReportedNodes  int     `json:"reported_nodes"`
+}
+
+type DashboardCapacity struct {
+	AverageCPUUsagePercent    float64 `json:"average_cpu_usage_percent"`
+	AverageMemoryUsagePercent float64 `json:"average_memory_usage_percent"`
+	HighCPUNodes              int     `json:"high_cpu_nodes"`
+	HighMemoryNodes           int     `json:"high_memory_nodes"`
+	HighStorageNodes          int     `json:"high_storage_nodes"`
+}
+
+type DashboardConfig struct {
+	ActiveVersion string `json:"active_version"`
+	LaggingNodes  int    `json:"lagging_nodes"`
+	PendingNodes  int    `json:"pending_nodes"`
+}
+
+type DashboardNodeHealth struct {
+	ID                  uint      `json:"id"`
+	NodeID              string    `json:"node_id"`
+	Name                string    `json:"name"`
+	Status              string    `json:"status"`
+	OpenrestyStatus     string    `json:"openresty_status"`
+	CurrentVersion      string    `json:"current_version"`
+	LastSeenAt          time.Time `json:"last_seen_at"`
+	ActiveEventCount    int       `json:"active_event_count"`
+	CPUUsagePercent     float64   `json:"cpu_usage_percent"`
+	MemoryUsagePercent  float64   `json:"memory_usage_percent"`
+	StorageUsagePercent float64   `json:"storage_usage_percent"`
+	RequestCount        int64     `json:"request_count"`
+	ErrorCount          int64     `json:"error_count"`
+	UniqueVisitorCount  int64     `json:"unique_visitor_count"`
+}
+
+type DashboardAlert struct {
+	NodeID          string    `json:"node_id"`
+	NodeName        string    `json:"node_name"`
+	EventType       string    `json:"event_type"`
+	Severity        string    `json:"severity"`
+	Message         string    `json:"message"`
+	LastTriggeredAt time.Time `json:"last_triggered_at"`
+	Status          string    `json:"status"`
+}
+
+func GetDashboardOverview() (*DashboardOverviewView, error) {
+	now := time.Now()
+	since := now.Add(-24 * time.Hour)
+
+	nodes, err := model.ListNodes()
+	if err != nil {
+		return nil, err
+	}
+
+	activeVersion := ""
+	if version, versionErr := model.GetActiveConfigVersion(); versionErr == nil {
+		activeVersion = version.Version
+	} else if !errors.Is(versionErr, gorm.ErrRecordNotFound) {
+		return nil, versionErr
+	}
+
+	view := &DashboardOverviewView{
+		GeneratedAt: now,
+		Nodes:       make([]DashboardNodeHealth, 0, len(nodes)),
+	}
+
+	var cpuNodeCount int
+	var memoryNodeCount int
+
+	for _, node := range nodes {
+		computedStatus := computeNodeStatus(node)
+		switch computedStatus {
+		case NodeStatusOnline:
+			view.Summary.OnlineNodes++
+		case NodeStatusOffline:
+			view.Summary.OfflineNodes++
+		case NodeStatusPending:
+			view.Summary.PendingNodes++
+		}
+		if node.OpenrestyStatus == OpenrestyStatusUnhealthy {
+			view.Summary.UnhealthyNodes++
+		}
+		if activeVersion != "" && node.CurrentVersion != "" && node.CurrentVersion != activeVersion {
+			view.Summary.LaggingNodes++
+		}
+		if activeVersion != "" && node.CurrentVersion == "" && computedStatus != NodeStatusPending {
+			view.Summary.LaggingNodes++
+		}
+
+		latestSnapshot := latestMetricSnapshotForNode(node.NodeID, since)
+		latestTraffic := latestTrafficReportForNode(node.NodeID, since)
+		activeEvents, eventErr := model.ListNodeHealthEvents(node.NodeID, true, 20)
+		if eventErr != nil {
+			return nil, eventErr
+		}
+
+		nodeHealth := DashboardNodeHealth{
+			ID:               node.ID,
+			NodeID:           node.NodeID,
+			Name:             node.Name,
+			Status:           computedStatus,
+			OpenrestyStatus:  node.OpenrestyStatus,
+			CurrentVersion:   node.CurrentVersion,
+			LastSeenAt:       node.LastSeenAt,
+			ActiveEventCount: len(activeEvents),
+		}
+
+		for _, event := range activeEvents {
+			view.ActiveAlerts = append(view.ActiveAlerts, DashboardAlert{
+				NodeID:          node.NodeID,
+				NodeName:        node.Name,
+				EventType:       event.EventType,
+				Severity:        event.Severity,
+				Message:         event.Message,
+				LastTriggeredAt: event.LastTriggeredAt,
+				Status:          event.Status,
+			})
+		}
+
+		if latestSnapshot != nil {
+			nodeHealth.CPUUsagePercent = latestSnapshot.CPUUsagePercent
+			nodeHealth.MemoryUsagePercent = percentage(latestSnapshot.MemoryUsedBytes, latestSnapshot.MemoryTotalBytes)
+			nodeHealth.StorageUsagePercent = percentage(latestSnapshot.StorageUsedBytes, latestSnapshot.StorageTotalBytes)
+			if latestSnapshot.CPUUsagePercent > 0 {
+				view.Capacity.AverageCPUUsagePercent += latestSnapshot.CPUUsagePercent
+				cpuNodeCount++
+			}
+			if nodeHealth.MemoryUsagePercent > 0 {
+				view.Capacity.AverageMemoryUsagePercent += nodeHealth.MemoryUsagePercent
+				memoryNodeCount++
+			}
+			if latestSnapshot.CPUUsagePercent >= 80 {
+				view.Capacity.HighCPUNodes++
+			}
+			if nodeHealth.MemoryUsagePercent >= 85 {
+				view.Capacity.HighMemoryNodes++
+			}
+			if nodeHealth.StorageUsagePercent >= 85 {
+				view.Capacity.HighStorageNodes++
+			}
+		}
+
+		if latestTraffic != nil {
+			nodeHealth.RequestCount = latestTraffic.RequestCount
+			nodeHealth.ErrorCount = latestTraffic.ErrorCount
+			nodeHealth.UniqueVisitorCount = latestTraffic.UniqueVisitorCount
+			view.Traffic.RequestCount += latestTraffic.RequestCount
+			view.Traffic.UniqueVisitors += latestTraffic.UniqueVisitorCount
+			view.Traffic.ErrorCount += latestTraffic.ErrorCount
+			if duration := latestTraffic.WindowEndedAt.Sub(latestTraffic.WindowStartedAt).Seconds(); duration > 0 {
+				view.Traffic.EstimatedQPS += float64(latestTraffic.RequestCount) / duration
+			}
+			view.Traffic.ReportedNodes++
+		}
+
+		view.Summary.ActiveAlerts += len(activeEvents)
+		view.Nodes = append(view.Nodes, nodeHealth)
+	}
+
+	view.Summary.TotalNodes = len(nodes)
+	view.Config.ActiveVersion = activeVersion
+	view.Config.LaggingNodes = view.Summary.LaggingNodes
+	view.Config.PendingNodes = view.Summary.PendingNodes
+
+	if cpuNodeCount > 0 {
+		view.Capacity.AverageCPUUsagePercent /= float64(cpuNodeCount)
+	}
+	if memoryNodeCount > 0 {
+		view.Capacity.AverageMemoryUsagePercent /= float64(memoryNodeCount)
+	}
+
+	sort.Slice(view.ActiveAlerts, func(i int, j int) bool {
+		if severityWeight(view.ActiveAlerts[i].Severity) == severityWeight(view.ActiveAlerts[j].Severity) {
+			return view.ActiveAlerts[i].LastTriggeredAt.After(view.ActiveAlerts[j].LastTriggeredAt)
+		}
+		return severityWeight(view.ActiveAlerts[i].Severity) > severityWeight(view.ActiveAlerts[j].Severity)
+	})
+
+	sort.Slice(view.Nodes, func(i int, j int) bool {
+		if view.Nodes[i].ActiveEventCount == view.Nodes[j].ActiveEventCount {
+			return view.Nodes[i].CPUUsagePercent > view.Nodes[j].CPUUsagePercent
+		}
+		return view.Nodes[i].ActiveEventCount > view.Nodes[j].ActiveEventCount
+	})
+
+	if len(view.ActiveAlerts) > 8 {
+		view.ActiveAlerts = view.ActiveAlerts[:8]
+	}
+
+	return view, nil
+}
+
+func latestMetricSnapshotForNode(nodeID string, since time.Time) *model.NodeMetricSnapshot {
+	snapshots, err := model.ListNodeMetricSnapshots(nodeID, since, 1)
+	if err != nil || len(snapshots) == 0 {
+		return nil
+	}
+	return snapshots[0]
+}
+
+func latestTrafficReportForNode(nodeID string, since time.Time) *model.NodeRequestReport {
+	reports, err := model.ListNodeRequestReports(nodeID, since, 1)
+	if err != nil || len(reports) == 0 {
+		return nil
+	}
+	return reports[0]
+}
+
+func percentage(used int64, total int64) float64 {
+	if used <= 0 || total <= 0 {
+		return 0
+	}
+	return (float64(used) / float64(total)) * 100
+}
+
+func severityWeight(severity string) int {
+	switch severity {
+	case NodeHealthSeverityCritical:
+		return 3
+	case NodeHealthSeverityWarning:
+		return 2
+	default:
+		return 1
+	}
+}

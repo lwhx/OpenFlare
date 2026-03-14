@@ -1,295 +1,311 @@
 'use client';
 
 import Link from 'next/link';
-import { useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
+import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
 import { LoadingState } from '@/components/feedback/loading-state';
 import { AppCard } from '@/components/ui/app-card';
-import { getConfigVersions } from '@/features/config-versions/api/config-versions';
-import type { ConfigVersionItem } from '@/features/config-versions/types';
-import { getManagedDomains } from '@/features/managed-domains/api/managed-domains';
-import type { ManagedDomainItem } from '@/features/managed-domains/types';
-import { getNodes } from '@/features/nodes/api/nodes';
-import type { NodeItem } from '@/features/nodes/types';
-import { getProxyRoutes } from '@/features/proxy-routes/api/proxy-routes';
-import type { ProxyRouteItem } from '@/features/proxy-routes/types';
-import { getTlsCertificates } from '@/features/tls-certificates/api/tls-certificates';
-import type { TlsCertificateItem } from '@/features/tls-certificates/types';
-import { getUsers, searchUsers } from '@/features/users/api/users';
-import type { UserItem } from '@/features/users/types';
-import { formatDateTime } from '@/lib/utils/date';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { getDashboardOverview } from '@/features/dashboard/api/overview';
+import type {
+  DashboardAlert,
+  DashboardNodeHealth,
+} from '@/features/dashboard/types';
+import {
+  getNodeStatusLabel,
+  getNodeStatusVariant,
+  getOpenrestyStatusLabel,
+  getOpenrestyStatusVariant,
+} from '@/features/nodes/utils';
+import { formatDateTime, formatRelativeTime } from '@/lib/utils/date';
 
-function parseCustomHeaders(rawValue: string) {
-  if (!rawValue) {
-    return [];
+function formatPercent(value?: number | null) {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return '—';
   }
-
-  try {
-    const parsed = JSON.parse(rawValue);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return `${value.toFixed(1)}%`;
 }
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '请求失败，请稍后重试。';
 }
 
-function SummaryCard({
-  title,
-  description,
-  href,
-  items,
-  status,
-  error,
+function getAlertVariant(
+  alert: DashboardAlert,
+): 'success' | 'warning' | 'danger' | 'info' {
+  if (alert.status === 'resolved') {
+    return 'success';
+  }
+  if (alert.severity === 'critical') {
+    return 'danger';
+  }
+  if (alert.severity === 'warning') {
+    return 'warning';
+  }
+  return 'info';
+}
+
+function OverviewMetric({
+  label,
+  value,
+  hint,
 }: {
-  title: string;
-  description: string;
-  href: string;
-  items: ReadonlyArray<{ label: string; value: string | number }>;
-  status: 'pending' | 'success' | 'error';
-  error?: unknown;
+  label: string;
+  value: string | number;
+  hint?: string;
 }) {
   return (
-    <AppCard
-      title={title}
-      description={description}
-      action={
-        <Link
-          href={href}
-          className="inline-flex items-center rounded-full border border-[var(--border-default)] px-3 py-1.5 text-xs text-[var(--foreground-primary)] transition hover:bg-[var(--control-background-hover)]"
-        >
-          进入模块
-        </Link>
-      }
-    >
-      {status === 'pending' ? (
-        <LoadingState />
-      ) : status === 'error' ? (
-        <ErrorState
-          title={`${title}加载失败`}
-          description={getErrorMessage(error)}
-        />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {items.map((item) => (
-            <div
-              key={item.label}
-              className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4"
-            >
-              <p className="text-xs tracking-[0.2em] text-[var(--foreground-muted)] uppercase">
-                {item.label}
-              </p>
-              <p className="mt-2 text-lg font-semibold text-[var(--foreground-primary)]">
-                {item.value}
-              </p>
-            </div>
-          ))}
+    <div className="rounded-3xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-5 py-5">
+      <p className="text-xs tracking-[0.24em] text-[var(--foreground-muted)] uppercase">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-semibold text-[var(--foreground-primary)]">
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-2 text-sm text-[var(--foreground-secondary)]">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function NodeHealthRow({ node }: { node: DashboardNodeHealth }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-[var(--foreground-primary)]">
+            {node.name}
+          </p>
+          <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+            {node.node_id}
+          </p>
         </div>
-      )}
-    </AppCard>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge
+            label={getNodeStatusLabel(node.status)}
+            variant={getNodeStatusVariant(node.status)}
+          />
+          <StatusBadge
+            label={getOpenrestyStatusLabel(node.openresty_status)}
+            variant={getOpenrestyStatusVariant(node.openresty_status)}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <div>
+          <p className="text-xs tracking-[0.2em] text-[var(--foreground-muted)] uppercase">
+            CPU
+          </p>
+          <p className="mt-2 text-sm text-[var(--foreground-primary)]">
+            {formatPercent(node.cpu_usage_percent)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs tracking-[0.2em] text-[var(--foreground-muted)] uppercase">
+            内存
+          </p>
+          <p className="mt-2 text-sm text-[var(--foreground-primary)]">
+            {formatPercent(node.memory_usage_percent)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs tracking-[0.2em] text-[var(--foreground-muted)] uppercase">
+            最近窗口请求
+          </p>
+          <p className="mt-2 text-sm text-[var(--foreground-primary)]">
+            {node.request_count}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs tracking-[0.2em] text-[var(--foreground-muted)] uppercase">
+            活动异常
+          </p>
+          <p className="mt-2 text-sm text-[var(--foreground-primary)]">
+            {node.active_event_count}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--foreground-secondary)]">
+        <p>当前版本：{node.current_version || '未应用'}</p>
+        <p>
+          最近心跳：
+          {node.last_seen_at
+            ? ` ${formatRelativeTime(node.last_seen_at)} · ${formatDateTime(node.last_seen_at)}`
+            : ' 暂无'}
+        </p>
+      </div>
+    </div>
   );
 }
 
 export function DashboardOverview() {
-  const [
-    nodesQuery,
-    versionsQuery,
-    managedDomainsQuery,
-    certificatesQuery,
-    proxyRoutesQuery,
-    usersQuery,
-  ] = useQueries({
-    queries: [
-      { queryKey: ['dashboard', 'nodes'], queryFn: getNodes },
-      {
-        queryKey: ['dashboard', 'config-versions'],
-        queryFn: getConfigVersions,
-      },
-      {
-        queryKey: ['dashboard', 'managed-domains'],
-        queryFn: getManagedDomains,
-      },
-      {
-        queryKey: ['dashboard', 'tls-certificates'],
-        queryFn: getTlsCertificates,
-      },
-      { queryKey: ['dashboard', 'proxy-routes'], queryFn: getProxyRoutes },
-      {
-        queryKey: ['dashboard', 'users'],
-        queryFn: async () => {
-          try {
-            return await searchUsers('');
-          } catch {
-            return getUsers(0);
-          }
-        },
-      },
-    ],
+  const overviewQuery = useQuery({
+    queryKey: ['dashboard', 'overview'],
+    queryFn: getDashboardOverview,
+    refetchInterval: 10000,
   });
 
-  const nodes = (nodesQuery.data ?? []) as NodeItem[];
-  const versions = (versionsQuery.data ?? []) as ConfigVersionItem[];
-  const domains = (managedDomainsQuery.data ?? []) as ManagedDomainItem[];
-  const certificates = (certificatesQuery.data ?? []) as TlsCertificateItem[];
-  const routes = (proxyRoutesQuery.data ?? []) as ProxyRouteItem[];
-  const users = (usersQuery.data ?? []) as UserItem[];
+  if (overviewQuery.isLoading) {
+    return <LoadingState />;
+  }
 
-  const expiringCertificates = certificates.filter((item) => {
-    const expiresAt = new Date(item.not_after).getTime();
+  if (overviewQuery.isError) {
     return (
-      !Number.isNaN(expiresAt) &&
-      expiresAt >= Date.now() &&
-      expiresAt - Date.now() <= 30 * 24 * 60 * 60 * 1000
+      <ErrorState
+        title="总览看板加载失败"
+        description={getErrorMessage(overviewQuery.error)}
+      />
     );
-  }).length;
+  }
 
-  const expiredCertificates = certificates.filter((item) => {
-    const expiresAt = new Date(item.not_after).getTime();
-    return !Number.isNaN(expiresAt) && expiresAt < Date.now();
-  }).length;
-
-  const dashboardCards = [
-    {
-      title: '节点摘要',
-      description: '集中查看在线状态、待接入节点和自动更新覆盖情况。',
-      href: '/node',
-      status: nodesQuery.status,
-      error: nodesQuery.error,
-      items: [
-        { label: '节点总数', value: nodes.length },
-        {
-          label: '在线节点',
-          value: nodes.filter((item) => item.status === 'online').length,
-        },
-        {
-          label: '待接入节点',
-          value: nodes.filter((item) => item.status === 'pending').length,
-        },
-        {
-          label: '自动更新',
-          value: nodes.filter((item) => item.auto_update_enabled).length,
-        },
-      ],
-    },
-    {
-      title: '版本摘要',
-      description: '直接感知当前发布沉淀、激活版本和最近一次变更时间。',
-      href: '/config-version',
-      status: versionsQuery.status,
-      error: versionsQuery.error,
-      items: [
-        { label: '版本总数', value: versions.length },
-        {
-          label: '激活版本',
-          value: versions.filter((item) => item.is_active).length,
-        },
-        {
-          label: '最近创建',
-          value: versions[0]?.created_at
-            ? formatDateTime(versions[0].created_at)
-            : '—',
-        },
-      ],
-    },
-    {
-      title: '规则摘要',
-      description: '查看域名规则启用状态、通配符覆盖和证书绑定规模。',
-      href: '/website',
-      status: managedDomainsQuery.status,
-      error: managedDomainsQuery.error,
-      items: [
-        { label: '域名规则', value: domains.length },
-        {
-          label: '已启用',
-          value: domains.filter((item) => item.enabled).length,
-        },
-        {
-          label: '通配符规则',
-          value: domains.filter((item) => item.domain.startsWith('*.')).length,
-        },
-        {
-          label: '已绑证书',
-          value: domains.filter((item) => item.cert_id).length,
-        },
-      ],
-    },
-    {
-      title: '证书概览',
-      description: '快速识别证书存量、近 30 天到期风险和过期情况。',
-      href: '/website',
-      status: certificatesQuery.status,
-      error: certificatesQuery.error,
-      items: [
-        { label: '证书总数', value: certificates.length },
-        { label: '30 天内到期', value: expiringCertificates },
-        { label: '已过期', value: expiredCertificates },
-        {
-          label: '最近更新',
-          value: certificates[0]?.updated_at
-            ? formatDateTime(certificates[0].updated_at)
-            : '—',
-        },
-      ],
-    },
-    {
-      title: '发布与摘要',
-      description: '汇总反向代理规则规模、HTTPS 覆盖和请求头配置密度。',
-      href: '/proxy-route',
-      status: proxyRoutesQuery.status,
-      error: proxyRoutesQuery.error,
-      items: [
-        { label: '规则总数', value: routes.length },
-        {
-          label: '已启用',
-          value: routes.filter((item) => item.enabled).length,
-        },
-        {
-          label: 'HTTPS 规则',
-          value: routes.filter((item) => item.enable_https).length,
-        },
-        {
-          label: '自定义请求头',
-          value: routes.reduce(
-            (count, route) =>
-              count + parseCustomHeaders(route.custom_headers).length,
-            0,
-          ),
-        },
-      ],
-    },
-    {
-      title: '用户概览',
-      description: '展示当前可管理用户池的角色和状态分布。',
-      href: '/user',
-      status: usersQuery.status,
-      error: usersQuery.error,
-      items: [
-        { label: '用户总数', value: users.length },
-        {
-          label: '管理员',
-          value: users.filter((item) => item.role >= 10).length,
-        },
-        {
-          label: '已激活',
-          value: users.filter((item) => item.status === 1).length,
-        },
-        {
-          label: '已封禁',
-          value: users.filter((item) => item.status !== 1).length,
-        },
-      ],
-    },
-  ] as const;
+  const overview = overviewQuery.data;
+  if (!overview) {
+    return (
+      <EmptyState
+        title="暂无总览数据"
+        description="系统已经启动，但还没有可展示的总览聚合结果。"
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-2">
-        {dashboardCards.map((card) => (
-          <SummaryCard key={card.title} {...card} />
-        ))}
+      <AppCard
+        title="系统运行总览"
+        description="优先回答当前系统是否健康、容量是否紧张、是否存在配置落后和异常节点。"
+        action={
+          <div className="text-right text-sm text-[var(--foreground-secondary)]">
+            生成时间：{formatDateTime(overview.generated_at)}
+          </div>
+        }
+      >
+        <div className="grid gap-4 xl:grid-cols-5">
+          <OverviewMetric
+            label="在线节点"
+            value={`${overview.summary.online_nodes}/${overview.summary.total_nodes}`}
+            hint={`${overview.summary.offline_nodes} 离线 · ${overview.summary.pending_nodes} 待接入`}
+          />
+          <OverviewMetric
+            label="活动异常"
+            value={overview.summary.active_alerts}
+            hint={`${overview.summary.unhealthy_nodes} 个 OpenResty 不健康`}
+          />
+          <OverviewMetric
+            label="配置落后"
+            value={overview.summary.lagging_nodes}
+            hint={overview.config.active_version || '当前无激活版本'}
+          />
+          <OverviewMetric
+            label="最近窗口请求"
+            value={overview.traffic.request_count}
+            hint={`QPS ${overview.traffic.estimated_qps.toFixed(1)} · UV ${overview.traffic.unique_visitors}`}
+          />
+          <OverviewMetric
+            label="平均 CPU"
+            value={formatPercent(overview.capacity.average_cpu_usage_percent)}
+            hint={`${overview.capacity.high_cpu_nodes} 个高 CPU 节点`}
+          />
+        </div>
+      </AppCard>
+
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <AppCard
+          title="节点健康列表"
+          description="按异常数量和资源压力排序，优先显示最需要关注的节点。"
+          action={
+            <Link
+              href="/node"
+              className="inline-flex items-center rounded-full border border-[var(--border-default)] px-3 py-1.5 text-xs text-[var(--foreground-primary)] transition hover:bg-[var(--control-background-hover)]"
+            >
+              进入节点页
+            </Link>
+          }
+        >
+          {overview.nodes.length === 0 ? (
+            <EmptyState
+              title="暂无节点"
+              description="节点接入后，这里会展示系统健康与容量摘要。"
+            />
+          ) : (
+            <div className="space-y-4">
+              {overview.nodes.slice(0, 8).map((node) => (
+                <NodeHealthRow key={node.node_id} node={node} />
+              ))}
+            </div>
+          )}
+        </AppCard>
+
+        <div className="space-y-6">
+          <AppCard
+            title="流量与容量"
+            description="聚合最近窗口流量和资源压力，作为首页一级信号。"
+          >
+            <div className="grid gap-4">
+              <OverviewMetric
+                label="最近窗口错误"
+                value={overview.traffic.error_count}
+                hint={`${overview.traffic.reported_nodes} 个节点上报`}
+              />
+              <OverviewMetric
+                label="平均内存"
+                value={formatPercent(
+                  overview.capacity.average_memory_usage_percent,
+                )}
+                hint={`${overview.capacity.high_memory_nodes} 个高内存节点`}
+              />
+              <OverviewMetric
+                label="高存储压力"
+                value={overview.capacity.high_storage_nodes}
+                hint="存储使用率 >= 85%"
+              />
+            </div>
+          </AppCard>
+
+          <AppCard
+            title="活动异常"
+            description="优先展示当前仍在触发中的问题。"
+          >
+            {overview.active_alerts.length === 0 ? (
+              <EmptyState
+                title="暂无活动异常"
+                description="当前系统没有正在触发的节点健康事件。"
+              />
+            ) : (
+              <div className="space-y-3">
+                {overview.active_alerts.map((alert) => (
+                  <div
+                    key={`${alert.node_id}-${alert.event_type}-${alert.last_triggered_at}`}
+                    className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        label={alert.event_type.replaceAll('_', ' ')}
+                        variant={getAlertVariant(alert)}
+                      />
+                      <p className="text-sm font-medium text-[var(--foreground-primary)]">
+                        {alert.node_name}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--foreground-secondary)]">
+                      {alert.message || '暂无详细消息'}
+                    </p>
+                    <p className="mt-2 text-xs text-[var(--foreground-muted)]">
+                      {formatRelativeTime(alert.last_triggered_at)} ·{' '}
+                      {formatDateTime(alert.last_triggered_at)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </AppCard>
+        </div>
       </div>
     </div>
   );
