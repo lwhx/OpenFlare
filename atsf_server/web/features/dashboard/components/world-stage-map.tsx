@@ -285,8 +285,8 @@ export function WorldStageMap({
         roam: false,
         silent: true,
         layoutCenter: ['50%', '50%'],
-        layoutSize: '132%',
-        zoom: 1.12,
+        layoutSize: '220%',
+        zoom: 1.2,
         itemStyle: {
           areaColor: mapPalette.areaColor,
           borderColor: mapPalette.borderColor,

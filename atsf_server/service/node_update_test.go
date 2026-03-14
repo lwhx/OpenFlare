@@ -1005,23 +1005,23 @@ func TestGetDashboardOverview(t *testing.T) {
 	if view.Summary.TotalNodes != 2 || view.Summary.OnlineNodes != 2 {
 		t.Fatalf("unexpected dashboard summary: %+v", view.Summary)
 	}
-	if view.Summary.UnhealthyNodes != 1 || view.Summary.ActiveAlerts != 1 {
-		t.Fatalf("unexpected unhealthy/alert summary: %+v", view.Summary)
+	if view.Summary.UnhealthyNodes != 1 {
+		t.Fatalf("unexpected unhealthy summary: %+v", view.Summary)
 	}
 	if view.Traffic.RequestCount != 900 || view.Traffic.ErrorCount != 36 {
 		t.Fatalf("unexpected dashboard traffic: %+v", view.Traffic)
 	}
-	if view.Config.ActiveVersion != "20260314-001" || view.Config.LaggingNodes != 1 {
-		t.Fatalf("unexpected dashboard config summary: %+v", view.Config)
+	if view.Capacity.HighCPUNodes != 1 || view.Capacity.HighMemoryNodes != 1 {
+		t.Fatalf("unexpected dashboard capacity summary: %+v", view.Capacity)
 	}
-	if view.Risk.CriticalAlerts != 1 || view.Risk.HighCPUNodes != 1 || view.Risk.HighMemoryNodes != 1 {
-		t.Fatalf("unexpected dashboard risk summary: %+v", view.Risk)
-	}
-	if len(view.Nodes) != 2 || len(view.ActiveAlerts) != 1 {
-		t.Fatalf("unexpected dashboard nodes/alerts: %+v %+v", view.Nodes, view.ActiveAlerts)
+	if len(view.Nodes) != 2 {
+		t.Fatalf("unexpected dashboard nodes: %+v", view.Nodes)
 	}
 	if view.Nodes[0].GeoName == "" && view.Nodes[1].GeoName == "" {
 		t.Fatalf("expected dashboard nodes to expose geo metadata: %+v", view.Nodes)
+	}
+	if view.Nodes[0].ActiveEventCount != 1 {
+		t.Fatalf("expected dashboard nodes to preserve active event counts: %+v", view.Nodes)
 	}
 	if len(view.Trends.Traffic24h) != 24 || len(view.Trends.Capacity24h) != 24 || len(view.Trends.Network24h) != 24 || len(view.Trends.DiskIO24h) != 24 {
 		t.Fatalf("expected 24-point dashboard trends, got %+v", view.Trends)
@@ -1044,25 +1044,19 @@ func TestGetDashboardOverview(t *testing.T) {
 	if len(view.Distributions.TopDomains) == 0 || view.Distributions.TopDomains[0].Key != "app.example.com" {
 		t.Fatalf("unexpected dashboard domain distributions: %+v", view.Distributions.TopDomains)
 	}
-	if view.Peaks.BusiestNode == nil || view.Peaks.BusiestNode.NodeID != "node-dashboard-a" {
-		t.Fatalf("unexpected busiest node: %+v", view.Peaks.BusiestNode)
-	}
-	if view.Peaks.RiskiestNode == nil || view.Peaks.RiskiestNode.NodeID != "node-dashboard-b" {
-		t.Fatalf("unexpected riskiest node: %+v", view.Peaks.RiskiestNode)
-	}
 }
 
-func TestGetDashboardOverviewReturnsEmptyAlertSlice(t *testing.T) {
+func TestGetDashboardOverviewReturnsEmptyNodeSlice(t *testing.T) {
 	setupServiceTestDB(t)
 
 	view, err := GetDashboardOverview()
 	if err != nil {
 		t.Fatalf("GetDashboardOverview failed: %v", err)
 	}
-	if view.ActiveAlerts == nil {
-		t.Fatalf("expected active alerts to be an empty slice, got nil")
+	if view.Nodes == nil {
+		t.Fatalf("expected nodes to be an empty slice, got nil")
 	}
-	if len(view.ActiveAlerts) != 0 {
-		t.Fatalf("expected empty active alerts, got %+v", view.ActiveAlerts)
+	if len(view.Nodes) != 0 {
+		t.Fatalf("expected empty nodes, got %+v", view.Nodes)
 	}
 }

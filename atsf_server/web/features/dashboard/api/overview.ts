@@ -16,7 +16,6 @@ function normalizeDashboardOverview(
   return {
     ...overview,
     nodes: arrayOrEmpty(overview.nodes),
-    active_alerts: arrayOrEmpty(overview.active_alerts),
     distributions: {
       ...overview.distributions,
       source_countries: arrayOrEmpty(overview.distributions?.source_countries),

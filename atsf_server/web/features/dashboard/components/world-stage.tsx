@@ -1,25 +1,17 @@
 'use client';
 
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 
 import { EmptyState } from '@/components/feedback/empty-state';
 import { useTheme } from '@/components/providers/theme-provider';
-import { StatusBadge } from '@/components/ui/status-badge';
 import type {
-  DashboardConfig,
+  DashboardCapacity,
   DashboardNodeHealth,
-  DashboardRiskSummary,
   DashboardSummary,
+  DashboardTraffic,
   DistributionItem,
 } from '@/features/dashboard/types';
-import {
-  getNodeStatusLabel,
-  getNodeStatusVariant,
-  getOpenrestyStatusLabel,
-  getOpenrestyStatusVariant,
-} from '@/features/nodes/utils';
 import { cn } from '@/lib/utils/cn';
 import { formatDateTime } from '@/lib/utils/date';
 
@@ -38,13 +30,6 @@ function formatPercent(value: number) {
     return '0%';
   }
   return `${value.toFixed(value >= 100 ? 0 : 1)}%`;
-}
-
-function buildNodeDetailHref(id?: number | null) {
-  if (!id) {
-    return '/node';
-  }
-  return `/node/detail?id=${id}`;
 }
 
 function HeroMetric({
@@ -174,15 +159,15 @@ function CountrySignal({
 export function WorldStage({
   generatedAt,
   summary,
-  risk,
-  config,
+  traffic,
+  capacity,
   nodes,
   sourceCountries,
 }: {
   generatedAt: string;
   summary: DashboardSummary;
-  risk: DashboardRiskSummary;
-  config: DashboardConfig;
+  traffic: DashboardTraffic;
+  capacity: DashboardCapacity;
   nodes: DashboardNodeHealth[];
   sourceCountries: DistributionItem[];
 }) {
@@ -223,15 +208,9 @@ export function WorldStage({
     summary.total_nodes > 0
       ? (summary.online_nodes / summary.total_nodes) * 100
       : 0;
-  const syncedNodes = Math.max(
-    0,
-    summary.total_nodes - summary.lagging_nodes - summary.pending_nodes,
-  );
-  const syncRate =
-    summary.total_nodes > 0 ? (syncedNodes / summary.total_nodes) * 100 : 0;
   const healthyNodes = Math.max(
     0,
-    summary.online_nodes - summary.unhealthy_nodes - risk.offline_nodes,
+    summary.online_nodes - summary.unhealthy_nodes,
   );
   const healthyRate =
     summary.total_nodes > 0 ? (healthyNodes / summary.total_nodes) * 100 : 0;
@@ -280,7 +259,7 @@ export function WorldStage({
                 isDark ? 'text-slate-300' : 'text-slate-600',
               )}
             >
-              在同一视图汇总节点在线率、运行状态、配置一致性与全球流量来源，
+              在同一视图汇总节点在线率、运行状态、资源负载与全球流量来源，
               让首屏可以直接承担值守与研判入口。
             </p>
           </div>
@@ -396,7 +375,7 @@ export function WorldStage({
         </div>
 
         <div className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
             <HeroMetric
               label="在线覆盖"
               value={formatPercent(onlineRate)}
@@ -410,118 +389,17 @@ export function WorldStage({
               isDark={isDark}
             />
             <HeroMetric
-              label="配置追平"
-              value={formatPercent(syncRate)}
-              hint={`${summary.lagging_nodes} 个节点未对齐 ${config.active_version || '当前激活版本'}`}
+              label="最近窗口请求"
+              value={traffic.request_count.toLocaleString('zh-CN')}
+              hint={`QPS ${traffic.estimated_qps.toFixed(1)} · ${traffic.reported_nodes} 个节点已上报`}
               isDark={isDark}
             />
             <HeroMetric
-              label="活动风险"
-              value={summary.active_alerts.toLocaleString('zh-CN')}
-              hint={`${risk.critical_alerts} 个严重告警 · ${risk.warning_alerts} 个预警`}
+              label="平均 CPU"
+              value={formatPercent(capacity.average_cpu_usage_percent)}
+              hint={`${capacity.high_cpu_nodes} 个节点 CPU 偏高`}
               isDark={isDark}
             />
-          </div>
-
-          <div
-            className={cn(
-              'rounded-[28px] border px-5 py-5 backdrop-blur',
-              isDark
-                ? 'border-white/10 bg-white/6'
-                : 'border-slate-200/80 bg-white/80 shadow-[0_18px_40px_rgba(148,163,184,0.12)]',
-            )}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p
-                  className={cn(
-                    'text-[11px] tracking-[0.24em] uppercase',
-                    isDark ? 'text-slate-300' : 'text-slate-500',
-                  )}
-                >
-                  节点风险清单
-                </p>
-                <p
-                  className={cn(
-                    'mt-2 text-lg font-semibold',
-                    isDark ? 'text-white' : 'text-slate-950',
-                  )}
-                >
-                  优先处置节点
-                </p>
-              </div>
-              <Link
-                href="/node"
-                className={cn(
-                  'rounded-full border px-3 py-1.5 text-xs transition',
-                  isDark
-                    ? 'border-white/12 text-slate-100 hover:bg-white/8'
-                    : 'border-slate-200 text-slate-700 hover:bg-slate-100/80',
-                )}
-              >
-                查看全部节点
-              </Link>
-            </div>
-            <div className="mt-4 space-y-3">
-              {nodes.slice(0, 4).map((node) => (
-                <Link
-                  key={node.node_id}
-                  href={buildNodeDetailHref(node.id)}
-                  className={cn(
-                    'block rounded-2xl border px-4 py-4 transition',
-                    isDark
-                      ? 'border-white/8 bg-slate-950/20 hover:border-white/18 hover:bg-white/6'
-                      : 'border-slate-200/80 bg-slate-50/70 hover:border-slate-300 hover:bg-white',
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p
-                        className={cn(
-                          'text-sm font-semibold',
-                          isDark ? 'text-white' : 'text-slate-950',
-                        )}
-                      >
-                        {node.name}
-                      </p>
-                      <p
-                        className={cn(
-                          'mt-1 text-xs',
-                          isDark ? 'text-slate-400' : 'text-slate-500',
-                        )}
-                      >
-                        请求量 {node.request_count.toLocaleString('zh-CN')} · 错误数{' '}
-                        {node.error_count.toLocaleString('zh-CN')}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <StatusBadge
-                        label={getNodeStatusLabel(node.status)}
-                        variant={getNodeStatusVariant(node.status)}
-                      />
-                      <StatusBadge
-                        label={getOpenrestyStatusLabel(node.openresty_status)}
-                        variant={getOpenrestyStatusVariant(
-                          node.openresty_status,
-                        )}
-                      />
-                    </div>
-                  </div>
-                </Link>
-              ))}
-              {nodes.length === 0 ? (
-                <div
-                  className={cn(
-                    'rounded-2xl border border-dashed px-4 py-5 text-sm',
-                    isDark
-                      ? 'border-white/12 bg-slate-950/20 text-slate-300'
-                      : 'border-slate-300/70 bg-slate-50/75 text-slate-600',
-                  )}
-                >
-                  当前暂无节点运行数据。节点开始上报 heartbeat 后，这里会展示待优先处理的节点。
-                </div>
-              ) : null}
-            </div>
           </div>
         </div>
       </div>

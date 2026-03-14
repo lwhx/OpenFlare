@@ -71,8 +71,6 @@ describe('DashboardOverview', () => {
                     offline_nodes: 0,
                     pending_nodes: 0,
                     unhealthy_nodes: 1,
-                    active_alerts: 1,
-                    lagging_nodes: 1,
                   },
                   traffic: {
                     request_count: 900,
@@ -87,54 +85,6 @@ describe('DashboardOverview', () => {
                     high_cpu_nodes: 1,
                     high_memory_nodes: 1,
                     high_storage_nodes: 1,
-                  },
-                  config: {
-                    active_version: '20260314-001',
-                    lagging_nodes: 1,
-                    pending_nodes: 0,
-                  },
-                  risk: {
-                    critical_alerts: 1,
-                    warning_alerts: 2,
-                    info_alerts: 0,
-                    offline_nodes: 0,
-                    unhealthy_nodes: 1,
-                    lagging_nodes: 1,
-                    high_cpu_nodes: 1,
-                    high_memory_nodes: 1,
-                    high_storage_nodes: 1,
-                  },
-                  peaks: {
-                    peak_request_hour: {
-                      bucket_started_at: '2026-03-14T08:00:00Z',
-                      request_count: 900,
-                      error_count: 36,
-                    },
-                    peak_error_hour: {
-                      bucket_started_at: '2026-03-14T09:00:00Z',
-                      request_count: 400,
-                      error_count: 60,
-                    },
-                    busiest_node: {
-                      node_id: 'node-a',
-                      node_name: 'edge-a',
-                      request_count: 600,
-                      error_count: 6,
-                      cpu_usage_percent: 45,
-                      active_event_count: 0,
-                      openresty_status: 'healthy',
-                      storage_usage_percent: 60,
-                    },
-                    riskiest_node: {
-                      node_id: 'node-b',
-                      node_name: 'edge-b',
-                      request_count: 300,
-                      error_count: 30,
-                      cpu_usage_percent: 92,
-                      active_event_count: 2,
-                      openresty_status: 'unhealthy',
-                      storage_usage_percent: 95,
-                    },
                   },
                   distributions: {
                     source_countries: [
@@ -220,17 +170,6 @@ describe('DashboardOverview', () => {
                       unique_visitor_count: 80,
                     },
                   ],
-                  active_alerts: [
-                    {
-                      node_id: 'node-b',
-                      node_name: 'edge-b',
-                      event_type: 'openresty_unhealthy',
-                      severity: 'critical',
-                      message: 'reload failed',
-                      last_triggered_at: '2026-03-14T07:59:00Z',
-                      status: 'active',
-                    },
-                  ],
                 },
               }),
             ),
@@ -249,7 +188,6 @@ describe('DashboardOverview', () => {
     expect(await screen.findByText('来源分布')).toBeInTheDocument();
     expect(await screen.findByText('Top Domain')).toBeInTheDocument();
     expect(await screen.findByText('Top 节点榜单')).toBeInTheDocument();
-    expect(await screen.findByText('处置建议')).toBeInTheDocument();
     expect(await screen.findByText('节点健康列表')).toBeInTheDocument();
   });
 
@@ -275,8 +213,6 @@ describe('DashboardOverview', () => {
                     offline_nodes: 0,
                     pending_nodes: 0,
                     unhealthy_nodes: 0,
-                    active_alerts: 0,
-                    lagging_nodes: 0,
                   },
                   traffic: {
                     request_count: 0,
@@ -292,36 +228,6 @@ describe('DashboardOverview', () => {
                     high_memory_nodes: 0,
                     high_storage_nodes: 0,
                   },
-                  config: {
-                    active_version: '',
-                    lagging_nodes: 0,
-                    pending_nodes: 0,
-                  },
-                  risk: {
-                    critical_alerts: 0,
-                    warning_alerts: 0,
-                    info_alerts: 0,
-                    offline_nodes: 0,
-                    unhealthy_nodes: 0,
-                    lagging_nodes: 0,
-                    high_cpu_nodes: 0,
-                    high_memory_nodes: 0,
-                    high_storage_nodes: 0,
-                  },
-                  peaks: {
-                    peak_request_hour: {
-                      bucket_started_at: '',
-                      request_count: 0,
-                      error_count: 0,
-                    },
-                    peak_error_hour: {
-                      bucket_started_at: '',
-                      request_count: 0,
-                      error_count: 0,
-                    },
-                    busiest_node: null,
-                    riskiest_node: null,
-                  },
                   distributions: {
                     source_countries: null,
                     status_codes: null,
@@ -334,7 +240,6 @@ describe('DashboardOverview', () => {
                     disk_io_24h: null,
                   },
                   nodes: null,
-                  active_alerts: null,
                 },
               }),
             ),
@@ -347,7 +252,6 @@ describe('DashboardOverview', () => {
 
     renderDashboardOverview();
 
-    expect(await screen.findByText('暂无活动异常')).toBeInTheDocument();
     expect(await screen.findByText('暂无节点')).toBeInTheDocument();
     expect(await screen.findByText('暂无来源分布数据')).toBeInTheDocument();
   });
