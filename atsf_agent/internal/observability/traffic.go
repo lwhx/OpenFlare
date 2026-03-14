@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +24,8 @@ type accessLogRecord struct {
 	Status     int    `json:"status"`
 }
 
+var combinedAccessLogPattern = regexp.MustCompile(`^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"[^"]*"\s+(\d{3})\s+\S+`)
+
 type trafficAggregate struct {
 	windowStartedAt time.Time
 	windowEndedAt   time.Time
@@ -33,7 +36,10 @@ type trafficAggregate struct {
 	visitors        map[string]struct{}
 }
 
-func BuildTrafficReport(cfg *config.Config, stateStore *state.Store) *protocol.NodeTrafficReport {
+func BuildTrafficReport(cfg *config.Config, stateStore *state.Store, managed *managedOpenRestyMetrics) *protocol.NodeTrafficReport {
+	if managed != nil && managed.TrafficReport != nil && managed.TrafficReport.RequestCount > 0 {
+		return managed.TrafficReport
+	}
 	if cfg == nil || stateStore == nil {
 		return nil
 	}
@@ -115,21 +121,16 @@ func (aggregate *trafficAggregate) consume(line []byte) {
 		return
 	}
 
-	var record accessLogRecord
-	if err := json.Unmarshal([]byte(trimmed), &record); err != nil {
+	record, ok := parseAccessLogRecord(trimmed)
+	if !ok {
 		return
 	}
 
-	timestamp, err := parseAccessLogTime(record.Timestamp)
-	if err != nil {
-		return
+	if aggregate.windowStartedAt.IsZero() || record.Timestamp.Before(aggregate.windowStartedAt) {
+		aggregate.windowStartedAt = record.Timestamp
 	}
-
-	if aggregate.windowStartedAt.IsZero() || timestamp.Before(aggregate.windowStartedAt) {
-		aggregate.windowStartedAt = timestamp
-	}
-	if aggregate.windowEndedAt.IsZero() || timestamp.After(aggregate.windowEndedAt) {
-		aggregate.windowEndedAt = timestamp
+	if aggregate.windowEndedAt.IsZero() || record.Timestamp.After(aggregate.windowEndedAt) {
+		aggregate.windowEndedAt = record.Timestamp
 	}
 
 	aggregate.requestCount++
@@ -145,6 +146,58 @@ func (aggregate *trafficAggregate) consume(line []byte) {
 	if remoteAddr := strings.TrimSpace(record.RemoteAddr); remoteAddr != "" {
 		aggregate.visitors[remoteAddr] = struct{}{}
 	}
+}
+
+type parsedAccessLogRecord struct {
+	Timestamp  time.Time
+	Host       string
+	RemoteAddr string
+	Status     int
+}
+
+func parseAccessLogRecord(raw string) (parsedAccessLogRecord, bool) {
+	record, ok := parseJSONAccessLogRecord(raw)
+	if ok {
+		return record, true
+	}
+	return parseCombinedAccessLogRecord(raw)
+}
+
+func parseJSONAccessLogRecord(raw string) (parsedAccessLogRecord, bool) {
+	var record accessLogRecord
+	if err := json.Unmarshal([]byte(raw), &record); err != nil {
+		return parsedAccessLogRecord{}, false
+	}
+	timestamp, err := parseAccessLogTime(record.Timestamp)
+	if err != nil {
+		return parsedAccessLogRecord{}, false
+	}
+	return parsedAccessLogRecord{
+		Timestamp:  timestamp,
+		Host:       strings.TrimSpace(record.Host),
+		RemoteAddr: strings.TrimSpace(record.RemoteAddr),
+		Status:     record.Status,
+	}, true
+}
+
+func parseCombinedAccessLogRecord(raw string) (parsedAccessLogRecord, bool) {
+	matches := combinedAccessLogPattern.FindStringSubmatch(raw)
+	if len(matches) != 4 {
+		return parsedAccessLogRecord{}, false
+	}
+	timestamp, err := parseAccessLogTime(matches[2])
+	if err != nil {
+		return parsedAccessLogRecord{}, false
+	}
+	status, err := strconv.Atoi(matches[3])
+	if err != nil {
+		return parsedAccessLogRecord{}, false
+	}
+	return parsedAccessLogRecord{
+		Timestamp:  timestamp,
+		RemoteAddr: strings.TrimSpace(matches[1]),
+		Status:     status,
+	}, true
 }
 
 func (aggregate *trafficAggregate) report() *protocol.NodeTrafficReport {
@@ -165,7 +218,15 @@ func (aggregate *trafficAggregate) report() *protocol.NodeTrafficReport {
 }
 
 func parseAccessLogTime(value string) (time.Time, error) {
-	return time.Parse(time.RFC3339, strings.TrimSpace(value))
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return time.Time{}, errors.New("empty access log time")
+	}
+	timestamp, err := time.Parse(time.RFC3339, trimmed)
+	if err == nil {
+		return timestamp, nil
+	}
+	return time.Parse("02/Jan/2006:15:04:05 -0700", trimmed)
 }
 
 func cloneTrafficCounts(values map[string]int64, limit int) map[string]int64 {

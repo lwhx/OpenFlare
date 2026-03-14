@@ -238,6 +238,7 @@ go run ./cmd/agent -config ./agent.json
 	"data_dir": "./data",
 	"openresty_container_name": "atsflare-openresty",
 	"openresty_docker_image": "openresty/openresty:alpine",
+	"openresty_observability_port": 18081,
 	"heartbeat_interval": 10000,
 	"request_timeout": 10000
 }
@@ -257,6 +258,7 @@ go run ./cmd/agent -config ./agent.json
 	"route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
 	"cert_dir": "/usr/local/openresty/nginx/conf/certs",
 	"openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs",
+	"openresty_observability_port": 18081,
 	"state_path": "./data/agent-state.json",
 	"heartbeat_interval": 10000,
 	"request_timeout": 10000
@@ -275,6 +277,7 @@ go run ./cmd/agent -config ./agent.json
 | `openresty_path` | 本机 OpenResty 可执行文件路径；设置后按本机 OpenResty 模式运行 | 否 | 空；未设置时按 Docker OpenResty 模式处理 | `/usr/local/openresty/nginx/sbin/openresty` |
 | `openresty_container_name` | Docker 模式下的 OpenResty 容器名 | 否 | `atsflare-openresty` | `atsflare-openresty` |
 | `openresty_docker_image` | Docker 模式下用于初始化/管理的 OpenResty 镜像 | 否 | `openresty/openresty:alpine` | `openresty/openresty:alpine` |
+| `openresty_observability_port` | Agent 注入的 OpenResty 本地观测端口；用于 heartbeat 前读取 Lua 窗口指标和 `stub_status`，默认仅监听 `127.0.0.1` | 否 | `18081` | `18081` |
 | `docker_binary` | Docker 可执行文件名或路径 | 否 | `docker` | `/usr/bin/docker` |
 | `data_dir` | Agent 数据目录，用于存储托管配置、证书和状态文件 | 否 | 配置文件所在目录下的 `data` 子目录 | `./data` |
 | `main_config_path` | 第五版主配置接管时 OpenResty 主配置文件写入路径 | 第五版本机模式建议必填 | Docker 模式可使用受管默认路径；本机模式建议显式设置 | `/usr/local/openresty/nginx/conf/nginx.conf` |
@@ -293,6 +296,7 @@ go run ./cmd/agent -config ./agent.json
 	* Go duration 字符串，例如 `"30s"`
 * `node_name` 与 `node_ip` 未填写时会自动探测；若自动探测失败，配置校验会报错
 * 未配置 `openresty_path` 时，默认为 Docker OpenResty 模式
+* `openresty_observability_port` 默认仅绑定本地回环地址；若节点本机已有端口冲突，可改为其他未占用端口
 * 配置保存时，`agent_version`、`nginx_version` 由程序运行时维护，不需要写入 JSON
 * 第五版主配置接管完成后，本机模式下应优先通过 `main_config_path` 由 Agent 写入受管主配置，而不是依赖节点手工维护 include 规则
 
@@ -312,6 +316,11 @@ Docker OpenResty 模式下：
 | 字段 | 默认值 |
 | --- | --- |
 | `openresty_cert_dir` | `/etc/nginx/atsflare-certs` |
+
+补充说明：
+
+* Agent 当前会随受管配置一并向 OpenResty 注入 Lua 观测脚本，并在每次 heartbeat 前通过 `http://127.0.0.1:<openresty_observability_port>/atsflare/observability` 读取最近窗口请求指标
+* 同一端口还会暴露仅本机可访问的 `stub_status`，用于采集 OpenResty 活动连接数
 
 ### 2.5 Agent 启动示例
 

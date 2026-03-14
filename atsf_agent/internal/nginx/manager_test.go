@@ -210,14 +210,15 @@ func TestDockerExecutorRunContainerMountsManagedFiles(t *testing.T) {
 	certDir := filepath.Clean("/tmp/managed/certs")
 	runner := &fakeRunner{}
 	executor := &DockerExecutor{
-		DockerBinary:   "docker",
-		ContainerName:  "atsflare-openresty",
-		Image:          "openresty/openresty:alpine",
-		MainConfigPath: mainConfigPath,
-		RouteConfigDir: routeConfigDir,
-		CertDir:        certDir,
-		NginxCertDir:   "/etc/nginx/atsflare-certs",
-		Runner:         runner,
+		DockerBinary:               "docker",
+		ContainerName:              "atsflare-openresty",
+		Image:                      "openresty/openresty:alpine",
+		MainConfigPath:             mainConfigPath,
+		RouteConfigDir:             routeConfigDir,
+		CertDir:                    certDir,
+		NginxCertDir:               "/etc/nginx/atsflare-certs",
+		OpenrestyObservabilityPort: 18081,
+		Runner:                     runner,
 	}
 
 	if err := executor.runContainer(context.Background()); err != nil {
@@ -233,6 +234,7 @@ func TestDockerExecutorRunContainerMountsManagedFiles(t *testing.T) {
 		"--name", "atsflare-openresty",
 		"-p", "80:80",
 		"-p", "443:443",
+		"-p", "127.0.0.1:18081:18081",
 		"-v", mainConfigPath + ":" + DockerMainConfigPath,
 		"-v", routeConfigDir + ":/etc/nginx/conf.d",
 		"-v", certDir + ":/etc/nginx/atsflare-certs",
@@ -253,14 +255,15 @@ func TestDockerExecutorRecreatesContainerOnStartup(t *testing.T) {
 		},
 	}
 	executor := &DockerExecutor{
-		DockerBinary:   "docker",
-		ContainerName:  "atsflare-openresty",
-		Image:          "openresty/openresty:alpine",
-		MainConfigPath: filepath.Clean("/tmp/nginx.conf"),
-		RouteConfigDir: filepath.Clean("/tmp/routes"),
-		CertDir:        filepath.Clean("/tmp/certs"),
-		NginxCertDir:   "/etc/nginx/atsflare-certs",
-		Runner:         runner,
+		DockerBinary:               "docker",
+		ContainerName:              "atsflare-openresty",
+		Image:                      "openresty/openresty:alpine",
+		MainConfigPath:             filepath.Clean("/tmp/nginx.conf"),
+		RouteConfigDir:             filepath.Clean("/tmp/routes"),
+		CertDir:                    filepath.Clean("/tmp/certs"),
+		NginxCertDir:               "/etc/nginx/atsflare-certs",
+		OpenrestyObservabilityPort: 18081,
+		Runner:                     runner,
 	}
 
 	if err := executor.EnsureRuntime(context.Background(), true); err != nil {
@@ -279,13 +282,14 @@ func TestDockerExecutorRecreatesContainerOnStartup(t *testing.T) {
 
 func TestNewExecutorUsesAbsoluteDockerMountPath(t *testing.T) {
 	executor := NewExecutor(ExecutorOptions{
-		DockerBinary:    "docker",
-		ContainerName:   "atsflare-openresty",
-		Image:           "openresty/openresty:alpine",
-		MainConfigPath:  "./data/etc/nginx/nginx.conf",
-		RouteConfigPath: "./data/etc/nginx/conf.d/atsflare_routes.conf",
-		CertDir:         "./data/etc/nginx/certs",
-		NginxCertDir:    "/etc/nginx/atsflare-certs",
+		DockerBinary:               "docker",
+		ContainerName:              "atsflare-openresty",
+		Image:                      "openresty/openresty:alpine",
+		MainConfigPath:             "./data/etc/nginx/nginx.conf",
+		RouteConfigPath:            "./data/etc/nginx/conf.d/atsflare_routes.conf",
+		CertDir:                    "./data/etc/nginx/certs",
+		NginxCertDir:               "/etc/nginx/atsflare-certs",
+		OpenrestyObservabilityPort: 18081,
 	})
 
 	dockerExecutor, ok := executor.(*DockerExecutor)

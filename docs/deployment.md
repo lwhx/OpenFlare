@@ -154,6 +154,7 @@ swag init -g main.go -o docs
   "data_dir": "./data",
   "openresty_container_name": "atsflare-openresty",
   "openresty_docker_image": "openresty/openresty:alpine",
+  "openresty_observability_port": 18081,
   "heartbeat_interval": 10000,
   "request_timeout": 10000
 }
@@ -168,6 +169,7 @@ swag init -g main.go -o docs
   "data_dir": "./data",
   "openresty_container_name": "atsflare-openresty",
   "openresty_docker_image": "openresty/openresty:alpine",
+  "openresty_observability_port": 18081,
   "heartbeat_interval": 10000,
   "request_timeout": 10000
 }
@@ -182,6 +184,7 @@ swag init -g main.go -o docs
 * 若 `agent_token` 为空且 `discovery_token` 存在，Agent 会自动注册并写回新的专属 `agent_token`
 * `node_name` 与 `node_ip` 可省略，未填写时自动探测
 * 未配置 `openresty_path` 时，默认使用 Docker OpenResty 容器
+* Agent 会在受管 OpenResty 中注入 Lua 观测脚本，并通过 `openresty_observability_port` 对本机暴露最近窗口指标与 `stub_status`
 
 ### 3.3 第五版新增部署约束
 
@@ -189,6 +192,7 @@ swag init -g main.go -o docs
 
 * 本机 OpenResty 模式需要为 Agent 显式提供主配置文件写入路径
 * Docker OpenResty 模式需要保证主配置、路由配置和证书目录位于同一套受管挂载路径中
+* Docker OpenResty 模式会额外挂载一个仅本机可访问的 `127.0.0.1:<openresty_observability_port>` 观测端口，用于 Agent 在 heartbeat 前抓取 Lua 窗口指标
 * 节点现存手工维护的主配置如继续保留，必须先迁移为 Server 渲染模板的等价配置，再切换到受管模式
 * 主配置切换前必须预留回滚副本，并通过一次 `openresty -t` 失败演练验证回滚
 
@@ -252,7 +256,8 @@ export LOG_LEVEL='info'
   "discovery_token": "replace-with-global-discovery-token",
   "data_dir": "./data",
   "openresty_container_name": "atsflare-openresty",
-  "openresty_docker_image": "openresty/openresty:alpine"
+  "openresty_docker_image": "openresty/openresty:alpine",
+  "openresty_observability_port": 18081
 }
 ```
 
@@ -260,6 +265,7 @@ export LOG_LEVEL='info'
 
 1. 首次启动后确认 `data/etc/nginx/nginx.conf`、`data/etc/nginx/conf.d/atsflare_routes.conf` 与 `data/etc/nginx/certs` 已由 Agent 创建
 2. 确认容器实际挂载了主配置、路由目录和证书目录
+3. 确认宿主机本地可访问 `http://127.0.0.1:18081/atsflare/observability` 与 `http://127.0.0.1:18081/atsflare/stub_status`
 3. 在管理端发布一次新版本后，确认节点 `current_version` 追平激活版本
 4. 在节点详情查看“当前目标版本”与“最近应用”，确认主配置/路由配置快照和 checksum 已可见
 
@@ -273,6 +279,7 @@ docker exec atsflare-openresty openresty -t
 说明：
 
 * `docker inspect` 重点确认主配置文件、`conf.d` 目录和证书目录都来自 Agent 受管路径
+* 观测端口默认只绑定 `127.0.0.1`；若节点已有冲突，可在 `agent.json` 中调整 `openresty_observability_port`
 * 若容器名使用默认值，请将上述命令中的名称替换为 `atsflare-openresty`
 
 ### 5.3.2 本机 OpenResty 模式最小验证
@@ -287,7 +294,8 @@ docker exec atsflare-openresty openresty -t
   "main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
   "route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
   "cert_dir": "/usr/local/openresty/nginx/conf/certs",
-  "openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs"
+  "openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs",
+  "openresty_observability_port": 18081
 }
 ```
 
@@ -295,8 +303,9 @@ docker exec atsflare-openresty openresty -t
 
 1. 发布前先备份 `main_config_path` 与 `route_config_path`
 2. 首次发布后执行 `openresty -t`，确认主配置已由 Server 模板接管且 include 指向 Agent 写入的路由文件
-3. 再次发布修改后的规则或 OpenResty 参数，确认 `openresty -s reload` 成功且节点版本更新
-4. 在节点详情与应用记录页确认主配置 checksum、路由配置 checksum 和支持文件数已上报
+3. 确认本机可访问 `http://127.0.0.1:18081/atsflare/observability` 与 `http://127.0.0.1:18081/atsflare/stub_status`
+4. 再次发布修改后的规则或 OpenResty 参数，确认 `openresty -s reload` 成功且节点版本更新
+5. 在节点详情与应用记录页确认主配置 checksum、路由配置 checksum 和支持文件数已上报
 
 ### 5.4 验证管理端状态
 

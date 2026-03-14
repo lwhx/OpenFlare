@@ -20,6 +20,8 @@ import (
 const CertDirPlaceholder = "__ATSF_CERT_DIR__"
 const RouteConfigPlaceholder = "__ATSF_ROUTE_CONFIG__"
 const AccessLogPlaceholder = "__ATSF_ACCESS_LOG__"
+const LuaDirPlaceholder = "__ATSF_LUA_DIR__"
+const ObservabilityPortPlaceholder = "__ATSF_OBSERVABILITY_PORT__"
 const DockerMainConfigPath = "/usr/local/openresty/nginx/conf/nginx.conf"
 const DockerRouteConfigPath = "/etc/nginx/conf.d/atsflare_routes.conf"
 const DockerAccessLogPath = "/etc/nginx/conf.d/atsflare_access.log"
@@ -97,14 +99,15 @@ func (e *PathExecutor) Restart(ctx context.Context) error {
 }
 
 type DockerExecutor struct {
-	DockerBinary   string
-	ContainerName  string
-	Image          string
-	MainConfigPath string
-	RouteConfigDir string
-	CertDir        string
-	NginxCertDir   string
-	Runner         CommandRunner
+	DockerBinary               string
+	ContainerName              string
+	Image                      string
+	MainConfigPath             string
+	RouteConfigDir             string
+	CertDir                    string
+	NginxCertDir               string
+	OpenrestyObservabilityPort int
+	Runner                     CommandRunner
 }
 
 func (e *DockerExecutor) Test(ctx context.Context) error {
@@ -180,6 +183,7 @@ func (e *DockerExecutor) runContainer(ctx context.Context) error {
 		"--name", e.ContainerName,
 		"-p", "80:80",
 		"-p", "443:443",
+		"-p", fmt.Sprintf("127.0.0.1:%d:%d", e.OpenrestyObservabilityPort, e.OpenrestyObservabilityPort),
 		"-v", fmt.Sprintf("%s:%s", e.MainConfigPath, DockerMainConfigPath),
 		"-v", fmt.Sprintf("%s:/etc/nginx/conf.d", e.RouteConfigDir),
 		"-v", fmt.Sprintf("%s:%s", e.CertDir, e.NginxCertDir),
@@ -194,12 +198,13 @@ func (e *DockerExecutor) runContainer(ctx context.Context) error {
 }
 
 type Manager struct {
-	MainConfigPath         string
-	RouteConfigPath        string
-	RuntimeRouteConfigPath string
-	CertDir                string
-	NginxCertDir           string
-	Executor               Executor
+	MainConfigPath             string
+	RouteConfigPath            string
+	RuntimeRouteConfigPath     string
+	CertDir                    string
+	NginxCertDir               string
+	OpenrestyObservabilityPort int
+	Executor                   Executor
 }
 
 func (m *Manager) Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) error {
@@ -290,6 +295,12 @@ func (m *Manager) CurrentChecksum() (string, error) {
 	if accessLogPath := m.accessLogRuntimePath(); accessLogPath != "" {
 		normalizedMain = strings.ReplaceAll(normalizedMain, accessLogPath, AccessLogPlaceholder)
 	}
+	if luaDir := m.luaRuntimePath(); luaDir != "" {
+		normalizedMain = strings.ReplaceAll(normalizedMain, luaDir, LuaDirPlaceholder)
+	}
+	if m.OpenrestyObservabilityPort > 0 {
+		normalizedMain = strings.ReplaceAll(normalizedMain, fmt.Sprintf("%d", m.OpenrestyObservabilityPort), ObservabilityPortPlaceholder)
+	}
 	normalizedRoute := string(data)
 	if m.NginxCertDir != "" {
 		normalizedRoute = strings.ReplaceAll(normalizedRoute, m.NginxCertDir, CertDirPlaceholder)
@@ -304,14 +315,15 @@ func (m *Manager) CurrentChecksum() (string, error) {
 }
 
 type ExecutorOptions struct {
-	NginxPath       string
-	DockerBinary    string
-	ContainerName   string
-	Image           string
-	MainConfigPath  string
-	RouteConfigPath string
-	CertDir         string
-	NginxCertDir    string
+	NginxPath                  string
+	DockerBinary               string
+	ContainerName              string
+	Image                      string
+	MainConfigPath             string
+	RouteConfigPath            string
+	CertDir                    string
+	NginxCertDir               string
+	OpenrestyObservabilityPort int
 }
 
 func NewExecutor(options ExecutorOptions) Executor {
@@ -335,14 +347,15 @@ func NewExecutor(options ExecutorOptions) Executor {
 		certDir = absDir
 	}
 	return &DockerExecutor{
-		DockerBinary:   options.DockerBinary,
-		ContainerName:  options.ContainerName,
-		Image:          options.Image,
-		MainConfigPath: mainConfigPath,
-		RouteConfigDir: routeConfigDir,
-		CertDir:        certDir,
-		NginxCertDir:   options.NginxCertDir,
-		Runner:         runner,
+		DockerBinary:               options.DockerBinary,
+		ContainerName:              options.ContainerName,
+		Image:                      options.Image,
+		MainConfigPath:             mainConfigPath,
+		RouteConfigDir:             routeConfigDir,
+		CertDir:                    certDir,
+		NginxCertDir:               options.NginxCertDir,
+		OpenrestyObservabilityPort: options.OpenrestyObservabilityPort,
+		Runner:                     runner,
 	}
 }
 
@@ -588,7 +601,11 @@ func (m *Manager) supportFileTargetPath(relativePath string) (string, error) {
 	if strings.TrimSpace(m.CertDir) == "" {
 		return "", errors.New("cert dir 不能为空")
 	}
-	normalizedPath := filepath.Clean(filepath.FromSlash(strings.TrimSpace(relativePath)))
+	candidate := strings.TrimSpace(relativePath)
+	if strings.Contains(candidate, `\`) {
+		candidate = strings.ReplaceAll(candidate, `\`, "/")
+	}
+	normalizedPath := filepath.Clean(filepath.FromSlash(candidate))
 	if normalizedPath == "." || normalizedPath == "" {
 		return "", errors.New("support file path 不能为空")
 	}
@@ -621,6 +638,12 @@ func (m *Manager) renderMainConfig(content string) string {
 	if accessLogPath := m.accessLogRuntimePath(); accessLogPath != "" {
 		rendered = strings.ReplaceAll(rendered, AccessLogPlaceholder, accessLogPath)
 	}
+	if luaDir := m.luaRuntimePath(); luaDir != "" {
+		rendered = strings.ReplaceAll(rendered, LuaDirPlaceholder, luaDir)
+	}
+	if m.OpenrestyObservabilityPort > 0 {
+		rendered = strings.ReplaceAll(rendered, ObservabilityPortPlaceholder, fmt.Sprintf("%d", m.OpenrestyObservabilityPort))
+	}
 	return rendered
 }
 
@@ -637,6 +660,13 @@ func (m *Manager) accessLogRuntimePath() string {
 		return ""
 	}
 	return filepath.ToSlash(filepath.Join(filepath.Dir(includePath), "atsflare_access.log"))
+}
+
+func (m *Manager) luaRuntimePath() string {
+	if strings.TrimSpace(m.NginxCertDir) == "" {
+		return ""
+	}
+	return filepath.ToSlash(m.NginxCertDir)
 }
 
 func checksum(content string) string {

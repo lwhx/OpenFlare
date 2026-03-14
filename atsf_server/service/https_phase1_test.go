@@ -57,6 +57,12 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	if !strings.Contains(result.Version.MainConfig, "access_log __ATSF_ACCESS_LOG__ atsflare_json;") {
 		t.Fatal("expected main config to include managed access log placeholder")
 	}
+	if !strings.Contains(result.Version.MainConfig, "log_by_lua_file __ATSF_LUA_DIR__/observability/log.lua;") {
+		t.Fatal("expected main config to include managed openresty lua log hook")
+	}
+	if !strings.Contains(result.Version.MainConfig, "listen 127.0.0.1:__ATSF_OBSERVABILITY_PORT__;") {
+		t.Fatal("expected main config to include managed openresty observability port placeholder")
+	}
 	if !strings.Contains(result.Version.RenderedConfig, "listen 443 ssl;") {
 		t.Fatal("expected rendered config to include https server block")
 	}
@@ -68,6 +74,9 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	}
 	if !strings.Contains(result.Version.SupportFilesJSON, ".crt") || !strings.Contains(result.Version.SupportFilesJSON, ".key") {
 		t.Fatal("expected support files to contain certificate and key")
+	}
+	if !strings.Contains(result.Version.SupportFilesJSON, "observability/log.lua") || !strings.Contains(result.Version.SupportFilesJSON, "observability/read.lua") {
+		t.Fatal("expected support files to contain managed openresty observability lua scripts")
 	}
 }
 
@@ -186,6 +195,9 @@ func TestPreviewAndDiffConfigVersion(t *testing.T) {
 	}
 	if !strings.Contains(preview.MainConfig, "include __ATSF_ROUTE_CONFIG__;") {
 		t.Fatal("expected preview main config to include managed route config placeholder")
+	}
+	if !strings.Contains(preview.MainConfig, "log_by_lua_file __ATSF_LUA_DIR__/observability/log.lua;") {
+		t.Fatal("expected preview main config to include managed openresty lua log hook")
 	}
 	if !strings.Contains(preview.RenderedConfig, `proxy_set_header X-Release "candidate";`) {
 		t.Fatal("expected preview config to include modified custom header")

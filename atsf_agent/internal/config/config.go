@@ -17,49 +17,52 @@ const (
 	defaultCertDirRelativePath           = "etc/nginx/certs"
 	defaultDockerStateRelativePath       = "var/lib/atsflare/agent-state.json"
 	defaultDockerOpenRestyCertDir        = "/etc/nginx/atsflare-certs"
+	defaultOpenRestyObservabilityPort    = 18081
 )
 
 type Config struct {
-	ServerURL              string              `json:"server_url"`
-	AgentToken             string              `json:"agent_token"`
-	DiscoveryToken         string              `json:"discovery_token"`
-	NodeName               string              `json:"node_name"`
-	NodeIP                 string              `json:"node_ip"`
-	AgentVersion           string              `json:"-"`
-	NginxVersion           string              `json:"-"`
-	OpenrestyPath          string              `json:"openresty_path"`
-	OpenrestyContainerName string              `json:"openresty_container_name"`
-	OpenrestyDockerImage   string              `json:"openresty_docker_image"`
-	DockerBinary           string              `json:"docker_binary"`
-	DataDir                string              `json:"data_dir"`
-	MainConfigPath         string              `json:"main_config_path"`
-	RouteConfigPath        string              `json:"route_config_path"`
-	CertDir                string              `json:"cert_dir"`
-	OpenrestyCertDir       string              `json:"openresty_cert_dir"`
-	StatePath              string              `json:"state_path"`
-	HeartbeatInterval      MillisecondDuration `json:"heartbeat_interval"`
-	RequestTimeout         MillisecondDuration `json:"request_timeout"`
-	configPath             string
+	ServerURL                  string              `json:"server_url"`
+	AgentToken                 string              `json:"agent_token"`
+	DiscoveryToken             string              `json:"discovery_token"`
+	NodeName                   string              `json:"node_name"`
+	NodeIP                     string              `json:"node_ip"`
+	AgentVersion               string              `json:"-"`
+	NginxVersion               string              `json:"-"`
+	OpenrestyPath              string              `json:"openresty_path"`
+	OpenrestyContainerName     string              `json:"openresty_container_name"`
+	OpenrestyDockerImage       string              `json:"openresty_docker_image"`
+	DockerBinary               string              `json:"docker_binary"`
+	DataDir                    string              `json:"data_dir"`
+	MainConfigPath             string              `json:"main_config_path"`
+	RouteConfigPath            string              `json:"route_config_path"`
+	CertDir                    string              `json:"cert_dir"`
+	OpenrestyCertDir           string              `json:"openresty_cert_dir"`
+	OpenrestyObservabilityPort int                 `json:"openresty_observability_port"`
+	StatePath                  string              `json:"state_path"`
+	HeartbeatInterval          MillisecondDuration `json:"heartbeat_interval"`
+	RequestTimeout             MillisecondDuration `json:"request_timeout"`
+	configPath                 string
 }
 
 type configFile struct {
-	ServerURL              string              `json:"server_url"`
-	AgentToken             string              `json:"agent_token"`
-	DiscoveryToken         string              `json:"discovery_token"`
-	NodeName               string              `json:"node_name"`
-	NodeIP                 string              `json:"node_ip"`
-	OpenrestyPath          string              `json:"openresty_path"`
-	OpenrestyContainerName string              `json:"openresty_container_name"`
-	OpenrestyDockerImage   string              `json:"openresty_docker_image"`
-	DockerBinary           string              `json:"docker_binary"`
-	DataDir                string              `json:"data_dir"`
-	MainConfigPath         string              `json:"main_config_path"`
-	RouteConfigPath        string              `json:"route_config_path"`
-	CertDir                string              `json:"cert_dir"`
-	OpenrestyCertDir       string              `json:"openresty_cert_dir"`
-	StatePath              string              `json:"state_path"`
-	HeartbeatInterval      MillisecondDuration `json:"heartbeat_interval"`
-	RequestTimeout         MillisecondDuration `json:"request_timeout"`
+	ServerURL                  string              `json:"server_url"`
+	AgentToken                 string              `json:"agent_token"`
+	DiscoveryToken             string              `json:"discovery_token"`
+	NodeName                   string              `json:"node_name"`
+	NodeIP                     string              `json:"node_ip"`
+	OpenrestyPath              string              `json:"openresty_path"`
+	OpenrestyContainerName     string              `json:"openresty_container_name"`
+	OpenrestyDockerImage       string              `json:"openresty_docker_image"`
+	DockerBinary               string              `json:"docker_binary"`
+	DataDir                    string              `json:"data_dir"`
+	MainConfigPath             string              `json:"main_config_path"`
+	RouteConfigPath            string              `json:"route_config_path"`
+	CertDir                    string              `json:"cert_dir"`
+	OpenrestyCertDir           string              `json:"openresty_cert_dir"`
+	OpenrestyObservabilityPort int                 `json:"openresty_observability_port"`
+	StatePath                  string              `json:"state_path"`
+	HeartbeatInterval          MillisecondDuration `json:"heartbeat_interval"`
+	RequestTimeout             MillisecondDuration `json:"request_timeout"`
 }
 
 func Load(path string) (*Config, error) {
@@ -72,23 +75,24 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{
-		ServerURL:              file.ServerURL,
-		AgentToken:             file.AgentToken,
-		DiscoveryToken:         file.DiscoveryToken,
-		NodeName:               file.NodeName,
-		NodeIP:                 file.NodeIP,
-		OpenrestyPath:          file.OpenrestyPath,
-		OpenrestyContainerName: file.OpenrestyContainerName,
-		OpenrestyDockerImage:   file.OpenrestyDockerImage,
-		DockerBinary:           file.DockerBinary,
-		DataDir:                file.DataDir,
-		MainConfigPath:         file.MainConfigPath,
-		RouteConfigPath:        file.RouteConfigPath,
-		CertDir:                file.CertDir,
-		OpenrestyCertDir:       file.OpenrestyCertDir,
-		StatePath:              file.StatePath,
-		HeartbeatInterval:      file.HeartbeatInterval,
-		RequestTimeout:         file.RequestTimeout,
+		ServerURL:                  file.ServerURL,
+		AgentToken:                 file.AgentToken,
+		DiscoveryToken:             file.DiscoveryToken,
+		NodeName:                   file.NodeName,
+		NodeIP:                     file.NodeIP,
+		OpenrestyPath:              file.OpenrestyPath,
+		OpenrestyContainerName:     file.OpenrestyContainerName,
+		OpenrestyDockerImage:       file.OpenrestyDockerImage,
+		DockerBinary:               file.DockerBinary,
+		DataDir:                    file.DataDir,
+		MainConfigPath:             file.MainConfigPath,
+		RouteConfigPath:            file.RouteConfigPath,
+		CertDir:                    file.CertDir,
+		OpenrestyCertDir:           file.OpenrestyCertDir,
+		OpenrestyObservabilityPort: file.OpenrestyObservabilityPort,
+		StatePath:                  file.StatePath,
+		HeartbeatInterval:          file.HeartbeatInterval,
+		RequestTimeout:             file.RequestTimeout,
 	}
 	cfg.configPath = path
 	applyDefaults(cfg, filepath.Dir(path))
@@ -144,6 +148,9 @@ func applyDefaults(cfg *Config, baseDir string) {
 			cfg.OpenrestyCertDir = defaultDockerOpenRestyCertDir
 		}
 	}
+	if cfg.OpenrestyObservabilityPort <= 0 {
+		cfg.OpenrestyObservabilityPort = defaultOpenRestyObservabilityPort
+	}
 	if cfg.HeartbeatInterval <= 0 {
 		cfg.HeartbeatInterval = MillisecondDuration(10 * time.Second)
 	}
@@ -197,6 +204,9 @@ func validate(cfg *Config) error {
 	}
 	if cfg.NodeIP == "" {
 		return errors.New("node_ip 不能为空")
+	}
+	if cfg.OpenrestyObservabilityPort <= 0 || cfg.OpenrestyObservabilityPort > 65535 {
+		return errors.New("openresty_observability_port 必须在 1-65535 之间")
 	}
 	return nil
 }

@@ -1350,7 +1350,6 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
               </p>
               {node.latest_apply_checksum ? (
                 <div className="space-y-1 text-sm text-[var(--foreground-secondary)]">
-                  <p>目标 Checksum：{node.latest_apply_checksum}</p>
                   <p>支持文件：{node.latest_support_file_count}</p>
                 </div>
               ) : null}

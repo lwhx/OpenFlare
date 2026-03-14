@@ -26,7 +26,7 @@ func TestBuildTrafficReportAggregatesManagedAccessLog(t *testing.T) {
 	}
 
 	stateStore := state.NewStore(filepath.Join(tempDir, "state.json"))
-	report := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore)
+	report := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
 	if report == nil {
 		t.Fatal("expected traffic report")
 	}
@@ -48,7 +48,7 @@ func TestBuildTrafficReportAggregatesManagedAccessLog(t *testing.T) {
 		t.Fatalf("unexpected access log offset: %d", snapshot.AccessLogOffset)
 	}
 
-	secondReport := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore)
+	secondReport := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
 	if secondReport != nil {
 		t.Fatalf("expected no report without appended lines, got %+v", secondReport)
 	}
@@ -70,8 +70,40 @@ func TestBuildTrafficReportResetsOffsetAfterTruncate(t *testing.T) {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	report := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore)
+	report := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
 	if report == nil || report.RequestCount != 1 {
 		t.Fatalf("expected one request after truncate reset, got %+v", report)
+	}
+}
+
+func TestBuildTrafficReportParsesCombinedAccessLog(t *testing.T) {
+	tempDir := t.TempDir()
+	routeConfigPath := filepath.Join(tempDir, "conf.d", "atsflare_routes.conf")
+	if err := os.MkdirAll(filepath.Dir(routeConfigPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	logPath := filepath.Join(filepath.Dir(routeConfigPath), "atsflare_access.log")
+	content := []byte(
+		"10.0.0.1 - - [14/Mar/2026:08:00:00 +0000] \"GET / HTTP/1.1\" 200 123 \"-\" \"curl/8.0\"\n" +
+			"10.0.0.2 - - [14/Mar/2026:08:00:05 +0000] \"GET /healthz HTTP/1.1\" 502 64 \"-\" \"curl/8.0\"\n" +
+			"10.0.0.1 - - [14/Mar/2026:08:00:10 +0000] \"GET /api HTTP/1.1\" 200 256 \"-\" \"curl/8.0\"\n",
+	)
+	if err := os.WriteFile(logPath, content, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	stateStore := state.NewStore(filepath.Join(tempDir, "state.json"))
+	report := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
+	if report == nil {
+		t.Fatal("expected traffic report from combined access log")
+	}
+	if report.RequestCount != 3 || report.ErrorCount != 1 || report.UniqueVisitorCount != 2 {
+		t.Fatalf("unexpected combined log counters: %+v", report)
+	}
+	if report.StatusCodes["200"] != 2 || report.StatusCodes["502"] != 1 {
+		t.Fatalf("unexpected combined log status codes: %+v", report.StatusCodes)
+	}
+	if len(report.TopDomains) != 0 {
+		t.Fatalf("expected combined access log to omit top domains when host is unavailable, got %+v", report.TopDomains)
 	}
 }

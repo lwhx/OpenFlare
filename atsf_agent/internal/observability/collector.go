@@ -40,7 +40,7 @@ func BuildProfile(cfg *config.Config, stateStore *state.Store) *protocol.NodeSys
 	return profile
 }
 
-func BuildSnapshot(cfg *config.Config, stateStore *state.Store) *protocol.NodeMetricSnapshot {
+func BuildSnapshot(cfg *config.Config, stateStore *state.Store, managed *managedOpenRestyMetrics) *protocol.NodeMetricSnapshot {
 	now := time.Now().UTC()
 	metric := &protocol.NodeMetricSnapshot{
 		CapturedAtUnix: now.Unix(),
@@ -56,6 +56,11 @@ func BuildSnapshot(cfg *config.Config, stateStore *state.Store) *protocol.NodeMe
 
 	metric.NetworkRxBytes, metric.NetworkTxBytes = readLinuxNetworkTotals()
 	metric.DiskReadBytes, metric.DiskWriteBytes = readLinuxDiskTotals()
+	if managed != nil {
+		metric.OpenrestyRxBytes = managed.OpenrestyRxBytes
+		metric.OpenrestyTxBytes = managed.OpenrestyTxBytes
+		metric.OpenrestyConnections = managed.OpenrestyConnections
+	}
 
 	if stateStore == nil {
 		return metric

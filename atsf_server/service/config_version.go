@@ -115,9 +115,11 @@ type configBundle struct {
 }
 
 const (
-	nginxCertDirPlaceholder     = "__ATSF_CERT_DIR__"
-	nginxRouteConfigPlaceholder = "__ATSF_ROUTE_CONFIG__"
-	nginxAccessLogPlaceholder   = "__ATSF_ACCESS_LOG__"
+	nginxCertDirPlaceholder           = "__ATSF_CERT_DIR__"
+	nginxRouteConfigPlaceholder       = "__ATSF_ROUTE_CONFIG__"
+	nginxAccessLogPlaceholder         = "__ATSF_ACCESS_LOG__"
+	nginxLuaDirPlaceholder            = "__ATSF_LUA_DIR__"
+	nginxObservabilityPortPlaceholder = "__ATSF_OBSERVABILITY_PORT__"
 )
 
 var requiredMainConfigTemplatePlaceholders = []string{
@@ -351,6 +353,7 @@ func buildCurrentConfigBundle(requireRoutes bool) (*configBundle, error) {
 	if err != nil {
 		return nil, err
 	}
+	supportFiles = append(supportFiles, buildOpenRestyObservabilitySupportFiles()...)
 	mainConfig := renderMainConfig(openRestyConfig)
 	return &configBundle{
 		Routes:            routes,
@@ -675,17 +678,21 @@ func renderTemplateDirective(enabled bool, statement string) string {
 }
 
 func renderOpenRestyCacheTemplateBlock(cfg openRestyConfigSnapshot) string {
+	lines := make([]string, 0, 8)
 	if !cfg.CacheEnabled {
-		return ""
+		lines = append(lines, renderOpenRestyObservabilityTemplateBlock())
+		return strings.Join(lines, "")
 	}
-	return strings.Join([]string{
+	lines = append(lines, strings.Join([]string{
 		fmt.Sprintf("    proxy_cache_path %s levels=%s keys_zone=atsflare_cache:10m inactive=%s max_size=%s;", cfg.CachePath, cfg.CacheLevels, cfg.CacheInactive, cfg.CacheMaxSize),
 		fmt.Sprintf("    proxy_cache_key \"%s\";", cfg.CacheKeyTemplate),
 		fmt.Sprintf("    proxy_cache_lock %s;", onOff(cfg.CacheLockEnabled)),
 		fmt.Sprintf("    proxy_cache_lock_timeout %s;", cfg.CacheLockTimeout),
 		fmt.Sprintf("    proxy_cache_use_stale %s;", cfg.CacheUseStale),
 		"",
-	}, "\n")
+	}, "\n"))
+	lines = append(lines, renderOpenRestyObservabilityTemplateBlock())
+	return strings.Join(lines, "")
 }
 
 func onOff(value bool) string {

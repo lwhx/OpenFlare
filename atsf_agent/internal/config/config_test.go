@@ -54,6 +54,9 @@ func TestLoadDockerModeUsesManagedPaths(t *testing.T) {
 	if cfg.StatePath != filepath.Join(dir, "data", defaultDockerStateRelativePath) {
 		t.Fatalf("unexpected state path: %s", cfg.StatePath)
 	}
+	if cfg.OpenrestyObservabilityPort != defaultOpenRestyObservabilityPort {
+		t.Fatalf("unexpected openresty observability port: %d", cfg.OpenrestyObservabilityPort)
+	}
 }
 
 func TestLoadPathModeKeepsExplicitPaths(t *testing.T) {
@@ -93,6 +96,9 @@ func TestLoadPathModeKeepsExplicitPaths(t *testing.T) {
 	}
 	if cfg.OpenrestyCertDir != cfg.CertDir {
 		t.Fatalf("expected path mode openresty cert dir to equal cert dir, got %s / %s", cfg.OpenrestyCertDir, cfg.CertDir)
+	}
+	if cfg.OpenrestyObservabilityPort != defaultOpenRestyObservabilityPort {
+		t.Fatalf("unexpected path mode openresty observability port: %d", cfg.OpenrestyObservabilityPort)
 	}
 }
 
@@ -203,6 +209,9 @@ func TestSavePersistsMillisecondsAndOmitsRuntimeVersions(t *testing.T) {
 	}
 	if decoded["request_timeout"] != float64(7000) {
 		t.Fatalf("unexpected request timeout: %#v", decoded["request_timeout"])
+	}
+	if decoded["openresty_observability_port"] != float64(defaultOpenRestyObservabilityPort) {
+		t.Fatalf("unexpected observability port: %#v", decoded["openresty_observability_port"])
 	}
 	if _, ok := decoded["nginx_path"]; ok {
 		t.Fatal("legacy nginx_path should not be persisted")
