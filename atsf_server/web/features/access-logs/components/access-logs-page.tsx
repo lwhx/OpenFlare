@@ -25,18 +25,10 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '请求失败，请稍后重试。';
 }
 
-function buildSummary(logs: AccessLogItem[]) {
-  const uniqueIPs = new Set(logs.map((item) => item.remote_addr).filter(Boolean));
-  const uniqueNodes = new Set(logs.map((item) => item.node_id).filter(Boolean));
-
+function buildSummary(totalRecord = 0, totalIP = 0) {
   return [
-    { label: '访问记录', value: logs.length },
-    { label: '来源 IP', value: uniqueIPs.size },
-    { label: '命中节点', value: uniqueNodes.size },
-    {
-      label: '5xx 响应',
-      value: logs.filter((item) => item.status_code >= 500).length,
-    },
+    { label: '访问记录', value: totalRecord },
+    { label: '来源 IP', value: totalIP },
   ];
 }
 
@@ -64,7 +56,14 @@ export function AccessLogsPage() {
   const logs = useMemo(() => logsQuery.data?.items ?? [], [logsQuery.data]);
   const hasMore = logsQuery.data?.has_more ?? false;
   const pageSize = logsQuery.data?.page_size ?? 50;
-  const summary = useMemo(() => buildSummary(logs), [logs]);
+  const summary = useMemo(
+    () =>
+      buildSummary(
+        logsQuery.data?.total_record ?? 0,
+        logsQuery.data?.total_ip ?? 0,
+      ),
+    [logsQuery.data?.total_ip, logsQuery.data?.total_record],
+  );
 
   return (
     <div className="space-y-6">
@@ -83,9 +82,9 @@ export function AccessLogsPage() {
 
       <AppCard
         title="日志摘要"
-        description="帮助快速了解最近访问量、来源范围和异常响应规模。"
+        description="基于当前筛选条件汇总最近时间窗口内的访问记录与来源 IP 规模。"
       >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
           {summary.map((item) => (
             <div
               key={item.label}

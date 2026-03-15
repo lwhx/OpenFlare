@@ -31,3 +31,23 @@ func ListNodeAccessLogs(nodeID string, since time.Time, offset int, limit int) (
 	err = query.Find(&logs).Error
 	return logs, err
 }
+
+func CountNodeAccessLogs(nodeID string, since time.Time) (totalRecords int64, totalIPs int64, err error) {
+	query := DB.Model(&NodeAccessLog{})
+	if nodeID != "" {
+		query = query.Where("node_id = ?", nodeID)
+	}
+	if !since.IsZero() {
+		query = query.Where("logged_at >= ?", since)
+	}
+	if err = query.Count(&totalRecords).Error; err != nil {
+		return 0, 0, err
+	}
+	if err = query.
+		Where("remote_addr <> ''").
+		Distinct("remote_addr").
+		Count(&totalIPs).Error; err != nil {
+		return 0, 0, err
+	}
+	return totalRecords, totalIPs, nil
+}

@@ -14,4 +14,6 @@ export interface AccessLogList {
   page: number;
   page_size: number;
   has_more: boolean;
+  total_record: number;
+  total_ip: number;
 }

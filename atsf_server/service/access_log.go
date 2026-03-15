@@ -23,22 +23,30 @@ type AccessLogView struct {
 }
 
 type AccessLogList struct {
-	Items    []AccessLogView `json:"items"`
-	Page     int             `json:"page"`
-	PageSize int             `json:"page_size"`
-	HasMore  bool            `json:"has_more"`
+	Items       []AccessLogView `json:"items"`
+	Page        int             `json:"page"`
+	PageSize    int             `json:"page_size"`
+	HasMore     bool            `json:"has_more"`
+	TotalRecord int64           `json:"total_record"`
+	TotalIP     int64           `json:"total_ip"`
 }
 
 func ListAccessLogs(nodeID string, page int, pageSize int) (*AccessLogList, error) {
 	normalizedPage := normalizeAccessLogPage(page)
 	normalizedPageSize := normalizeAccessLogPageSize(pageSize)
 	offset := normalizedPage * normalizedPageSize
+	trimmedNodeID := strings.TrimSpace(nodeID)
+	since := time.Now().Add(-nodeAccessLogRetentionWindow)
 	logs, err := model.ListNodeAccessLogs(
-		strings.TrimSpace(nodeID),
-		time.Now().Add(-nodeAccessLogRetentionWindow),
+		trimmedNodeID,
+		since,
 		offset,
 		normalizedPageSize+1,
 	)
+	if err != nil {
+		return nil, err
+	}
+	totalRecords, totalIPs, err := model.CountNodeAccessLogs(trimmedNodeID, since)
 	if err != nil {
 		return nil, err
 	}
@@ -74,10 +82,12 @@ func ListAccessLogs(nodeID string, page int, pageSize int) (*AccessLogList, erro
 		})
 	}
 	return &AccessLogList{
-		Items:    views,
-		Page:     normalizedPage,
-		PageSize: normalizedPageSize,
-		HasMore:  hasMore,
+		Items:       views,
+		Page:        normalizedPage,
+		PageSize:    normalizedPageSize,
+		HasMore:     hasMore,
+		TotalRecord: totalRecords,
+		TotalIP:     totalIPs,
 	}, nil
 }
 
