@@ -63,9 +63,6 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	if !strings.Contains(result.Version.MainConfig, "listen __ATSF_OBSERVABILITY_LISTEN__;") {
 		t.Fatal("expected main config to include managed openresty observability listen placeholder")
 	}
-	if !strings.Contains(result.Version.MainConfig, "map $http_upgrade $connection_upgrade {") {
-		t.Fatal("expected main config to include websocket connection upgrade map")
-	}
 	if strings.Contains(result.Version.MainConfig, "allow 127.0.0.1;") {
 		t.Fatal("expected main config to avoid hard-coded allow rules on observability server")
 	}
@@ -135,7 +132,7 @@ func TestPublishConfigVersionRendersCustomHeaders(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, "proxy_set_header Upgrade $http_upgrade;") {
 		t.Fatal("expected rendered config to forward websocket upgrade header")
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "proxy_set_header Connection $connection_upgrade;") {
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_set_header Connection $http_connection;") {
 		t.Fatal("expected rendered config to forward websocket connection header")
 	}
 }
@@ -165,11 +162,8 @@ func TestPreviewConfigVersionCanDisableWebsocketHeaders(t *testing.T) {
 	if strings.Contains(preview.RenderedConfig, "proxy_set_header Upgrade $http_upgrade;") {
 		t.Fatal("expected preview config to omit websocket upgrade header when disabled")
 	}
-	if strings.Contains(preview.RenderedConfig, "proxy_set_header Connection $connection_upgrade;") {
+	if strings.Contains(preview.RenderedConfig, "proxy_set_header Connection $http_connection;") {
 		t.Fatal("expected preview config to omit websocket connection header when disabled")
-	}
-	if strings.Contains(preview.MainConfig, "map $http_upgrade $connection_upgrade {") {
-		t.Fatal("expected preview main config to omit websocket connection map when disabled")
 	}
 }
 
@@ -332,9 +326,6 @@ func TestCreateTLSCertificateRejectsInvalidPEM(t *testing.T) {
 
 func TestOpenRestyMainConfigTemplateRenderAndValidate(t *testing.T) {
 	setupServiceTestDB(t)
-	if err := model.UpdateOption("OpenRestyWebsocketEnabled", "true"); err != nil {
-		t.Fatalf("UpdateOption OpenRestyWebsocketEnabled failed: %v", err)
-	}
 
 	customTemplate := strings.ReplaceAll(
 		common.OpenRestyMainConfigTemplate,
@@ -363,9 +354,6 @@ func TestOpenRestyMainConfigTemplateRenderAndValidate(t *testing.T) {
 	}
 	if !strings.Contains(preview.MainConfig, "access_log __ATSF_ACCESS_LOG__ atsflare_json;") {
 		t.Fatal("expected preview main config to preserve managed access log placeholder")
-	}
-	if !strings.Contains(preview.MainConfig, "map $http_upgrade $connection_upgrade {") {
-		t.Fatal("expected preview main config to include websocket connection map")
 	}
 
 	invalidTemplate := strings.ReplaceAll(
