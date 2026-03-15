@@ -1,0 +1,142 @@
+package model
+
+import (
+	"github.com/glebarez/sqlite"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"log/slog"
+	"openflare/common"
+	"openflare/utils/security"
+	"os"
+)
+
+var DB *gorm.DB
+
+func migrateProxyRouteEnableHTTPSColumn(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&ProxyRoute{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&ProxyRoute{}, "enable_https") || !db.Migrator().HasColumn(&ProxyRoute{}, "enable_http_s") {
+		return nil
+	}
+	return db.Migrator().RenameColumn(&ProxyRoute{}, "enable_http_s", "enable_https")
+}
+
+func createRootAccountIfNeed() error {
+	var user User
+	//if user.Status != common.UserStatusEnabled {
+	if err := DB.First(&user).Error; err != nil {
+		slog.Info("no user exists, create a root user", "username", "root")
+		hashedPassword, err := security.Password2Hash("123456")
+		if err != nil {
+			return err
+		}
+		rootUser := User{
+			Username:    "root",
+			Password:    hashedPassword,
+			Role:        common.RoleRootUser,
+			Status:      common.UserStatusEnabled,
+			DisplayName: "Root User",
+		}
+		DB.Create(&rootUser)
+	}
+	return nil
+}
+
+func CountTable(tableName string) (num int64) {
+	DB.Table(tableName).Count(&num)
+	return
+}
+
+func InitDB() (err error) {
+	var db *gorm.DB
+	if os.Getenv("SQL_DSN") != "" {
+		// Use MySQL
+		db, err = gorm.Open(mysql.Open(os.Getenv("SQL_DSN")), &gorm.Config{
+			PrepareStmt: true, // precompile SQL
+		})
+	} else {
+		// Use SQLite
+		db, err = gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
+			PrepareStmt: true, // precompile SQL
+		})
+		slog.Info("SQL_DSN not set, using SQLite as database")
+	}
+	if err == nil {
+		DB = db
+		if err = migrateProxyRouteEnableHTTPSColumn(db); err != nil {
+			return err
+		}
+		err := db.AutoMigrate(&File{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&User{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&Option{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&ProxyRoute{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&ConfigVersion{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&Node{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&NodeSystemProfile{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&ApplyLog{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&NodeMetricSnapshot{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&NodeRequestReport{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&NodeAccessLog{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&NodeHealthEvent{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&TLSCertificate{})
+		if err != nil {
+			return err
+		}
+		err = db.AutoMigrate(&ManagedDomain{})
+		if err != nil {
+			return err
+		}
+		err = createRootAccountIfNeed()
+		return err
+	} else {
+		slog.Error("open database failed", "error", err)
+		os.Exit(1)
+	}
+	return err
+}
+
+func CloseDB() error {
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return err
+	}
+	err = sqlDB.Close()
+	return err
+}

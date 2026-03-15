@@ -1,6 +1,6 @@
-# ATSFlare 配置项说明
+# OpenFlare 配置项说明
 
-本文档汇总当前 ATSFlare Server 与 Agent 在启动、部署和运行时支持的参数、环境变量与配置文件字段，并说明其作用、默认值和示例。
+本文档汇总当前 OpenFlare Server 与 Agent 在启动、部署和运行时支持的参数、环境变量与配置文件字段，并说明其作用、默认值和示例。
 
 ---
 
@@ -20,14 +20,14 @@ Server 当前支持两类启动配置：
 启动示例：
 
 ```bash
-cd atsf_server
+cd openflare_server
 go run . --port 3000 --log-dir ./logs
 ```
 
 或在编译后二进制中使用：
 
 ```bash
-./atsflare --port 3000 --log-dir ./logs
+./openflare --port 3000 --log-dir ./logs
 ```
 
 支持的命令行参数：
@@ -36,8 +36,8 @@ go run . --port 3000 --log-dir ./logs
 | --- | --- | --- | --- |
 | `--port` | 指定 Server 监听端口 | `3000` | `--port 3000` |
 | `--log-dir` | 指定日志目录；设置后会自动创建目录并写入日志 | 空，默认输出到 stdout | `--log-dir ./logs` |
-| `--version` | 输出当前版本后退出 | `false` | `./atsflare --version` |
-| `--help` | 输出帮助信息后退出 | `false` | `./atsflare --help` |
+| `--version` | 输出当前版本后退出 | `false` | `./openflare --version` |
+| `--help` | 输出帮助信息后退出 | `false` | `./openflare --help` |
 
 说明：
 
@@ -49,9 +49,9 @@ go run . --port 3000 --log-dir ./logs
 源码启动示例：
 
 ```bash
-cd atsf_server
+cd openflare_server
 export SESSION_SECRET='replace-with-random-string'
-export SQLITE_PATH='./atsflare.db'
+export SQLITE_PATH='./openflare.db'
 export GIN_MODE='release'
 export LOG_LEVEL='info'
 export PORT='3000'
@@ -62,22 +62,22 @@ Docker Compose 示例：
 
 ```yaml
 services:
-	atsflare:
-		image: ghcr.io/rain-kl/atsflare:latest
+	openflare:
+		image: ghcr.io/rain-kl/openflare:latest
 		restart: unless-stopped
 		ports:
 			- "3000:3000"
 		environment:
 			SESSION_SECRET: replace-with-random-string
-			SQLITE_PATH: /data/atsflare.db
+			SQLITE_PATH: /data/openflare.db
 			GIN_MODE: release
 			LOG_LEVEL: info
 			PORT: "3000"
 		volumes:
-			- atsflare-data:/data
+			- openflare-data:/data
 
 volumes:
-	atsflare-data:
+	openflare-data:
 ```
 
 支持的环境变量：
@@ -88,8 +88,8 @@ volumes:
 | `GIN_MODE` | 指定 Gin 运行模式；仅当值为 `debug` 时启用 debug，其余情况按 release 运行 | 非 `debug` 默认按 release 运行 | `GIN_MODE=release` |
 | `LOG_LEVEL` | 指定系统日志等级；支持 `debug`/`info`/`warn`/`error`（`warning` 兼容为 `warn`） | `info` | `LOG_LEVEL=warn` |
 | `SESSION_SECRET` | Session 签名密钥；生产环境必须显式设置，避免重启后会话失效 | 启动时随机生成 UUID | `SESSION_SECRET=replace-with-random-string` |
-| `SQLITE_PATH` | SQLite 数据库文件路径 | `atsflare.db` | `SQLITE_PATH=/data/atsflare.db` |
-| `SQL_DSN` | MySQL DSN；设置后优先使用 MySQL，而不是 SQLite | 未设置时使用 SQLite | `SQL_DSN=user:pass@tcp(127.0.0.1:3306)/atsflare` |
+| `SQLITE_PATH` | SQLite 数据库文件路径 | `openflare.db` | `SQLITE_PATH=/data/openflare.db` |
+| `SQL_DSN` | MySQL DSN；设置后优先使用 MySQL，而不是 SQLite | 未设置时使用 SQLite | `SQL_DSN=user:pass@tcp(127.0.0.1:3306)/openflare` |
 | `REDIS_CONN_STRING` | Redis 连接串；设置后启用 Redis，用于 Session/限流相关能力 | 未设置时关闭 Redis | `REDIS_CONN_STRING=redis://default:pass@127.0.0.1:6379/0` |
 | `UPLOAD_PATH` | 上传文件目录 | `upload` | `UPLOAD_PATH=/data/upload` |
 | `AGENT_TOKEN` | 全局 Agent Token 兼容配置；当前默认部署不依赖该变量 | 空 | `AGENT_TOKEN=legacy-shared-token` |
@@ -110,7 +110,7 @@ volumes:
 | --- | --- | --- |
 | `AgentHeartbeatInterval` | Agent 心跳间隔（毫秒） | `10000` |
 | `NodeOfflineThreshold` | 节点离线判定阈值（毫秒） | `120000` |
-| `AgentUpdateRepo` | Agent 自更新仓库 | `Rain-kl/ATSFlare` |
+| `AgentUpdateRepo` | Agent 自更新仓库 | `Rain-kl/OpenFlare` |
 | `GeoIPProvider` | 节点/IP 归属解析方式；支持 `disabled`、`mmdb`、`ip-api`、`geojs`、`ipinfo` | `ipinfo` |
 | `GlobalApiRateLimitNum` / `GlobalApiRateLimitDuration` | 全局 API 限流次数 / 时间窗口（秒） | `300` / `180` |
 | `GlobalWebRateLimitNum` / `GlobalWebRateLimitDuration` | 全局 Web 限流次数 / 时间窗口（秒） | `300` / `180` |
@@ -172,7 +172,7 @@ volumes:
 
 ### 1.3 前端构建环境变量
 
-新版管理端位于 `atsf_server/web`，构建时支持以下公开环境变量：
+新版管理端位于 `openflare_server/web`，构建时支持以下公开环境变量：
 
 | 环境变量 | 作用 | 默认值 | 示例 |
 | --- | --- | --- | --- |
@@ -216,21 +216,21 @@ Agent 当前支持两类启动配置：
 启动示例：
 
 ```bash
-cd atsf_agent
+cd openflare_agent
 go run ./cmd/agent -config ./agent.json
 ```
 
 或编译后二进制：
 
 ```bash
-./atsflare-agent -config /path/to/agent.json
+./openflare-agent -config /path/to/agent.json
 ```
 
 支持的命令行参数：
 
 | 参数 | 作用 | 默认值 | 示例 |
 | --- | --- | --- | --- |
-| `-config` | 指定 Agent 配置文件路径 | `./agent.json` | `-config /etc/atsflare/agent.json` |
+| `-config` | 指定 Agent 配置文件路径 | `./agent.json` | `-config /etc/openflare/agent.json` |
 
 ### 2.2 Agent 配置文件示例
 
@@ -241,7 +241,7 @@ go run ./cmd/agent -config ./agent.json
 	"server_url": "http://127.0.0.1:3000",
 	"discovery_token": "replace-with-global-discovery-token",
 	"data_dir": "./data",
-	"openresty_container_name": "atsflare-openresty",
+	"openresty_container_name": "openflare-openresty",
 	"openresty_docker_image": "openresty/openresty:alpine",
 	"openresty_observability_port": 18081,
 	"observability_replay_minutes": 15,
@@ -261,7 +261,7 @@ go run ./cmd/agent -config ./agent.json
 	"data_dir": "./data",
 	"openresty_path": "/usr/local/openresty/nginx/sbin/openresty",
 	"main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
-	"route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
+	"route_config_path": "/usr/local/openresty/nginx/conf/conf.d/openflare_routes.conf",
 	"cert_dir": "/usr/local/openresty/nginx/conf/certs",
 	"openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs",
 	"lua_dir": "/usr/local/openresty/nginx/conf/lua",
@@ -285,18 +285,18 @@ go run ./cmd/agent -config ./agent.json
 | `node_name` | 节点名称 | 否 | 自动使用主机名 | `node-01` |
 | `node_ip` | 节点 IP | 否 | 自动探测第一个可用 IPv4 | `192.168.1.20` |
 | `openresty_path` | 本机 OpenResty 可执行文件路径；设置后按本机 OpenResty 模式运行 | 否 | 空；未设置时按 Docker OpenResty 模式处理 | `/usr/local/openresty/nginx/sbin/openresty` |
-| `openresty_container_name` | Docker 模式下的 OpenResty 容器名 | 否 | `atsflare-openresty` | `atsflare-openresty` |
+| `openresty_container_name` | Docker 模式下的 OpenResty 容器名 | 否 | `openflare-openresty` | `openflare-openresty` |
 | `openresty_docker_image` | Docker 模式下用于初始化/管理的 OpenResty 镜像 | 否 | `openresty/openresty:alpine` | `openresty/openresty:alpine` |
 | `openresty_observability_port` | Agent 注入的 OpenResty 本地观测端口；用于 heartbeat 前读取 Lua 窗口指标和 `stub_status`，默认仅监听 `127.0.0.1` | 否 | `18081` | `18081` |
 | `docker_binary` | Docker 可执行文件名或路径 | 否 | `docker` | `/usr/bin/docker` |
 | `data_dir` | Agent 数据目录，用于存储托管配置、证书和状态文件 | 否 | 配置文件所在目录下的 `data` 子目录 | `./data` |
 | `main_config_path` | 第五版主配置接管时 OpenResty 主配置文件写入路径 | 第五版本机模式建议必填 | Docker 模式可使用受管默认路径；本机模式建议显式设置 | `/usr/local/openresty/nginx/conf/nginx.conf` |
-| `route_config_path` | 路由配置文件写入路径 | 否 | 默认为 `data_dir` 下托管路径 | `/etc/nginx/conf.d/atsflare_routes.conf` |
+| `route_config_path` | 路由配置文件写入路径 | 否 | 默认为 `data_dir` 下托管路径 | `/etc/nginx/conf.d/openflare_routes.conf` |
 | `cert_dir` | Agent 在本机写入受管证书文件的目录 | 否 | 默认为 `data_dir` 下托管 certs 目录 | `./data/etc/nginx/certs` |
-| `openresty_cert_dir` | OpenResty 实际读取受管证书文件的目录 | 否 | 本机模式默认等于 `cert_dir`；Docker 模式默认 `/etc/nginx/atsflare-certs` | `/usr/local/openresty/nginx/conf/certs` |
+| `openresty_cert_dir` | OpenResty 实际读取受管证书文件的目录 | 否 | 本机模式默认等于 `cert_dir`；Docker 模式默认 `/etc/nginx/openflare-certs` | `/usr/local/openresty/nginx/conf/certs` |
 | `lua_dir` | Agent 在本机写入受管 Lua 观测脚本的目录；每次启动都会覆盖释放 | 否 | 默认为 `data_dir` 下托管 lua 目录 | `./data/etc/nginx/lua` |
-| `openresty_lua_dir` | OpenResty 实际读取受管 Lua 观测脚本的目录 | 否 | 本机模式默认等于 `lua_dir`；Docker 模式默认 `/etc/nginx/atsflare-lua` | `/usr/local/openresty/nginx/conf/lua` |
-| `observability_buffer_path` | Agent 本地观测补报缓冲文件路径；用于在 server 短暂离线时按时间窗口落盘待补传数据 | 否 | 默认为 `data_dir` 下托管观测缓冲文件 | `./data/var/lib/atsflare/observability-buffer.json` |
+| `openresty_lua_dir` | OpenResty 实际读取受管 Lua 观测脚本的目录 | 否 | 本机模式默认等于 `lua_dir`；Docker 模式默认 `/etc/nginx/openflare-lua` | `/usr/local/openresty/nginx/conf/lua` |
+| `observability_buffer_path` | Agent 本地观测补报缓冲文件路径；用于在 server 短暂离线时按时间窗口落盘待补传数据 | 否 | 默认为 `data_dir` 下托管观测缓冲文件 | `./data/var/lib/openflare/observability-buffer.json` |
 | `observability_replay_minutes` | Agent 恢复心跳后允许批量补传的最近观测窗口时长（分钟） | 否 | `15` | `30` |
 | `state_path` | Agent 本地状态文件路径 | 否 | 默认为 `data_dir` 下托管状态文件 | `./data/agent-state.json` |
 | `heartbeat_interval` | 心跳间隔 | 否 | `10000` 毫秒 | `10000` |
@@ -322,23 +322,23 @@ go run ./cmd/agent -config ./agent.json
 | 字段 | 默认值 |
 | --- | --- |
 | `main_config_path` | 第五版 Docker 模式默认可落在 `data_dir/etc/nginx/nginx.conf`；本机模式建议显式配置 |
-| `route_config_path` | `data_dir/etc/nginx/conf.d/atsflare_routes.conf` |
+| `route_config_path` | `data_dir/etc/nginx/conf.d/openflare_routes.conf` |
 | `cert_dir` | `data_dir/etc/nginx/certs` |
 | `lua_dir` | `data_dir/etc/nginx/lua` |
-| `observability_buffer_path` | `data_dir/var/lib/atsflare/observability-buffer.json` |
-| `state_path` | `data_dir/var/lib/atsflare/agent-state.json` |
+| `observability_buffer_path` | `data_dir/var/lib/openflare/observability-buffer.json` |
+| `state_path` | `data_dir/var/lib/openflare/agent-state.json` |
 
 Docker OpenResty 模式下：
 
 | 字段 | 默认值 |
 | --- | --- |
-| `openresty_cert_dir` | `/etc/nginx/atsflare-certs` |
-| `openresty_lua_dir` | `/etc/nginx/atsflare-lua` |
+| `openresty_cert_dir` | `/etc/nginx/openflare-certs` |
+| `openresty_lua_dir` | `/etc/nginx/openflare-lua` |
 
 补充说明：
 
 * Agent 会在每次启动时把受管 Lua 观测脚本覆盖释放到 `lua_dir`，不再由 Server 随配置版本下发
-* OpenResty 通过 `openresty_lua_dir` 读取这些本地脚本，并在每次 heartbeat 前通过 `http://127.0.0.1:<openresty_observability_port>/atsflare/observability` 读取最近窗口请求指标
+* OpenResty 通过 `openresty_lua_dir` 读取这些本地脚本，并在每次 heartbeat 前通过 `http://127.0.0.1:<openresty_observability_port>/openflare/observability` 读取最近窗口请求指标
 * 若 server 短暂离线，Agent 会把最近窗口观测先写入 `observability_buffer_path`，待 heartbeat 恢复后按时间窗口批量补传最近 `observability_replay_minutes` 分钟的数据
 * 同一端口还会暴露仅本机可访问的 `stub_status`，用于采集 OpenResty 活动连接数
 
@@ -366,7 +366,7 @@ Docker OpenResty 模式下：
 	"agent_token": "replace-with-node-auth-token",
 	"openresty_path": "/usr/local/openresty/nginx/sbin/openresty",
 	"main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
-	"route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
+	"route_config_path": "/usr/local/openresty/nginx/conf/conf.d/openflare_routes.conf",
 	"cert_dir": "/usr/local/openresty/nginx/conf/certs",
 	"openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs",
 	"lua_dir": "/usr/local/openresty/nginx/conf/lua",

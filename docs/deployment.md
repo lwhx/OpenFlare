@@ -1,4 +1,4 @@
-# ATSFlare 部署说明
+# OpenFlare 部署说明
 
 本文档仅保留当前可用基线的最小部署方式，并补充第五版（0.5.x）开发期间与 OpenResty 主配置接管相关的联调约束。
 
@@ -27,7 +27,7 @@
 ### 2.1 构建前端
 
 ```bash
-cd atsf_server/web
+cd openflare_server/web
 corepack enable
 pnpm install
 pnpm build
@@ -36,7 +36,7 @@ pnpm build
 说明：
 
 * 前端使用 Next.js 静态导出模式构建
-* `pnpm build` 会生成供 Go Server 托管的 `atsf_server/web/build` 目录
+* `pnpm build` 会生成供 Go Server 托管的 `openflare_server/web/build` 目录
 * 如需覆盖默认接口地址，可在构建前设置 `NEXT_PUBLIC_API_BASE_URL`
 
 ### 2.1.1 本地前端热更新开发
@@ -44,7 +44,7 @@ pnpm build
 在本地联调时，可单独启动前端开发服务器：
 
 ```bash
-cd atsf_server/web
+cd openflare_server/web
 corepack enable
 pnpm install
 pnpm dev
@@ -60,9 +60,9 @@ pnpm dev
 ### 2.2 启动服务
 
 ```bash
-cd atsf_server
+cd openflare_server
 export SESSION_SECRET='replace-with-random-string'
-export SQLITE_PATH='./atsflare.db'
+export SQLITE_PATH='./openflare.db'
 export LOG_LEVEL='info'
 go run .
 ```
@@ -82,21 +82,21 @@ go run .
 
 ```yaml
 services:
-  atsflare:
-    image: ghcr.io/rain-kl/atsflare:latest
-    container_name: atsflare
+  openflare:
+    image: ghcr.io/rain-kl/openflare:latest
+    container_name: openflare
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       SESSION_SECRET: replace-with-random-string
-      SQLITE_PATH: /data/atsflare.db
+      SQLITE_PATH: /data/openflare.db
       GIN_MODE: release
     volumes:
-      - atsflare-data:/data
+      - openflare-data:/data
 
 volumes:
-  atsflare-data:
+  openflare-data:
 ```
 
 启动命令：
@@ -108,16 +108,16 @@ docker compose up -d
 说明：
 
 * `SESSION_SECRET` 必须替换为随机字符串
-* SQLite 数据文件持久化到 Docker volume `atsflare-data`
+* SQLite 数据文件持久化到 Docker volume `openflare-data`
 * 镜像默认监听容器内 `3000` 端口
-* 若要固定版本，可将 `latest` 替换为具体 tag，例如 `ghcr.io/rain-kl/atsflare:v0.3.0`
+* 若要固定版本，可将 `latest` 替换为具体 tag，例如 `ghcr.io/rain-kl/openflare:v0.3.0`
 
 版本升级说明：
 
 * Root 用户可在管理端顶栏点击「版本」默认检查正式版 GitHub Release
 * 若需尝试 preview 版本，可在同一弹窗中手动检查 preview 发布并选择是否升级
 * 当前运行的是 Release 二进制且二进制目录可写时，可直接在弹窗内触发 Server 自升级
-* Server 自升级会下载匹配当前平台的 `atsflare-server-*` 资产，替换当前二进制并自动重启进程
+* Server 自升级会下载匹配当前平台的 `openflare-server-*` 资产，替换当前二进制并自动重启进程
 * 也可在同一弹窗中手动上传 Server 二进制，服务端先检测上传文件版本，前端确认后再执行替换与重启
 * 节点 Agent 默认仅跟随正式版自动更新；如需 preview 版本，可在节点详情中手动检查 preview 发布并下发更新
 
@@ -138,7 +138,7 @@ docker compose up -d
 
 * Swagger UI 受管理端登录态保护，未登录不可直接访问
 * 可在浏览器中查看当前 Server API 与 Agent API 定义，并直接发起调试请求
-* 当 Server API 新增或变更时，需要同步更新 Swag 注解并重新生成 `atsf_server/docs`
+* 当 Server API 新增或变更时，需要同步更新 Swag 注解并重新生成 `openflare_server/docs`
 
 如需在本地重新生成 Swagger 文档，先安装 `swag`：
 
@@ -151,7 +151,7 @@ go install github.com/swaggo/swag/cmd/swag@latest
 * Linux / macOS：`$HOME/go/bin`
 * Windows：`%USERPROFILE%\go\bin`
 
-如需在本地重新生成 Swagger 文档，可在 `atsf_server` 目录执行：
+如需在本地重新生成 Swagger 文档，可在 `openflare_server` 目录执行：
 
 ```bash
 swag init -g main.go -o docs
@@ -170,7 +170,7 @@ swag init -g main.go -o docs
   "server_url": "http://127.0.0.1:3000",
   "agent_token": "replace-with-node-auth-token",
   "data_dir": "./data",
-  "openresty_container_name": "atsflare-openresty",
+  "openresty_container_name": "openflare-openresty",
   "openresty_docker_image": "openresty/openresty:alpine",
   "openresty_observability_port": 18081,
   "observability_replay_minutes": 15,
@@ -186,7 +186,7 @@ swag init -g main.go -o docs
   "server_url": "http://127.0.0.1:3000",
   "discovery_token": "replace-with-global-discovery-token",
   "data_dir": "./data",
-  "openresty_container_name": "atsflare-openresty",
+  "openresty_container_name": "openflare-openresty",
   "openresty_docker_image": "openresty/openresty:alpine",
   "openresty_observability_port": 18081,
   "observability_replay_minutes": 15,
@@ -214,7 +214,7 @@ swag init -g main.go -o docs
 * 本机 OpenResty 模式需要为 Agent 显式提供主配置文件写入路径
 * Docker OpenResty 模式需要保证主配置、路由配置和证书目录位于同一套受管挂载路径中
 * Docker OpenResty 模式会额外挂载一个仅本机可访问的 `127.0.0.1:<openresty_observability_port>` 观测端口，用于 Agent 在 heartbeat 前抓取 Lua 窗口指标
-* Docker / 本机两种模式都会在 `data_dir/var/lib/atsflare/observability-buffer.json` 保留最近待补传窗口；若节点磁盘是临时盘，重启后该缓冲也会丢失
+* Docker / 本机两种模式都会在 `data_dir/var/lib/openflare/observability-buffer.json` 保留最近待补传窗口；若节点磁盘是临时盘，重启后该缓冲也会丢失
 * 节点现存手工维护的主配置如继续保留，必须先迁移为 Server 渲染模板的等价配置，再切换到受管模式
 * 主配置切换前必须预留回滚副本，并通过一次 `openresty -t` 失败演练验证回滚
 
@@ -225,7 +225,7 @@ swag init -g main.go -o docs
 ### 4.1 直接运行
 
 ```bash
-cd atsf_agent
+cd openflare_agent
 export LOG_LEVEL='info'
 go run ./cmd/agent -config /path/to/agent.json
 ```
@@ -233,10 +233,10 @@ go run ./cmd/agent -config /path/to/agent.json
 ### 4.2 编译后二进制运行
 
 ```bash
-cd atsf_agent
-go build -o atsflare-agent ./cmd/agent
+cd openflare_agent
+go build -o openflare-agent ./cmd/agent
 export LOG_LEVEL='info'
-./atsflare-agent -config /path/to/agent.json
+./openflare-agent -config /path/to/agent.json
 ```
 
 ---
@@ -277,7 +277,7 @@ export LOG_LEVEL='info'
   "server_url": "http://127.0.0.1:3000",
   "discovery_token": "replace-with-global-discovery-token",
   "data_dir": "./data",
-  "openresty_container_name": "atsflare-openresty",
+  "openresty_container_name": "openflare-openresty",
   "openresty_docker_image": "openresty/openresty:alpine",
   "openresty_observability_port": 18081
 }
@@ -285,24 +285,24 @@ export LOG_LEVEL='info'
 
 验证点：
 
-1. 首次启动后确认 `data/etc/nginx/nginx.conf`、`data/etc/nginx/conf.d/atsflare_routes.conf`、`data/etc/nginx/certs` 与 `data/etc/nginx/lua` 已由 Agent 创建
+1. 首次启动后确认 `data/etc/nginx/nginx.conf`、`data/etc/nginx/conf.d/openflare_routes.conf`、`data/etc/nginx/certs` 与 `data/etc/nginx/lua` 已由 Agent 创建
 2. 确认容器实际挂载了主配置、路由目录、证书目录和 Lua 目录
-3. 确认宿主机本地可访问 `http://127.0.0.1:18081/atsflare/observability` 与 `http://127.0.0.1:18081/atsflare/stub_status`
+3. 确认宿主机本地可访问 `http://127.0.0.1:18081/openflare/observability` 与 `http://127.0.0.1:18081/openflare/stub_status`
 3. 在管理端发布一次新版本后，确认节点 `current_version` 追平激活版本
 4. 在节点详情查看“当前目标版本”与“最近应用”，确认主配置/路由配置快照和 checksum 已可见
 
 推荐检查命令：
 
 ```bash
-docker inspect atsflare-openresty
-docker exec atsflare-openresty openresty -t
+docker inspect openflare-openresty
+docker exec openflare-openresty openresty -t
 ```
 
 说明：
 
 * `docker inspect` 重点确认主配置文件、`conf.d` 目录、证书目录和 Lua 目录都来自 Agent 受管路径
 * 观测端口默认只绑定 `127.0.0.1`；若节点已有冲突，可在 `agent.json` 中调整 `openresty_observability_port`
-* 若容器名使用默认值，请将上述命令中的名称替换为 `atsflare-openresty`
+* 若容器名使用默认值，请将上述命令中的名称替换为 `openflare-openresty`
 
 ### 5.3.2 本机 OpenResty 模式最小验证
 
@@ -314,7 +314,7 @@ docker exec atsflare-openresty openresty -t
   "agent_token": "replace-with-node-auth-token",
   "openresty_path": "/usr/local/openresty/nginx/sbin/openresty",
   "main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
-  "route_config_path": "/usr/local/openresty/nginx/conf/conf.d/atsflare_routes.conf",
+  "route_config_path": "/usr/local/openresty/nginx/conf/conf.d/openflare_routes.conf",
   "cert_dir": "/usr/local/openresty/nginx/conf/certs",
   "openresty_cert_dir": "/usr/local/openresty/nginx/conf/certs",
   "lua_dir": "/usr/local/openresty/nginx/conf/lua",
@@ -327,7 +327,7 @@ docker exec atsflare-openresty openresty -t
 
 1. 发布前先备份 `main_config_path` 与 `route_config_path`
 2. 首次发布后执行 `openresty -t`，确认主配置已由 Server 模板接管且 include 指向 Agent 写入的路由文件
-3. 确认本机可访问 `http://127.0.0.1:18081/atsflare/observability` 与 `http://127.0.0.1:18081/atsflare/stub_status`
+3. 确认本机可访问 `http://127.0.0.1:18081/openflare/observability` 与 `http://127.0.0.1:18081/openflare/stub_status`
 4. 再次发布修改后的规则或 OpenResty 参数，确认 `openresty -s reload` 成功且节点版本更新
 5. 在节点详情与应用记录页确认主配置 checksum、路由配置 checksum 和支持文件数已上报
 
@@ -364,7 +364,7 @@ Docker OpenResty 模式：
 
 1. 在测试节点上保留默认受管路径
 2. 临时将 `openresty_docker_image` 指向一个不包含 `openresty` 运行时的错误镜像标签，或在测试环境用包装镜像让 `openresty -t` 固定失败
-3. 再次发布，确认节点应用失败但 `data/etc/nginx/nginx.conf` 与 `data/etc/nginx/conf.d/atsflare_routes.conf` 已回滚为旧版本
+3. 再次发布，确认节点应用失败但 `data/etc/nginx/nginx.conf` 与 `data/etc/nginx/conf.d/openflare_routes.conf` 已回滚为旧版本
 4. 恢复正确镜像后重新发布，确认节点恢复健康
 
 说明：
@@ -379,21 +379,21 @@ Docker OpenResty 模式：
 ### 6.1 Server
 
 ```bash
-cd atsf_server
-GOCACHE=/tmp/atsflare-go-cache go test ./...
+cd openflare_server
+GOCACHE=/tmp/openflare-go-cache go test ./...
 ```
 
 ### 6.2 Agent
 
 ```bash
-cd atsf_agent
-GOCACHE=/tmp/atsflare-go-cache go test ./...
+cd openflare_agent
+GOCACHE=/tmp/openflare-go-cache go test ./...
 ```
 
 ### 6.3 前端
 
 ```bash
-cd atsf_server/web
+cd openflare_server/web
 pnpm build
 ```
 
@@ -406,7 +406,7 @@ pnpm build
 
 Docker 镜像发布使用 [.github/workflows/docker-image.yml](.github/workflows/docker-image.yml)：
 
-* 仅构建 `atsf_server` 服务端镜像
+* 仅构建 `openflare_server` 服务端镜像
 * 发布到 GitHub Container Registry（`ghcr.io/<owner>/<repo>:<tag>`）
 * 单个工作流通过分架构原生构建再合并 manifest 的方式产出 `linux/amd64` 与 `linux/arm64` 多架构镜像，避免 `arm64` 长时间模拟编译
 
@@ -419,7 +419,7 @@ Docker 镜像发布使用 [.github/workflows/docker-image.yml](.github/workflows
 在目标机器上运行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/install-agent.sh | bash -s -- \
+curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
   --server-url http://your-server:3000 \
   --discovery-token YOUR_DISCOVERY_TOKEN
 ```
@@ -431,23 +431,23 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/insta
 | `--server-url`      | Server 地址（必填）  | -                     |
 | `--discovery-token` | 全局 Discovery Token | -                     |
 | `--agent-token`     | 节点专属 Token       | -                     |
-| `--install-dir`     | 安装目录             | `/opt/atsflare-agent` |
-| `--repo`            | GitHub Release 仓库  | `Rain-kl/ATSFlare`    |
+| `--install-dir`     | 安装目录             | `/opt/openflare-agent` |
+| `--repo`            | GitHub Release 仓库  | `Rain-kl/OpenFlare`    |
 | `--no-service`      | 不创建 systemd 服务  | -                     |
 
 安装脚本会：
 
-1. 从 GitHub Releases 下载最新 Agent 二进制（`atsflare-agent-{os}-{arch}`）
-2. 若检测到已存在安装目录，会先停止运行中的 `atsflare-agent` 服务并删除整个安装目录
+1. 从 GitHub Releases 下载最新 Agent 二进制（`openflare-agent-{os}-{arch}`）
+2. 若检测到已存在安装目录，会先停止运行中的 `openflare-agent` 服务并删除整个安装目录
 3. 先下载到临时文件，再写入全新的安装目录，避免覆盖运行中进程导致写入失败
 4. 生成 `agent.json` 配置文件
-5. 创建 systemd 服务 `atsflare-agent.service`
+5. 创建 systemd 服务 `openflare-agent.service`
 6. 启动并启用自启
 
 说明：
 
 * 脚本可重复执行，用于重装或升级到最新 Release
-* 若检测到已运行的 `atsflare-agent` systemd 服务，会先停止服务、清空安装目录，再重新安装
+* 若检测到已运行的 `openflare-agent` systemd 服务，会先停止服务、清空安装目录，再重新安装
 * 重装会删除旧的 `agent.json`、本地状态、缓存数据和旧二进制，因此节点会按新的 Token 或 Discovery Token 重新接入
 
 ### 7.2 管理端生成部署命令
@@ -471,9 +471,9 @@ Agent 自动更新默认为关闭。
 
 GitHub Release 中的 Agent 二进制命名格式：
 
-* `atsflare-agent-linux-amd64`
-* `atsflare-agent-linux-arm64`
-* `atsflare-agent-darwin-arm64`
+* `openflare-agent-linux-amd64`
+* `openflare-agent-linux-arm64`
+* `openflare-agent-darwin-arm64`
 
 ---
 

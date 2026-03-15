@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ATSFlare Agent Installer
+# OpenFlare Agent Installer
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/Rain-kl/ATSFlare/main/scripts/install-agent.sh | bash -s -- \
+#   curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
 #     --server-url http://your-server:3000 \
 #     --discovery-token your-token
 
-INSTALL_DIR="/opt/atsflare-agent"
-REPO="Rain-kl/ATSFlare"
+INSTALL_DIR="/opt/openflare-agent"
+REPO="Rain-kl/OpenFlare"
 SERVER_URL=""
 DISCOVERY_TOKEN=""
 AGENT_TOKEN=""
 CREATE_SERVICE="true"
-SERVICE_NAME="atsflare-agent"
+SERVICE_NAME="openflare-agent"
 
 usage() {
   cat <<EOF
-ATSFlare Agent Installer
+OpenFlare Agent Installer
 
 Usage:
   install-agent.sh [OPTIONS]
@@ -26,8 +26,8 @@ Options:
   --server-url URL          Server URL (required)
   --discovery-token TOKEN   Discovery token for auto-registration
   --agent-token TOKEN       Node-specific agent token
-  --install-dir DIR         Installation directory (default: /opt/atsflare-agent)
-  --repo REPO               GitHub repository (default: Rain-kl/ATSFlare)
+  --install-dir DIR         Installation directory (default: /opt/openflare-agent)
+  --repo REPO               GitHub repository (default: Rain-kl/OpenFlare)
   --no-service              Do not create systemd service
   -h, --help                Show this help message
 
@@ -82,7 +82,7 @@ if [[ "$OS" != "linux" && "$OS" != "darwin" ]]; then
   exit 1
 fi
 
-ASSET_NAME="atsflare-agent-${OS}-${ARCH}"
+ASSET_NAME="openflare-agent-${OS}-${ARCH}"
 echo "Detected platform: ${OS}/${ARCH}"
 
 SYSTEMCTL_AVAILABLE="false"
@@ -105,7 +105,7 @@ echo "Latest release: ${TAG}"
 
 # Download binary
 echo "Downloading ${ASSET_NAME}..."
-TMP_BINARY="$(mktemp "/tmp/atsflare-agent.tmp.XXXXXX")"
+TMP_BINARY="$(mktemp "/tmp/openflare-agent.tmp.XXXXXX")"
 cleanup() {
   rm -f "$TMP_BINARY"
 }
@@ -129,7 +129,7 @@ fi
 echo "Installing to ${INSTALL_DIR}..."
 mkdir -p "${INSTALL_DIR}/data"
 
-mv -f "$TMP_BINARY" "${INSTALL_DIR}/atsflare-agent"
+mv -f "$TMP_BINARY" "${INSTALL_DIR}/openflare-agent"
 trap - EXIT
 
 # Generate config
@@ -162,14 +162,14 @@ fi
 # Create systemd service
 if [[ "$CREATE_SERVICE" == "true" && "$OS" == "linux" && -d /etc/systemd/system && "$SYSTEMCTL_AVAILABLE" == "true" ]]; then
   echo "Creating systemd service..."
-  cat > /etc/systemd/system/atsflare-agent.service <<SVCEOF
+  cat > /etc/systemd/system/openflare-agent.service <<SVCEOF
 [Unit]
-Description=ATSFlare Agent
+Description=OpenFlare Agent
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=${INSTALL_DIR}/atsflare-agent -config ${CONFIG_FILE}
+ExecStart=${INSTALL_DIR}/openflare-agent -config ${CONFIG_FILE}
 WorkingDirectory=${INSTALL_DIR}
 Restart=always
 RestartSec=10
@@ -189,11 +189,11 @@ SVCEOF
 else
   echo ""
   echo "To start the agent manually:"
-  echo "  ${INSTALL_DIR}/atsflare-agent -config ${CONFIG_FILE}"
+  echo "  ${INSTALL_DIR}/openflare-agent -config ${CONFIG_FILE}"
 fi
 
 echo ""
-echo "ATSFlare Agent installed successfully!"
-echo "  Binary: ${INSTALL_DIR}/atsflare-agent"
+echo "OpenFlare Agent installed successfully!"
+echo "  Binary: ${INSTALL_DIR}/openflare-agent"
 echo "  Config: ${CONFIG_FILE}"
 echo "  Data:   ${INSTALL_DIR}/data"

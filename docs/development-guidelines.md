@@ -1,4 +1,4 @@
-# ATSFlare 开发规范
+# OpenFlare 开发规范
 
 ## 1. 适用范围
 
@@ -8,7 +8,7 @@
 
 * 第一版、第二版、第三版已完成
 * `docs/design.md` 是当前系统边界的唯一设计基线
-* `atsf_server/web` 新版前端已完成迁移并成为正式基线
+* `openflare_server/web` 新版前端已完成迁移并成为正式基线
 * 第五版（0.5.x）已完成
 * 第六版（0.6.x）以节点流量数据采集、访问分析与看板升级为主线
 
@@ -20,13 +20,13 @@
 
 ### 2.1 Server
 
-`atsf_server` 继续作为单体控制面：
+`openflare_server` 继续作为单体控制面：
 
 * Go 1.24+
 * Gin
 * GORM
 * SQLite
-* 现有 ATSFlare 登录体系
+* 现有 OpenFlare 登录体系
 
 约束：
 
@@ -36,7 +36,7 @@
 
 ### 2.2 Agent
 
-`atsf_agent` 继续作为 Go 单体程序：
+`openflare_agent` 继续作为 Go 单体程序：
 
 * Go 1.23+
 * 单二进制
@@ -47,7 +47,7 @@
 
 ### 2.3 Frontend
 
-新版前端基线以当前 `atsf_server/web` 实现为准：
+新版前端基线以当前 `openflare_server/web` 实现为准：
 
 * Next.js 15 App Router
 * React 19
@@ -186,7 +186,7 @@
 
 管理端：
 
-* 继续复用 ATSFlare 登录、角色与 session
+* 继续复用 OpenFlare 登录、角色与 session
 
 Agent：
 
@@ -375,4 +375,4 @@ Agent 必须满足：
 
 * Server 提供 Swagger UI 入口：`/swagger/index.html`
 * Swagger UI 仅对已登录的管理端用户开放
-* 新增或修改 API 时，必须同步更新 Swag 注解并重新生成 `atsf_server/docs`
+* 新增或修改 API 时，必须同步更新 Swag 注解并重新生成 `openflare_server/docs`
