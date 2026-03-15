@@ -47,13 +47,13 @@ pnpm build
 cd atsf_server/web
 corepack enable
 pnpm install
-pnpm start
+pnpm dev
 ```
 
 说明：
 
-* `pnpm start` 默认以 Next.js 开发模式启动，监听 `http://127.0.0.1:3001`
-* 开发服务器会把 `/api/*` 请求反向代理到 `http://127.0.0.1:3000`
+* `pnpm dev` 默认以 Next.js 开发模式启动，监听 `http://127.0.0.1:3001`
+* 开发服务器会通过同源代理把 `/api/*` 的 HTTP 与 WebSocket 请求统一转发到 `NEXT_DEV_BACKEND_URL`，默认指向 `http://127.0.0.1:3000`
 * 如需改后端地址，可在启动前设置 `NEXT_DEV_BACKEND_URL`
 * 这种模式用于本地热更新开发；正式运行和交付仍以 `pnpm build` 后由 Go Server 托管为准
 
