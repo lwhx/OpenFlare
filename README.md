@@ -292,6 +292,12 @@ GOCACHE=/tmp/openflare-go-cache go test ./...
 
 登录管理端后，可访问 Swagger UI：`/swagger/index.html`
 
+## 开源协议
+
+本项目采用 [Apache License 2.0](./LICENSE) 开源，并附带仓库级 [NOTICE](./NOTICE)。
+
+这意味着你可以在遵守 Apache 2.0 条款的前提下使用、修改和分发 OpenFlare；如果你分发修改版，请保留许可证、版权声明和必要的 NOTICE 信息。
+
 ## 贡献开发
 
 参与开发前请先阅读：
@@ -306,3 +312,4 @@ GOCACHE=/tmp/openflare-go-cache go test ./...
 * Server 继续保持单体结构，不为简单需求引入额外基础设施
 * 前端统一位于 `openflare_server/web`，请求层统一收敛到 `lib/api/`
 * 新代码默认遵循当前正式基线，不回退到旧版 CRA / Semantic UI 结构
+* 除非贡献说明中另有明确约定，向本仓库提交的代码、文档或其他内容，默认按 Apache License 2.0 授权

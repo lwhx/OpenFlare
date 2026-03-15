@@ -2,6 +2,7 @@
   "name": "openflare-web",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.6.2",
   "scripts": {
     "dev": "NEXT_DEV_BACKEND_URL=${NEXT_DEV_BACKEND_URL:-http://127.0.0.1:3000} node scripts/dev-server.mjs",

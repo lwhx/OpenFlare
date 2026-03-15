@@ -36,6 +36,10 @@ pnpm build
 * `pnpm dev` 会以开发模式启动 `http://127.0.0.1:3001`，并通过同源代理把 `/api/*` 的 HTTP 与 WebSocket 请求统一转发到 `NEXT_DEV_BACKEND_URL`，默认是 `http://127.0.0.1:3000`。
 * `pnpm start` 用于启动已构建产物，对应 Next 生产模式。
 
+## 开源协议
+
+`openflare_server/web` 跟随仓库根目录协议发布，当前采用 Apache License 2.0。
+
 ## 目录约定
 
 * `app/`：路由与布局

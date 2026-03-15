@@ -127,6 +127,18 @@ Current release outputs:
 * Server Docker image: GitHub Container Registry at `ghcr.io/rain-kl/openflare`
 * Agent binaries: GitHub Releases
 
+## License
+
+OpenFlare is licensed under the [Apache License 2.0](./LICENSE) and ships with a repository-level [NOTICE](./NOTICE).
+
+If you redistribute modified versions, keep the license text, copyright notices and any required NOTICE attributions.
+
+## Contributing
+
+Before contributing, please read the project docs listed below.
+
+Unless explicitly stated otherwise, any contribution intentionally submitted for inclusion in this repository is provided under Apache License 2.0.
+
 ## Documentation
 
 See:
