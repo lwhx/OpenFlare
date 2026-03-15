@@ -14,7 +14,7 @@ import type {
 } from '@/features/dashboard/types';
 import { cn } from '@/lib/utils/cn';
 
-type Tone = 'healthy' | 'warning' | 'danger';
+type Tone = 'healthy' | 'warning' | 'danger' | 'source';
 
 const WorldStageMap = dynamic(
   () =>
@@ -61,13 +61,18 @@ function HeroMetric({
       </p>
       <p
         className={cn(
-          'mt-3 text-[30px] font-semibold leading-none',
+          'mt-3 text-[30px] leading-none font-semibold',
           isDark ? 'text-white' : 'text-slate-950',
         )}
       >
         {value}
       </p>
-      <p className={cn('mt-2 text-sm', isDark ? 'text-slate-300' : 'text-slate-600')}>
+      <p
+        className={cn(
+          'mt-2 text-sm',
+          isDark ? 'text-slate-300' : 'text-slate-600',
+        )}
+      >
         {hint}
       </p>
     </div>
@@ -92,65 +97,17 @@ function LegendPill({
         ? isDark
           ? 'border-amber-300/20 bg-amber-400/10 text-amber-100'
           : 'border-amber-200 bg-amber-50 text-amber-700'
-        : isDark
-          ? 'border-rose-300/20 bg-rose-400/10 text-rose-100'
-          : 'border-rose-200 bg-rose-50 text-rose-700';
+        : tone === 'source'
+          ? isDark
+            ? 'border-sky-300/20 bg-sky-400/10 text-sky-100'
+            : 'border-sky-200 bg-sky-50 text-sky-700'
+          : isDark
+            ? 'border-rose-300/20 bg-rose-400/10 text-rose-100'
+            : 'border-rose-200 bg-rose-50 text-rose-700';
 
   return (
     <div className={cn('rounded-full border px-3 py-1 text-[11px]', toneClass)}>
       {label}
-    </div>
-  );
-}
-
-function CountrySignal({
-  item,
-  index,
-  isDark,
-}: {
-  item: DistributionItem;
-  index: number;
-  isDark: boolean;
-}) {
-  const darkAccents = [
-    'from-sky-400/35 to-cyan-400/10',
-    'from-violet-400/35 to-fuchsia-400/10',
-    'from-emerald-400/35 to-teal-400/10',
-  ];
-  const lightAccents = [
-    'from-sky-100 via-white to-cyan-50',
-    'from-indigo-100 via-white to-fuchsia-50',
-    'from-emerald-100 via-white to-teal-50',
-  ];
-
-  return (
-    <div
-      className={cn(
-        'rounded-2xl border bg-gradient-to-br px-4 py-3 backdrop-blur',
-        isDark
-          ? `border-white/10 ${darkAccents[index % darkAccents.length]}`
-          : `border-slate-200/80 ${lightAccents[index % lightAccents.length]} shadow-[0_14px_30px_rgba(148,163,184,0.12)]`,
-      )}
-    >
-      <p
-        className={cn(
-          'text-[11px] tracking-[0.24em] uppercase',
-          isDark ? 'text-slate-200' : 'text-slate-500',
-        )}
-      >
-        {item.key}
-      </p>
-      <p
-        className={cn(
-          'mt-2 text-lg font-semibold',
-          isDark ? 'text-white' : 'text-slate-950',
-        )}
-      >
-        {item.value.toLocaleString('zh-CN')}
-      </p>
-      <p className={cn('mt-1 text-xs', isDark ? 'text-slate-300' : 'text-slate-600')}>
-        最近 24 小时来源信号
-      </p>
     </div>
   );
 }
@@ -235,18 +192,18 @@ export function WorldStage({
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-2">
             <p
-                className={cn(
-                    'text-[11px] tracking-[0.34em] uppercase',
-                    isDark ? 'text-sky-200/80' : 'text-sky-700/80',
-                )}
+              className={cn(
+                'text-[11px] tracking-[0.34em] uppercase',
+                isDark ? 'text-sky-200/80' : 'text-sky-700/80',
+              )}
             >
               Global Stage
             </p>
             <h2
-                className={cn(
-                    'text-2xl font-semibold',
-                    isDark ? 'text-white' : 'text-slate-950',
-                )}
+              className={cn(
+                'text-2xl font-semibold',
+                isDark ? 'text-white' : 'text-slate-950',
+              )}
             >
               全球态势板
             </h2>
@@ -266,18 +223,22 @@ export function WorldStage({
           >
             <div
               className={cn(
-                'absolute left-6 top-6 z-10 rounded-full px-3 py-1 text-[11px] tracking-[0.22em] uppercase backdrop-blur',
+                'absolute top-6 left-6 z-10 rounded-full px-3 py-1 text-[11px] tracking-[0.22em] uppercase backdrop-blur',
                 isDark
                   ? 'bg-sky-400/20 text-sky-100'
                   : 'bg-sky-100/90 text-sky-700',
               )}
             >
-              {geoConfiguredNodes > 0 ? '节点地理坐标' : '节点覆盖信号'}
+              {sourceCountries.length > 0
+                ? '访客来源热度'
+                : geoConfiguredNodes > 0
+                  ? '节点地理坐标'
+                  : '节点覆盖信号'}
             </div>
 
             <div
               className={cn(
-                'absolute left-6 top-16 z-10 rounded-full px-3 py-1 text-[11px] backdrop-blur',
+                'absolute top-16 left-6 z-10 rounded-full px-3 py-1 text-[11px] backdrop-blur',
                 isDark
                   ? 'bg-slate-900/45 text-slate-200'
                   : 'bg-white/85 text-slate-600 shadow-[0_10px_24px_rgba(148,163,184,0.16)]',
@@ -286,19 +247,40 @@ export function WorldStage({
               拖动平移，滚轮缩放
             </div>
 
-            <div className="absolute right-4 top-4 z-10 flex flex-wrap gap-2">
-              <LegendPill label="绿色: 运行正常" tone="healthy" isDark={isDark} />
-              <LegendPill label="黄色: 资源承压" tone="warning" isDark={isDark} />
-              <LegendPill label="红色: 异常待处理" tone="danger" isDark={isDark} />
+            <div className="absolute top-4 right-4 z-10 flex flex-wrap gap-2">
+              <LegendPill
+                label="国家底色: 来源热度"
+                tone="source"
+                isDark={isDark}
+              />
+              <LegendPill
+                label="绿色: 运行正常"
+                tone="healthy"
+                isDark={isDark}
+              />
+              <LegendPill
+                label="黄色: 资源承压"
+                tone="warning"
+                isDark={isDark}
+              />
+              <LegendPill
+                label="红色: 异常待处理"
+                tone="danger"
+                isDark={isDark}
+              />
             </div>
 
             <div
               ref={mapViewportRef}
-              className="absolute inset-x-3 top-16 bottom-28 flex items-center justify-center md:inset-x-4 md:top-18 md:bottom-32"
+              className="absolute inset-x-3 top-16 bottom-6 flex items-center justify-center md:inset-x-4 md:top-18 md:bottom-8"
             >
               <div className="h-full w-full min-w-0 overflow-hidden">
                 {shouldRenderMap ? (
-                  <WorldStageMap isDark={isDark} nodes={nodes} />
+                  <WorldStageMap
+                    isDark={isDark}
+                    nodes={nodes}
+                    sourceCountries={sourceCountries}
+                  />
                 ) : (
                   <div className="flex h-full items-center justify-center">
                     <EmptyState
@@ -311,7 +293,7 @@ export function WorldStage({
             </div>
 
             {shouldRenderMap && nodes.length === 0 ? (
-              <div className="pointer-events-none absolute inset-x-6 bottom-28 z-10">
+              <div className="pointer-events-none absolute inset-x-6 bottom-10 z-10">
                 <div
                   className={cn(
                     'rounded-2xl border border-dashed px-4 py-4 text-sm backdrop-blur',
@@ -324,30 +306,6 @@ export function WorldStage({
                 </div>
               </div>
             ) : null}
-
-            <div className="absolute bottom-6 left-4 right-4 z-10 grid gap-3 md:grid-cols-3">
-              {sourceCountries.length > 0 ? (
-                sourceCountries.slice(0, 3).map((item, index) => (
-                  <CountrySignal
-                    key={`${item.key}-${item.value}`}
-                    item={item}
-                    index={index}
-                    isDark={isDark}
-                  />
-                ))
-              ) : (
-                <div
-                  className={cn(
-                    'rounded-2xl border border-dashed px-4 py-4 text-sm backdrop-blur md:col-span-3',
-                    isDark
-                      ? 'border-white/15 bg-white/5 text-slate-300'
-                      : 'border-slate-300/70 bg-white/78 text-slate-600',
-                  )}
-                >
-                  暂无可用于全球来源展示的国家分布数据。
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
