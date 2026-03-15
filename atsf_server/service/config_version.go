@@ -121,7 +121,7 @@ const (
 	nginxAccessLogPlaceholder           = "__ATSF_ACCESS_LOG__"
 	nginxLuaDirPlaceholder              = "__ATSF_LUA_DIR__"
 	nginxObservabilityListenPlaceholder = "__ATSF_OBSERVABILITY_LISTEN__"
-	nginxObservabilityPortPlaceholder   = "__ATSF_OBSERVABILITY_PORT__"
+	openRestyWebsocketConnectionMapTag  = "{{OpenRestyWebsocketConnectionMap}}"
 )
 
 var requiredMainConfigTemplatePlaceholders = []string{
@@ -643,11 +643,13 @@ func defaultOpenRestyMainConfigTemplate() string {
 }
 
 func renderMainConfigTemplate(templateText string, cfg openRestyConfigSnapshot) string {
+	templateText = ensureWebsocketConnectionMapPlaceholder(templateText)
 	replacer := strings.NewReplacer(
 		"{{OpenRestyWorkerProcesses}}", cfg.WorkerProcesses,
 		"{{OpenRestyWorkerConnections}}", fmt.Sprintf("%d", cfg.WorkerConnections),
 		"{{OpenRestyWorkerRlimitNofile}}", fmt.Sprintf("%d", cfg.WorkerRlimitNofile),
 		"{{OpenRestyAccessLogPath}}", nginxAccessLogPlaceholder,
+		openRestyWebsocketConnectionMapTag, renderWebsocketConnectionMap(cfg.WebsocketEnabled),
 		"{{OpenRestyEventsUseDirective}}", renderTemplateDirective(cfg.EventsUse != "", fmt.Sprintf("use %s;", cfg.EventsUse)),
 		"{{OpenRestyEventsMultiAcceptDirective}}", renderTemplateDirective(cfg.EventsMultiAcceptEnabled, "multi_accept on;"),
 		"{{OpenRestyKeepaliveTimeout}}", fmt.Sprintf("%d", cfg.KeepaliveTimeout),
@@ -679,6 +681,26 @@ func renderTemplateDirective(enabled bool, statement string) string {
 		return ""
 	}
 	return fmt.Sprintf("    %s\n", statement)
+}
+
+func ensureWebsocketConnectionMapPlaceholder(templateText string) string {
+	if strings.Contains(templateText, openRestyWebsocketConnectionMapTag) {
+		return templateText
+	}
+	return strings.Replace(templateText, "{{OpenRestyRouteConfigInclude}}", openRestyWebsocketConnectionMapTag+"    include {{OpenRestyRouteConfigInclude}}", 1)
+}
+
+func renderWebsocketConnectionMap(enabled bool) string {
+	if !enabled {
+		return ""
+	}
+	return stringsJoinLines(
+		"    map $http_upgrade $connection_upgrade {",
+		"        default upgrade;",
+		"        '' close;",
+		"    }",
+		"",
+	)
 }
 
 func renderOpenRestyCacheTemplateBlock(cfg openRestyConfigSnapshot) string {
@@ -769,7 +791,7 @@ func renderProxyHeaderBlock(customHeaders []ProxyRouteCustomHeaderInput) string 
 	if common.OpenRestyWebsocketEnabled {
 		builder.WriteString("        proxy_http_version 1.1;\n")
 		builder.WriteString("        proxy_set_header Upgrade $http_upgrade;\n")
-		builder.WriteString("        proxy_set_header Connection $http_connection;\n")
+		builder.WriteString("        proxy_set_header Connection $connection_upgrade;\n")
 	}
 	for _, header := range customHeaders {
 		builder.WriteString(fmt.Sprintf("        proxy_set_header %s %s;\n", header.Key, quoteNginxHeaderValue(header.Value)))
