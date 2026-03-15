@@ -69,6 +69,9 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, "listen 443 ssl;") {
 		t.Fatal("expected rendered config to include https server block")
 	}
+	if !strings.Contains(result.Version.RenderedConfig, `if ($host != "app.example.com") {`) {
+		t.Fatal("expected rendered config to reject unmatched host headers with 404")
+	}
 	if !strings.Contains(result.Version.RenderedConfig, "return 301 https://$host$request_uri;") {
 		t.Fatal("expected rendered config to include http redirect")
 	}
@@ -308,6 +311,34 @@ func TestPreviewAndDiffConfigVersion(t *testing.T) {
 	}
 	if !foundWebsocket {
 		t.Fatal("expected OpenRestyWebsocketEnabled diff detail")
+	}
+}
+
+func TestRenderConfigRejectsUnknownSubdomainHosts(t *testing.T) {
+	setupServiceTestDB(t)
+
+	_, err := CreateProxyRoute(ProxyRouteInput{
+		Domain:    "git.arctel.net",
+		OriginURL: "http://127.0.0.1:8080",
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyRoute failed: %v", err)
+	}
+
+	preview, err := PreviewConfigVersion()
+	if err != nil {
+		t.Fatalf("PreviewConfigVersion failed: %v", err)
+	}
+
+	if !strings.Contains(preview.RenderedConfig, `server_name git.arctel.net;`) {
+		t.Fatal("expected rendered config to include exact server_name")
+	}
+	if !strings.Contains(preview.RenderedConfig, `if ($host != "git.arctel.net") {`) {
+		t.Fatal("expected rendered config to guard against unknown subdomain host matches")
+	}
+	if !strings.Contains(preview.RenderedConfig, "return 404;") {
+		t.Fatal("expected rendered config to return 404 when host does not exactly match route domain")
 	}
 }
 

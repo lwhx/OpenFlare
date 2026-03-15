@@ -747,17 +747,21 @@ func nextVersionNumber(now time.Time) (string, error) {
 }
 
 func renderHTTPProxyServer(domain string, originURL string, customHeaders []ProxyRouteCustomHeaderInput) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, renderProxyHeaderBlock(customHeaders), originURL)
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, renderExactHostGuard(domain), renderProxyHeaderBlock(customHeaders), originURL)
 }
 
 func renderHTTPRedirectServer(domain string) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    return 301 https://$host$request_uri;\n}\n\n", domain)
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s\n    return 301 https://$host$request_uri;\n}\n\n", domain, renderExactHostGuard(domain))
 }
 
 func renderHTTPSServer(domain string, originURL string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput) string {
 	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
 	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-	return fmt.Sprintf("server {\n    listen 443 ssl;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, certPath, keyPath, renderProxyHeaderBlock(customHeaders), originURL)
+	return fmt.Sprintf("server {\n    listen 443 ssl;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, certPath, keyPath, renderExactHostGuard(domain), renderProxyHeaderBlock(customHeaders), originURL)
+}
+
+func renderExactHostGuard(domain string) string {
+	return fmt.Sprintf("    if ($host != %q) {\n        return 404;\n    }\n", domain)
 }
 
 func renderProxyHeaderBlock(customHeaders []ProxyRouteCustomHeaderInput) string {
