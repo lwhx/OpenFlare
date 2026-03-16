@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"openflare/common"
 	"openflare/model"
 	"sort"
@@ -749,7 +750,7 @@ func nextVersionNumber(now time.Time) (string, error) {
 }
 
 func renderHTTPProxyServer(domain string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, renderExactHostGuard(domain), renderProxyHeaderBlock(originHost, customHeaders), originURL)
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, renderExactHostGuard(domain), renderProxyHeaderBlock(originURL, originHost, customHeaders), originURL)
 }
 
 func renderHTTPRedirectServer(domain string) string {
@@ -759,19 +760,23 @@ func renderHTTPRedirectServer(domain string) string {
 func renderHTTPSServer(domain string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput) string {
 	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
 	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-	return fmt.Sprintf("server {\n    listen 443 ssl;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, certPath, keyPath, renderExactHostGuard(domain), renderProxyHeaderBlock(originHost, customHeaders), originURL)
+	return fmt.Sprintf("server {\n    listen 443 ssl;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s\n    location / {\n%s        proxy_pass %s;\n    }\n}\n\n", domain, certPath, keyPath, renderExactHostGuard(domain), renderProxyHeaderBlock(originURL, originHost, customHeaders), originURL)
 }
 
 func renderExactHostGuard(domain string) string {
 	return fmt.Sprintf("    if ($host != %q) {\n        return 404;\n    }\n", domain)
 }
 
-func renderProxyHeaderBlock(originHost string, customHeaders []ProxyRouteCustomHeaderInput) string {
+func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput) string {
 	var builder strings.Builder
 	if strings.TrimSpace(originHost) != "" {
 		builder.WriteString(fmt.Sprintf("        proxy_set_header Host %s;\n", quoteNginxHeaderValue(originHost)))
 	} else {
 		builder.WriteString("        proxy_set_header Host $host;\n")
+	}
+	if upstreamServerName := resolveUpstreamServerName(originURL, originHost); upstreamServerName != "" {
+		builder.WriteString("        proxy_ssl_server_name on;\n")
+		builder.WriteString(fmt.Sprintf("        proxy_ssl_name %s;\n", quoteNginxHeaderValue(upstreamServerName)))
 	}
 	builder.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
 	builder.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
@@ -788,6 +793,21 @@ func renderProxyHeaderBlock(originHost string, customHeaders []ProxyRouteCustomH
 		builder.WriteString("        proxy_cache openflare_cache;\n")
 	}
 	return builder.String()
+}
+
+func resolveUpstreamServerName(originURL string, originHost string) string {
+	parsed, err := url.Parse(originURL)
+	if err != nil || !strings.EqualFold(parsed.Scheme, "https") {
+		return ""
+	}
+	if strings.TrimSpace(originHost) != "" {
+		parsedHost, err := url.Parse("//" + originHost)
+		if err == nil && parsedHost.Hostname() != "" {
+			return parsedHost.Hostname()
+		}
+		return originHost
+	}
+	return parsed.Hostname()
 }
 
 func quoteNginxHeaderValue(value string) string {

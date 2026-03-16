@@ -160,6 +160,12 @@ func TestPublishConfigVersionOverridesOriginHostHeader(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, `proxy_set_header Host "git.arctel.net";`) {
 		t.Fatal("expected rendered config to override host header for origin routing")
 	}
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_ssl_server_name on;") {
+		t.Fatal("expected rendered config to enable proxy ssl server name for https origin")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, `proxy_ssl_name "git.arctel.net";`) {
+		t.Fatal("expected rendered config to set proxy ssl name from origin host override")
+	}
 	if !strings.Contains(result.Version.SnapshotJSON, `"origin_host":"git.arctel.net"`) {
 		t.Fatal("expected snapshot to include origin_host override")
 	}

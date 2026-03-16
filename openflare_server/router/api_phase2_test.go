@@ -427,6 +427,12 @@ func TestPhase2CustomHeadersPreviewAndDiffLifecycle(t *testing.T) {
 	if !strings.Contains(renderedConfig, `proxy_set_header Host "preview-upstream.internal";`) {
 		t.Fatalf("expected preview endpoint to return overridden host header, got %s", renderedConfig)
 	}
+	if !strings.Contains(renderedConfig, "proxy_ssl_server_name on;") {
+		t.Fatalf("expected preview endpoint to enable proxy ssl server name, got %s", renderedConfig)
+	}
+	if !strings.Contains(renderedConfig, `proxy_ssl_name "preview-upstream.internal";`) {
+		t.Fatalf("expected preview endpoint to return proxy ssl name, got %s", renderedConfig)
+	}
 
 	diffResp := performJSONRequest(t, engine, token, http.MethodGet, "/api/config-versions/diff", nil)
 	var diff map[string]any
