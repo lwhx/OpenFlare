@@ -21,12 +21,7 @@
   <a href="https://github.com/Rain-kl/OpenFlare/pkgs/container/openflare">
     <img src="https://img.shields.io/badge/GHCR-ghcr.io%2Frain--kl%2Fopenflare-brightgreen" alt="ghcr">
   </a>
-  <a href="https://goreportcard.com/report/github.com/Rain-kl/OpenFlare">
-    <img src="https://goreportcard.com/badge/github.com/Rain-kl/OpenFlare" alt="GoReportCard">
-  </a>
 </p>
-
-OpenFlare `1.0.0` 是当前稳定基线。第六版开发工作已经完成，相关能力已并入正式版，仓库文档不再保留阶段性实施记录，而只维护当前有效的设计、约束和部署方式。
 
 ## 为什么存在
 
@@ -38,18 +33,13 @@ OpenFlare 解决的是一类朴素但高频的运维问题：
 * 统一托管证书、域名、节点凭证与版本状态
 * 提供足够实用的总览、节点详情与访问分析能力
 
-它不是 CDN SaaS，也不试图在 1.0 阶段演变成多租户平台、日志平台或通用调度系统。
-
 ## 核心能力
 
-* 配置版本化：支持预览、发布、激活、历史回滚，版本不可变
-* 节点接入：支持全局 `discovery_token` 首次接入，也支持节点专属 `agent_token`
+* 配置版本化：支持预览、发布、激活、历史回滚
 * Agent 自动应用：周期性同步、落盘、`openresty -t`、`openresty -s reload`、失败自动回滚
 * OpenResty 托管：统一管理主配置模板、性能参数、缓存参数与受管路由
 * TLS 与域名管理：支持证书托管、域名资产维护、精确匹配与通配符匹配
 * 访问与节点观测：支持请求窗口聚合、状态码分布、来源分布、节点资源与健康事件展示
-* 版本运维：支持 Server 与 Agent 的正式版升级，以及受控的 preview 检查与手动升级
-* 管理端 UI：基于 Next.js App Router、React 19、Tailwind CSS 4 的正式前端
 
 ## 系统架构
 
@@ -79,11 +69,11 @@ Origin
 
 ![OpenFlare dashboard overview](./docs/assets/readme/dashboard-overview.png)
 
-### 节点详情与安装命令
+### 节点详情
 
 ![OpenFlare node detail](./docs/assets/readme/node-detail.png)
 
-### 配置发布与版本管理
+### 配置新增
 
 ![OpenFlare version release](./docs/assets/readme/version-release.png)
 
@@ -142,7 +132,7 @@ docker compose up -d
 
 ### 2. 接入 Agent
 
-使用 `discovery_token` 首次接入：
+使用 `discovery_token` 接入：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
@@ -195,9 +185,8 @@ go run .
 
 ```bash
 cd openflare_server/web
-corepack enable
 pnpm install
-pnpm build
+pnpm dev
 ```
 
 ### Agent
@@ -205,18 +194,6 @@ pnpm build
 ```bash
 cd openflare_agent
 go run ./cmd/agent -config /path/to/agent.json
-```
-
-### 常用验证命令
-
-```bash
-cd openflare_server
-GOCACHE=/tmp/openflare-go-cache go test ./...
-```
-
-```bash
-cd openflare_agent
-GOCACHE=/tmp/openflare-go-cache go test ./...
 ```
 
 ## 文档导航
