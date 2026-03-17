@@ -133,6 +133,8 @@ docker compose up -d
 
 ### 2. 接入 Agent
 
+**注意:** 安装agent前需确保存已经安装了Docker, 虽然支持裸Openresty,但未得到充分验证,可能存在未知问题.
+
 使用 `discovery_token` 接入：
 
 ```bash
