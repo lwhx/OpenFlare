@@ -78,8 +78,8 @@ const defaultOperationFields = {
   OpenRestyWorkerProcesses: 'auto',
   OpenRestyWorkerConnections: '4096',
   OpenRestyWorkerRlimitNofile: '65535',
-  OpenRestyEventsUse: '',
-  OpenRestyEventsMultiAcceptEnabled: false,
+  OpenRestyEventsUse: 'epoll',
+  OpenRestyEventsMultiAcceptEnabled: true,
   OpenRestyKeepaliveTimeout: '65',
   OpenRestyKeepaliveRequests: '1000',
   OpenRestyClientHeaderTimeout: '15',
@@ -348,10 +348,10 @@ export function SettingsPage() {
         optionMap.OpenRestyWorkerConnections ?? '4096',
       OpenRestyWorkerRlimitNofile:
         optionMap.OpenRestyWorkerRlimitNofile ?? '65535',
-      OpenRestyEventsUse: optionMap.OpenRestyEventsUse ?? '',
+      OpenRestyEventsUse: optionMap.OpenRestyEventsUse ?? 'epoll',
       OpenRestyEventsMultiAcceptEnabled: toBoolean(
         optionMap.OpenRestyEventsMultiAcceptEnabled,
-        false,
+        true,
       ),
       OpenRestyKeepaliveTimeout: optionMap.OpenRestyKeepaliveTimeout ?? '65',
       OpenRestyKeepaliveRequests:

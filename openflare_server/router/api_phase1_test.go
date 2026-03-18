@@ -341,8 +341,8 @@ func TestPhase1HTTPSAndCertificateImportLifecycle(t *testing.T) {
 	if !strings.Contains(version.MainConfig, "include __OPENFLARE_ROUTE_CONFIG__;") {
 		t.Fatal("expected active config to render managed main config")
 	}
-	if !strings.Contains(version.RenderedConfig, "listen 443 ssl http2;") {
-		t.Fatal("expected active config to render https listener with http2 enabled")
+	if !strings.Contains(version.RenderedConfig, "listen 443 ssl http2 reuseport;") {
+		t.Fatal("expected active config to render https listener with http2, reuseport enabled")
 	}
 	if !strings.Contains(version.RenderedConfig, "return 301 https://$host$request_uri;") {
 		t.Fatal("expected active config to render redirect server")

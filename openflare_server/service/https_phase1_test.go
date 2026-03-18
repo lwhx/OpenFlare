@@ -66,11 +66,17 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	if strings.Contains(result.Version.MainConfig, "resolver ") {
 		t.Fatal("expected main config to omit resolver directive when no resolvers are configured")
 	}
+	if !strings.Contains(result.Version.MainConfig, "use epoll;") {
+		t.Fatal("expected main config to default to epoll event model")
+	}
+	if !strings.Contains(result.Version.MainConfig, "multi_accept on;") {
+		t.Fatal("expected main config to default multi_accept to on")
+	}
 	if strings.Contains(result.Version.MainConfig, "allow 127.0.0.1;") {
 		t.Fatal("expected main config to avoid hard-coded allow rules on observability server")
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "listen 443 ssl http2;") {
-		t.Fatal("expected rendered config to include https server block with http2 enabled")
+	if !strings.Contains(result.Version.RenderedConfig, "listen 443 ssl http2 reuseport;") {
+		t.Fatal("expected rendered config to include https server block with http2 and reuseport enabled")
 	}
 	if strings.Contains(result.Version.RenderedConfig, `if ($host != "app.example.com") {`) {
 		t.Fatal("expected rendered config to avoid per-route host guard")

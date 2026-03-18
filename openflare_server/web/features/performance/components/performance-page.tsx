@@ -34,8 +34,8 @@ const defaultPerformanceFields = {
     OpenRestyWorkerProcesses: 'auto',
     OpenRestyWorkerConnections: '4096',
     OpenRestyWorkerRlimitNofile: '65535',
-    OpenRestyEventsUse: '',
-    OpenRestyEventsMultiAcceptEnabled: false,
+    OpenRestyEventsUse: 'epoll',
+    OpenRestyEventsMultiAcceptEnabled: true,
     OpenRestyKeepaliveTimeout: '65',
     OpenRestyKeepaliveRequests: '1000',
     OpenRestyClientHeaderTimeout: '15',
@@ -76,9 +76,9 @@ const performanceFieldTooltips: Record<string, string> = {
     worker_rlimit_nofile:
         '提升 worker 可打开的文件描述符上限，避免高并发下连接或文件句柄不足。',
     events_use:
-        '指定事件驱动模型。Linux 常见是 epoll，留空时由 OpenResty 自动选择。',
+        '指定事件驱动模型。默认使用 epoll，Linux 高并发场景通常优先选择它。',
     multi_accept:
-        '开启后，worker 会尽可能一次接受多个新连接，适合高吞吐接入场景。',
+        '默认开启。worker 会尽可能一次接受多个新连接，适合高吞吐接入场景。',
     keepalive_timeout: '客户端 Keep-Alive 空闲保持时间，单位秒。',
     keepalive_requests: '单个长连接允许复用的最大请求数。',
     client_header_timeout: '读取客户端请求头的超时时间，单位秒。',
@@ -206,10 +206,10 @@ export function PerformancePage() {
                 optionMap.OpenRestyWorkerConnections ?? '4096',
             OpenRestyWorkerRlimitNofile:
                 optionMap.OpenRestyWorkerRlimitNofile ?? '65535',
-            OpenRestyEventsUse: optionMap.OpenRestyEventsUse ?? '',
+            OpenRestyEventsUse: optionMap.OpenRestyEventsUse ?? 'epoll',
             OpenRestyEventsMultiAcceptEnabled: toBoolean(
                 optionMap.OpenRestyEventsMultiAcceptEnabled,
-                false,
+                true,
             ),
             OpenRestyKeepaliveTimeout: optionMap.OpenRestyKeepaliveTimeout ?? '65',
             OpenRestyKeepaliveRequests:
