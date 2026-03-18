@@ -141,8 +141,14 @@ func TestPublishConfigVersionRendersCustomHeaders(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, "proxy_set_header Connection $connection_upgrade;") {
 		t.Fatal("expected rendered config to use normalized websocket connection header")
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass https://origin.internal;") {
-		t.Fatal("expected rendered config to keep direct proxy_pass when no resolvers are configured")
+	if !strings.Contains(result.Version.RenderedConfig, "upstream backend_custom_example_com_1 {") {
+		t.Fatal("expected rendered config to define named upstream for simple origins")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "keepalive 128;") {
+		t.Fatal("expected rendered config to enable upstream keepalive")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass https://backend_custom_example_com_1;") {
+		t.Fatal("expected rendered config to proxy through named upstream when no resolver is required")
 	}
 	if strings.Contains(result.Version.RenderedConfig, "proxy_pass $openflare_upstream$request_uri;") {
 		t.Fatal("expected rendered config to avoid runtime-resolved proxy_pass when no resolvers are configured")
@@ -221,6 +227,9 @@ func TestPublishConfigVersionRendersRouteLevelCachePolicy(t *testing.T) {
 	if strings.Count(result.Version.RenderedConfig, "proxy_cache openflare_cache;") != 1 {
 		t.Fatal("expected only cache-enabled route to include proxy_cache directive")
 	}
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass https://backend_static_example_com_1;") {
+		t.Fatal("expected cache-enabled route to proxy through named upstream")
+	}
 	if !strings.Contains(result.Version.SnapshotJSON, `"cache_enabled":true`) {
 		t.Fatal("expected snapshot to include route cache toggle")
 	}
@@ -255,8 +264,11 @@ func TestPublishConfigVersionOverridesOriginHostHeader(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, `proxy_ssl_name "git.arctel.net";`) {
 		t.Fatal("expected rendered config to set proxy ssl name from origin host override")
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass https://git.arctel.net;") {
-		t.Fatal("expected rendered config to keep direct proxy_pass for hostname origin when resolvers are blank")
+	if !strings.Contains(result.Version.RenderedConfig, "upstream backend_git_arctel_de_1 {") {
+		t.Fatal("expected rendered config to define named upstream for static hostname origins")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass https://backend_git_arctel_de_1;") {
+		t.Fatal("expected rendered config to proxy through named upstream for hostname origin when resolvers are blank")
 	}
 	if !strings.Contains(result.Version.SnapshotJSON, `"origin_host":"git.arctel.net"`) {
 		t.Fatal("expected snapshot to include origin_host override")
@@ -285,6 +297,9 @@ func TestPublishConfigVersionUsesRuntimeResolverWhenConfigured(t *testing.T) {
 	if !strings.Contains(result.Version.MainConfig, "resolver 1.1.1.1 8.8.8.8 valid=30s ipv6=off;") {
 		t.Fatal("expected main config to render configured resolver directive")
 	}
+	if strings.Contains(result.Version.RenderedConfig, "upstream backend_resolver_example_com_1 {") {
+		t.Fatal("expected runtime-resolved origin to avoid named upstream block")
+	}
 	if !strings.Contains(result.Version.RenderedConfig, `set $openflare_upstream "https://origin.internal";`) {
 		t.Fatal("expected rendered config to use runtime upstream variable when resolvers are configured")
 	}
@@ -309,8 +324,11 @@ func TestPublishConfigVersionKeepsDirectProxyPassForIPOrigins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PublishConfigVersion failed: %v", err)
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass http://10.0.0.8:8080;") {
-		t.Fatal("expected rendered config to keep direct proxy_pass for IP origin")
+	if !strings.Contains(result.Version.RenderedConfig, "upstream backend_ip_origin_example_com_1 {") {
+		t.Fatal("expected rendered config to define named upstream for static IP origins")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass http://backend_ip_origin_example_com_1;") {
+		t.Fatal("expected rendered config to proxy through named upstream for IP origin")
 	}
 	if strings.Contains(result.Version.RenderedConfig, `set $openflare_upstream "http://10.0.0.8:8080"`) {
 		t.Fatal("expected rendered config to avoid runtime resolver variables for IP origin")
@@ -341,9 +359,6 @@ func TestPreviewConfigVersionCanDisableWebsocketHeaders(t *testing.T) {
 	}
 	if strings.Contains(preview.RenderedConfig, "proxy_set_header Upgrade $http_upgrade;") {
 		t.Fatal("expected preview config to omit websocket upgrade header when disabled")
-	}
-	if strings.Contains(preview.RenderedConfig, "proxy_set_header Connection $connection_upgrade;") {
-		t.Fatal("expected preview config to omit websocket connection header when disabled")
 	}
 }
 

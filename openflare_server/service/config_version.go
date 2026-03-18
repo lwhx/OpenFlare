@@ -79,6 +79,13 @@ type routeCacheConfig struct {
 	Rules   []string
 }
 
+type routeUpstreamConfig struct {
+	Name              string
+	Scheme            string
+	Address           string
+	UsesNamedUpstream bool
+}
+
 type openRestyConfigSnapshot struct {
 	WorkerProcesses          string `json:"worker_processes"`
 	WorkerConnections        int    `json:"worker_connections"`
@@ -650,8 +657,12 @@ func renderRouteConfig(routes []*model.ProxyRoute, cfg openRestyConfigSnapshot) 
 			Policy:  route.CachePolicy,
 			Rules:   cacheRules,
 		}
+		upstreamConfig := buildRouteUpstreamConfig(route, cfg)
+		if upstreamConfig.UsesNamedUpstream {
+			builder.WriteString(renderNamedUpstreamBlock(upstreamConfig))
+		}
 		if !route.EnableHTTPS {
-			builder.WriteString(renderHTTPProxyServer(route.Domain, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, cfg))
+			builder.WriteString(renderHTTPProxyServer(route.Domain, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, upstreamConfig, cfg))
 			continue
 		}
 		if route.CertID == nil || *route.CertID == 0 {
@@ -668,9 +679,9 @@ func renderRouteConfig(routes []*model.ProxyRoute, cfg openRestyConfigSnapshot) 
 		if route.RedirectHTTP {
 			builder.WriteString(renderHTTPRedirectServer(route.Domain))
 		} else {
-			builder.WriteString(renderHTTPProxyServer(route.Domain, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, cfg))
+			builder.WriteString(renderHTTPProxyServer(route.Domain, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, upstreamConfig, cfg))
 		}
-		builder.WriteString(renderHTTPSServer(route.Domain, route.OriginURL, route.OriginHost, certificate.ID, customHeaders, cacheConfig, cfg))
+		builder.WriteString(renderHTTPSServer(route.Domain, route.OriginURL, route.OriginHost, certificate.ID, customHeaders, cacheConfig, upstreamConfig, cfg))
 	}
 	return builder.String(), dedupeSupportFiles(supportFiles), nil
 }
@@ -807,29 +818,29 @@ func nextVersionNumber(now time.Time) (string, error) {
 	return fmt.Sprintf("%s-%03d", prefix, count+1), nil
 }
 
-func renderHTTPProxyServer(domain string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, cfg openRestyConfigSnapshot) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    location / {\n%s%s%s    }\n}\n\n", domain, renderProxyHeaderBlock(originURL, originHost, customHeaders), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, cfg))
+func renderHTTPProxyServer(domain string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, upstreamConfig routeUpstreamConfig, cfg openRestyConfigSnapshot) string {
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    location / {\n%s%s%s    }\n}\n\n", domain, renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig, cfg))
 }
 
 func renderHTTPRedirectServer(domain string) string {
 	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    return 301 https://$host$request_uri;\n}\n\n", domain)
 }
 
-func renderHTTPSServer(domain string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, cfg openRestyConfigSnapshot) string {
+func renderHTTPSServer(domain string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, upstreamConfig routeUpstreamConfig, cfg openRestyConfigSnapshot) string {
 	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
 	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-	return fmt.Sprintf("server {\n    listen 443 ssl http2;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s%s%s    }\n}\n\n", domain, certPath, keyPath, renderProxyHeaderBlock(originURL, originHost, customHeaders), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, cfg))
+	return fmt.Sprintf("server {\n    listen 443 ssl http2;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s%s%s    }\n}\n\n", domain, certPath, keyPath, renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig, cfg))
 }
 
 func renderConnectionUpgradeMap() string {
-	return "    map $http_upgrade $connection_upgrade {\n        default upgrade;\n        ''      close;\n    }\n\n"
+	return "    map $http_upgrade $connection_upgrade {\n        default upgrade;\n        ''      \"\";\n    }\n\n"
 }
 
 func renderDefaultServerBlock() string {
 	return "    server {\n        listen 80 default_server;\n        server_name _;\n\n        return 404;\n    }\n\n"
 }
 
-func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput) string {
+func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, upstreamConfig routeUpstreamConfig) string {
 	var builder strings.Builder
 	if strings.TrimSpace(originHost) != "" {
 		builder.WriteString(fmt.Sprintf("        proxy_set_header Host %s;\n", quoteNginxHeaderValue(originHost)))
@@ -843,10 +854,12 @@ func renderProxyHeaderBlock(originURL string, originHost string, customHeaders [
 	builder.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
 	builder.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
 	builder.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")
-	if common.OpenRestyWebsocketEnabled {
+	if common.OpenRestyWebsocketEnabled || upstreamConfig.UsesNamedUpstream {
 		builder.WriteString("        proxy_http_version 1.1;\n")
-		builder.WriteString("        proxy_set_header Upgrade $http_upgrade;\n")
 		builder.WriteString("        proxy_set_header Connection $connection_upgrade;\n")
+	}
+	if common.OpenRestyWebsocketEnabled {
+		builder.WriteString("        proxy_set_header Upgrade $http_upgrade;\n")
 	}
 	for _, header := range customHeaders {
 		builder.WriteString(fmt.Sprintf("        proxy_set_header %s %s;\n", header.Key, quoteNginxHeaderValue(header.Value)))
@@ -919,10 +932,13 @@ func buildPathExactMatchPattern(rules []string) string {
 	return fmt.Sprintf("^(?:%s)$", strings.Join(parts, "|"))
 }
 
-func renderProxyPassBlock(originURL string, cfg openRestyConfigSnapshot) string {
+func renderProxyPassBlock(originURL string, upstreamConfig routeUpstreamConfig, cfg openRestyConfigSnapshot) string {
 	parsed, err := url.Parse(originURL)
 	if err != nil || parsed.Host == "" || parsed.Scheme == "" {
 		return fmt.Sprintf("        proxy_pass %s;\n", originURL)
+	}
+	if upstreamConfig.UsesNamedUpstream {
+		return fmt.Sprintf("        proxy_pass %s://%s;\n", upstreamConfig.Scheme, upstreamConfig.Name)
 	}
 	if !shouldUseRuntimeResolver(originURL, cfg.Resolvers) {
 		return fmt.Sprintf("        proxy_pass %s;\n", originURL)
@@ -947,6 +963,52 @@ func renderProxyPassBlock(originURL string, cfg openRestyConfigSnapshot) string 
 	}
 	builder.WriteString("        proxy_pass $openflare_upstream$request_uri;\n")
 	return builder.String()
+}
+
+func buildRouteUpstreamConfig(route *model.ProxyRoute, cfg openRestyConfigSnapshot) routeUpstreamConfig {
+	parsed, err := url.Parse(strings.TrimSpace(route.OriginURL))
+	if err != nil || parsed.Host == "" || parsed.Scheme == "" {
+		return routeUpstreamConfig{}
+	}
+	if shouldUseRuntimeResolver(route.OriginURL, cfg.Resolvers) {
+		return routeUpstreamConfig{}
+	}
+	if strings.TrimSpace(parsed.EscapedPath()) != "" && strings.TrimSpace(parsed.EscapedPath()) != "/" {
+		return routeUpstreamConfig{}
+	}
+	if parsed.RawQuery != "" {
+		return routeUpstreamConfig{}
+	}
+	return routeUpstreamConfig{
+		Name:              buildRouteUpstreamName(route),
+		Scheme:            parsed.Scheme,
+		Address:           parsed.Host,
+		UsesNamedUpstream: true,
+	}
+}
+
+func buildRouteUpstreamName(route *model.ProxyRoute) string {
+	sanitized := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r + ('a' - 'A')
+		case r >= '0' && r <= '9':
+			return r
+		default:
+			return '_'
+		}
+	}, route.Domain)
+	sanitized = strings.Trim(sanitized, "_")
+	if sanitized == "" {
+		sanitized = "backend"
+	}
+	return fmt.Sprintf("backend_%s_%d", sanitized, route.ID)
+}
+
+func renderNamedUpstreamBlock(upstreamConfig routeUpstreamConfig) string {
+	return fmt.Sprintf("upstream %s {\n    server %s max_fails=3 fail_timeout=10s;\n    keepalive 128;\n}\n\n", upstreamConfig.Name, upstreamConfig.Address)
 }
 
 func shouldUseRuntimeResolver(originURL string, resolvers string) bool {
