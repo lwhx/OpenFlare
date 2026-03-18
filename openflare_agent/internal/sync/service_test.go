@@ -24,7 +24,7 @@ type fakeClient struct {
 }
 
 type fakeManager struct {
-	applyErr           error
+	applyOutcome       nginx.ApplyOutcome
 	currentChecksum    string
 	currentChecksumErr error
 	ensureErr          error
@@ -64,11 +64,14 @@ func (f *fakeClient) ReportApplyLog(ctx context.Context, payload protocol.ApplyL
 	return nil
 }
 
-func (m *fakeManager) Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) error {
+func (m *fakeManager) Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) nginx.ApplyOutcome {
 	m.applyMainContents = append(m.applyMainContents, mainConfig)
 	m.applyRouteContents = append(m.applyRouteContents, routeConfig)
 	m.applyFiles = append(m.applyFiles, append([]protocol.SupportFile(nil), supportFiles...))
-	return m.applyErr
+	if m.applyOutcome.Status == "" {
+		return nginx.ApplyOutcome{Status: nginx.ApplyStatusSuccess}
+	}
+	return m.applyOutcome
 }
 
 func (m *fakeManager) EnsureRuntime(ctx context.Context, recreate bool) error {
@@ -166,17 +169,7 @@ func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 		},
 	}
 
-	tempDir := t.TempDir()
-	mainPath := filepath.Join(tempDir, "nginx.conf")
-	routePath := filepath.Join(tempDir, "routes.conf")
-	if err := os.WriteFile(mainPath, []byte("worker_processes auto;"), 0o644); err != nil {
-		t.Fatalf("failed to seed main file: %v", err)
-	}
-	if err := os.WriteFile(routePath, []byte("server { listen 80; }"), 0o644); err != nil {
-		t.Fatalf("failed to seed route file: %v", err)
-	}
-
-	stateStore := state.NewStore(filepath.Join(tempDir, "state.json"))
+	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
 	nodeID, err := stateStore.EnsureNodeID()
 	if err != nil {
 		t.Fatalf("EnsureNodeID failed: %v", err)
@@ -189,11 +182,10 @@ func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 		t.Fatalf("failed to seed state: %v", err)
 	}
 
-	service := New(client, &nginx.Manager{
-		MainConfigPath:  mainPath,
-		RouteConfigPath: routePath,
-		Executor: &fakeExecutor{
-			testErr: context.DeadlineExceeded,
+	service := New(client, &fakeManager{
+		applyOutcome: nginx.ApplyOutcome{
+			Status:  nginx.ApplyStatusFatal,
+			Message: "openresty failed after rollback",
 		},
 	}, stateStore)
 
@@ -202,22 +194,7 @@ func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 		Checksum: client.config.Checksum,
 	})
 	if err == nil {
-		t.Fatal("expected SyncOnce to fail when nginx test fails")
-	}
-
-	data, readErr := os.ReadFile(routePath)
-	if readErr != nil {
-		t.Fatalf("failed to read route file after rollback: %v", readErr)
-	}
-	if string(data) != "server { listen 80; }" {
-		t.Fatal("expected original route config to be restored after rollback")
-	}
-	mainData, readErr := os.ReadFile(mainPath)
-	if readErr != nil {
-		t.Fatalf("failed to read main file after rollback: %v", readErr)
-	}
-	if string(mainData) != "worker_processes auto;" {
-		t.Fatal("expected original main config to be restored after rollback")
+		t.Fatal("expected SyncOnce to fail when apply outcome is fatal")
 	}
 	snapshot, loadErr := stateStore.Load()
 	if loadErr != nil {
@@ -225,6 +202,9 @@ func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 	}
 	if snapshot.CurrentVersion != "20260309-001" {
 		t.Fatal("expected failed sync not to overwrite current version")
+	}
+	if snapshot.OpenrestyStatus != protocol.OpenrestyStatusUnhealthy {
+		t.Fatalf("expected unhealthy openresty status, got %q", snapshot.OpenrestyStatus)
 	}
 	if len(client.reports) != 1 || client.reports[0].Result != ApplyResultFailed {
 		t.Fatal("expected failed apply report to be sent")
@@ -237,6 +217,64 @@ func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 	}
 	if client.reports[0].SupportFileCount != 1 {
 		t.Fatalf("expected failed report to include support file count, got %d", client.reports[0].SupportFileCount)
+	}
+}
+
+func TestSyncOnceReportsWarningWhenRollbackKeepsOpenrestyHealthy(t *testing.T) {
+	client := &fakeClient{
+		config: protocol.ActiveConfigResponse{
+			Version:        "20260309-002",
+			Checksum:       "checksum-2",
+			MainConfig:     "worker_processes 2;",
+			RouteConfig:    "server { listen 81; }",
+			RenderedConfig: "server { listen 81; }",
+			SupportFiles:   []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
+			CreatedAt:      time.Now().Format(time.RFC3339),
+		},
+	}
+
+	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	nodeID, err := stateStore.EnsureNodeID()
+	if err != nil {
+		t.Fatalf("EnsureNodeID failed: %v", err)
+	}
+	if err = stateStore.Save(&state.Snapshot{
+		NodeID:          nodeID,
+		CurrentVersion:  "20260309-001",
+		CurrentChecksum: "checksum-1",
+	}); err != nil {
+		t.Fatalf("failed to seed state: %v", err)
+	}
+
+	service := New(client, &fakeManager{
+		applyOutcome: nginx.ApplyOutcome{
+			Status:  nginx.ApplyStatusWarning,
+			Message: "apply failed, rolled back to previous config",
+		},
+	}, stateStore)
+
+	if err = service.SyncOnce(context.Background(), &protocol.ActiveConfigMeta{
+		Version:  client.config.Version,
+		Checksum: client.config.Checksum,
+	}); err != nil {
+		t.Fatalf("expected warning outcome to keep sync successful, got %v", err)
+	}
+
+	snapshot, err := stateStore.Load()
+	if err != nil {
+		t.Fatalf("failed to load state: %v", err)
+	}
+	if snapshot.CurrentVersion != "20260309-001" || snapshot.CurrentChecksum != "checksum-1" {
+		t.Fatal("expected warning apply to keep previous version state")
+	}
+	if snapshot.OpenrestyStatus != protocol.OpenrestyStatusHealthy {
+		t.Fatalf("expected healthy openresty after rollback, got %q", snapshot.OpenrestyStatus)
+	}
+	if snapshot.LastError == "" {
+		t.Fatal("expected rollback warning to be recorded")
+	}
+	if len(client.reports) != 1 || client.reports[0].Result != ApplyResultWarning {
+		t.Fatal("expected warning apply report to be sent")
 	}
 }
 

@@ -23,7 +23,7 @@ export interface NodeItem {
   current_version: string;
   last_seen_at: string;
   last_error: string;
-  latest_apply_result: 'success' | 'failed' | '';
+  latest_apply_result: 'success' | 'warning' | 'failed' | '';
   latest_apply_message: string;
   latest_apply_checksum: string;
   latest_main_config_checksum: string;

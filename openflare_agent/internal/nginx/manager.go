@@ -138,6 +138,13 @@ func (e *DockerExecutor) Reload(ctx context.Context) error {
 	}
 	output, err = e.Runner.Run(ctx, e.DockerBinary, "exec", e.ContainerName, dockerRuntimeCommand, "-s", "reload")
 	if err != nil {
+		if e.shouldRecreateAfterReloadFailure(string(output)) {
+			slog.Warn("docker openresty reload failed due to missing mounted files, recreating container", "container", e.ContainerName)
+			if recreateErr := e.EnsureRuntime(ctx, true); recreateErr != nil {
+				return fmt.Errorf("docker exec %s reload failed: %w: %s; recreate failed: %v", dockerRuntimeCommand, err, string(output), recreateErr)
+			}
+			return nil
+		}
 		return fmt.Errorf("docker exec %s reload failed: %w: %s", dockerRuntimeCommand, err, string(output))
 	}
 	return nil
@@ -216,6 +223,9 @@ func (e *DockerExecutor) runContainer(ctx context.Context) error {
 	if runErr != nil {
 		return fmt.Errorf("docker run openresty failed: %w: %s", runErr, string(runOutput))
 	}
+	if err := e.CheckHealth(ctx); err != nil {
+		return err
+	}
 	slog.Info("docker openresty container started", "container", e.ContainerName)
 	return nil
 }
@@ -234,6 +244,28 @@ func (e *DockerExecutor) validateMountSources() error {
 		return err
 	}
 	return nil
+}
+
+func (e *DockerExecutor) shouldRecreateAfterReloadFailure(output string) bool {
+	text := strings.ToLower(strings.TrimSpace(output))
+	if text == "" {
+		return false
+	}
+	if !strings.Contains(text, "no such file") && !strings.Contains(text, "cannot load certificate") {
+		return false
+	}
+	paths := []string{
+		strings.ToLower(e.NginxCertDir),
+		strings.ToLower(e.NginxLuaDir),
+		strings.ToLower(DockerMainConfigPath),
+		strings.ToLower("/etc/nginx/conf.d"),
+	}
+	for _, path := range paths {
+		if strings.TrimSpace(path) != "" && strings.Contains(text, path) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *DockerExecutor) containerNotRunningError(ctx context.Context) error {
@@ -326,41 +358,87 @@ type Manager struct {
 	Executor                     Executor
 }
 
-func (m *Manager) Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) error {
+type ApplyStatus string
+
+const (
+	ApplyStatusSuccess ApplyStatus = "success"
+	ApplyStatusWarning ApplyStatus = "warning"
+	ApplyStatusFatal   ApplyStatus = "fatal"
+)
+
+type ApplyOutcome struct {
+	Status  ApplyStatus
+	Message string
+}
+
+func (m *Manager) Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) ApplyOutcome {
 	slog.Info("openresty apply started", "main_config", m.MainConfigPath, "route_config", m.RouteConfigPath, "cert_files", len(supportFiles))
 	backup, err := m.backup()
 	if err != nil {
+		return fatalApplyOutcome(fmt.Errorf("backup openresty config failed: %w", err))
+	}
+	if err = m.writeTargetFiles(mainConfig, routeConfig, supportFiles); err != nil {
+		return m.rollbackAfterFailedApply(ctx, backup, fmt.Errorf("write openresty config failed: %w", err))
+	}
+	if err = m.activateConfig(ctx); err != nil {
+		return m.rollbackAfterFailedApply(ctx, backup, fmt.Errorf("activate openresty runtime failed: %w", err))
+	}
+	slog.Info("openresty apply completed successfully", "main_config", m.MainConfigPath, "route_config", m.RouteConfigPath)
+	return ApplyOutcome{Status: ApplyStatusSuccess}
+}
+
+func (m *Manager) writeTargetFiles(mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) error {
+	if err := m.EnsureLuaAssets(); err != nil {
 		return err
 	}
-	if err = m.EnsureLuaAssets(); err != nil {
-		slog.Error("writing lua assets failed, restoring backup", "error", err)
-		_ = m.restore(backup)
-		return err
-	}
-	if err = m.writeCertFiles(supportFiles); err != nil {
-		slog.Error("writing cert files failed, restoring backup", "error", err)
-		_ = m.restore(backup)
+	if err := m.writeCertFiles(supportFiles); err != nil {
 		return err
 	}
 	renderedMainConfig := m.renderMainConfig(mainConfig)
-	if err = os.WriteFile(m.MainConfigPath, []byte(renderedMainConfig), 0o644); err != nil {
-		slog.Error("writing openresty main config failed, restoring backup", "error", err)
-		_ = m.restore(backup)
+	if err := os.WriteFile(m.MainConfigPath, []byte(renderedMainConfig), 0o644); err != nil {
 		return err
 	}
 	renderedRouteConfig := m.renderRouteConfig(routeConfig)
-	if err = os.WriteFile(m.RouteConfigPath, []byte(renderedRouteConfig), 0o644); err != nil {
-		slog.Error("writing openresty route config failed, restoring backup", "error", err)
-		_ = m.restore(backup)
+	if err := os.WriteFile(m.RouteConfigPath, []byte(renderedRouteConfig), 0o644); err != nil {
 		return err
 	}
-	if err = m.Executor.Reload(ctx); err != nil {
-		slog.Error("openresty reload failed after config write, restoring backup", "error", err)
-		_ = m.restore(backup)
-		return err
-	}
-	slog.Info("openresty apply completed successfully", "main_config", m.MainConfigPath, "route_config", m.RouteConfigPath)
 	return nil
+}
+
+func (m *Manager) activateConfig(ctx context.Context) error {
+	if m.Executor == nil {
+		return errors.New("executor 未配置")
+	}
+	if _, ok := m.Executor.(*DockerExecutor); ok {
+		return m.Executor.EnsureRuntime(ctx, true)
+	}
+	return m.Executor.Reload(ctx)
+}
+
+func (m *Manager) rollbackAfterFailedApply(ctx context.Context, backup *backupState, applyErr error) ApplyOutcome {
+	slog.Warn("openresty apply failed, restoring previous config", "error", applyErr)
+	if err := m.restore(backup); err != nil {
+		return fatalApplyOutcome(fmt.Errorf("restore openresty backup failed after apply error %v: %w", applyErr, err))
+	}
+	if err := m.activateConfig(ctx); err != nil {
+		return fatalApplyOutcome(fmt.Errorf("apply failed: %v; rollback recovery failed: %w", applyErr, err))
+	}
+	message := fmt.Sprintf("apply failed, rolled back to previous config: %v", applyErr)
+	slog.Warn("openresty apply rolled back successfully", "message", message)
+	return ApplyOutcome{
+		Status:  ApplyStatusWarning,
+		Message: message,
+	}
+}
+
+func fatalApplyOutcome(err error) ApplyOutcome {
+	if err == nil {
+		return ApplyOutcome{Status: ApplyStatusFatal}
+	}
+	return ApplyOutcome{
+		Status:  ApplyStatusFatal,
+		Message: strings.TrimSpace(err.Error()),
+	}
 }
 
 func (m *Manager) EnsureLuaAssets() error {

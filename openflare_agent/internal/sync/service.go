@@ -4,15 +4,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"strings"
 
+	"openflare-agent/internal/nginx"
 	"openflare-agent/internal/protocol"
 	"openflare-agent/internal/state"
 )
 
 const (
 	ApplyResultSuccess = "success"
+	ApplyResultWarning = "warning"
 	ApplyResultFailed  = "failed"
 )
 
@@ -22,7 +25,7 @@ type ConfigClient interface {
 }
 
 type NginxManager interface {
-	Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) error
+	Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) nginx.ApplyOutcome
 	EnsureRuntime(ctx context.Context, recreate bool) error
 	CurrentChecksum() (string, error)
 }
@@ -154,53 +157,77 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 	mainConfigChecksum := checksumString(config.MainConfig)
 	routeConfigChecksum := checksumString(routeConfig)
 	slog.Info("applying new openresty config", "mode", mode, "from_version", snapshot.CurrentVersion, "to_version", config.Version, "old_checksum", currentChecksum, "new_checksum", config.Checksum)
-	if err := s.nginxManager.Apply(ctx, config.MainConfig, routeConfig, config.SupportFiles); err != nil {
-		slog.Error("apply openresty config failed", "mode", mode, "version", config.Version, "error", err)
-		snapshot.LastError = err.Error()
-		snapshot.OpenrestyStatus = protocol.OpenrestyStatusUnhealthy
-		snapshot.OpenrestyMessage = err.Error()
-		_ = s.stateStore.Save(snapshot)
-		reportErr := s.client.ReportApplyLog(ctx, protocol.ApplyLogPayload{
-			NodeID:              snapshot.NodeID,
-			Version:             config.Version,
-			Result:              ApplyResultFailed,
-			Message:             err.Error(),
-			Checksum:            config.Checksum,
-			MainConfigChecksum:  mainConfigChecksum,
-			RouteConfigChecksum: routeConfigChecksum,
-			SupportFileCount:    len(config.SupportFiles),
-		})
-		if reportErr != nil {
-			slog.Error("report failed apply log failed", "version", config.Version, "error", reportErr)
-			return reportErr
+	outcome := s.nginxManager.Apply(ctx, config.MainConfig, routeConfig, config.SupportFiles)
+	message := strings.TrimSpace(outcome.Message)
+	if outcome.Status == "" {
+		outcome.Status = nginx.ApplyStatusFatal
+		if message == "" {
+			message = "openresty apply returned empty outcome"
 		}
-		slog.Warn("failed apply log reported", "version", config.Version)
-		return err
 	}
-	slog.Info("openresty config applied successfully", "mode", mode, "version", config.Version)
-	snapshot.CurrentVersion = config.Version
-	snapshot.CurrentChecksum = config.Checksum
-	snapshot.LastError = ""
-	snapshot.OpenrestyStatus = protocol.OpenrestyStatusHealthy
-	snapshot.OpenrestyMessage = ""
+
+	reportResult := ApplyResultFailed
+	switch outcome.Status {
+	case nginx.ApplyStatusSuccess:
+		slog.Info("openresty config applied successfully", "mode", mode, "version", config.Version)
+		snapshot.CurrentVersion = config.Version
+		snapshot.CurrentChecksum = config.Checksum
+		snapshot.LastError = ""
+		snapshot.OpenrestyStatus = protocol.OpenrestyStatusHealthy
+		snapshot.OpenrestyMessage = ""
+		reportResult = ApplyResultSuccess
+		if message == "" {
+			message = "apply success"
+		}
+	case nginx.ApplyStatusWarning:
+		if message == "" {
+			message = "apply rolled back to previous config"
+		}
+		slog.Warn("openresty config apply rolled back", "mode", mode, "version", config.Version, "message", message)
+		snapshot.LastError = message
+		snapshot.OpenrestyStatus = protocol.OpenrestyStatusHealthy
+		snapshot.OpenrestyMessage = message
+		reportResult = ApplyResultWarning
+	default:
+		if message == "" {
+			message = "openresty apply failed"
+		}
+		slog.Error("apply openresty config failed", "mode", mode, "version", config.Version, "message", message)
+		snapshot.LastError = message
+		snapshot.OpenrestyStatus = protocol.OpenrestyStatusUnhealthy
+		snapshot.OpenrestyMessage = message
+	}
+
 	if err := s.stateStore.Save(snapshot); err != nil {
 		return err
 	}
 	if err := s.client.ReportApplyLog(ctx, protocol.ApplyLogPayload{
 		NodeID:              snapshot.NodeID,
 		Version:             config.Version,
-		Result:              ApplyResultSuccess,
-		Message:             "apply success",
+		Result:              reportResult,
+		Message:             message,
 		Checksum:            config.Checksum,
 		MainConfigChecksum:  mainConfigChecksum,
 		RouteConfigChecksum: routeConfigChecksum,
 		SupportFileCount:    len(config.SupportFiles),
 	}); err != nil {
-		slog.Error("report successful apply log failed", "version", config.Version, "error", err)
+		slog.Error("report apply log failed", "version", config.Version, "result", reportResult, "error", err)
 		return err
 	}
-	slog.Debug("successful apply log reported", "version", config.Version)
+	if reportResult == ApplyResultFailed {
+		slog.Warn("failed apply log reported", "version", config.Version)
+		return outcomeError(config.Version, message)
+	}
+	slog.Debug("apply log reported", "version", config.Version, "result", reportResult)
 	return nil
+}
+
+func outcomeError(version string, message string) error {
+	trimmed := strings.TrimSpace(message)
+	if trimmed == "" {
+		trimmed = "openresty apply failed"
+	}
+	return fmt.Errorf("apply version %s failed: %s", version, trimmed)
 }
 
 func checksumString(content string) string {

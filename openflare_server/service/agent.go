@@ -17,6 +17,7 @@ const (
 	NodeStatusOffline        = "offline"
 	NodeStatusPending        = "pending"
 	ApplyResultOK            = "success"
+	ApplyResultWarning       = "warning"
 	ApplyResultFailed        = "failed"
 	OpenrestyStatusHealthy   = "healthy"
 	OpenrestyStatusUnhealthy = "unhealthy"
@@ -234,8 +235,8 @@ func ReportApplyLog(payload ApplyLogPayload) (*model.ApplyLog, error) {
 	if payload.Version == "" {
 		return nil, errors.New("version 不能为空")
 	}
-	if payload.Result != ApplyResultOK && payload.Result != ApplyResultFailed {
-		return nil, errors.New("result 仅支持 success 或 failed")
+	if payload.Result != ApplyResultOK && payload.Result != ApplyResultWarning && payload.Result != ApplyResultFailed {
+		return nil, errors.New("result 仅支持 success、warning 或 failed")
 	}
 	slog.Debug("agent apply log received", "node_id", payload.NodeID, "version", payload.Version, "result", payload.Result)
 
@@ -273,6 +274,8 @@ func ReportApplyLog(payload ApplyLogPayload) (*model.ApplyLog, error) {
 	}
 	if payload.Result == ApplyResultOK {
 		slog.Debug("agent apply reported success", "node_id", payload.NodeID, "version", payload.Version)
+	} else if payload.Result == ApplyResultWarning {
+		slog.Warn("agent apply reported warning", "node_id", payload.NodeID, "version", payload.Version, "message", payload.Message)
 	} else {
 		slog.Error("agent apply reported failure", "node_id", payload.NodeID, "version", payload.Version, "message", payload.Message)
 	}

@@ -31,6 +31,10 @@ function getResultMeta(result: string) {
     return { label: '成功', variant: 'success' as const };
   }
 
+  if (result === 'warning') {
+    return { label: '警告', variant: 'warning' as const };
+  }
+
   return { label: '失败', variant: 'danger' as const };
 }
 

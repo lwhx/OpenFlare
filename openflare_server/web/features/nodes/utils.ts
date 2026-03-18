@@ -33,6 +33,10 @@ export function getApplyVariant(result: NodeItem['latest_apply_result']) {
     return 'success';
   }
 
+  if (result === 'warning') {
+    return 'warning';
+  }
+
   if (result === 'failed') {
     return 'danger';
   }
@@ -43,6 +47,10 @@ export function getApplyVariant(result: NodeItem['latest_apply_result']) {
 export function getApplyLabel(result: NodeItem['latest_apply_result']) {
   if (result === 'success') {
     return '成功';
+  }
+
+  if (result === 'warning') {
+    return '警告';
   }
 
   if (result === 'failed') {

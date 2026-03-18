@@ -28,6 +28,11 @@ type fakeExecutor struct {
 	reloadErr error
 }
 
+type scriptedExecutor struct {
+	reloadErrors []error
+	reloadCalls  int
+}
+
 func (r *fakeRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	r.calls = append(r.calls, runCall{name: name, args: append([]string{}, args...)})
 	if r.runFn != nil {
@@ -54,6 +59,31 @@ func (e *fakeExecutor) CheckHealth(ctx context.Context) error {
 
 func (e *fakeExecutor) Restart(ctx context.Context) error {
 	return e.reloadErr
+}
+
+func (e *scriptedExecutor) Test(ctx context.Context) error {
+	return nil
+}
+
+func (e *scriptedExecutor) Reload(ctx context.Context) error {
+	index := e.reloadCalls
+	e.reloadCalls++
+	if index >= len(e.reloadErrors) {
+		return nil
+	}
+	return e.reloadErrors[index]
+}
+
+func (e *scriptedExecutor) EnsureRuntime(ctx context.Context, recreate bool) error {
+	return nil
+}
+
+func (e *scriptedExecutor) CheckHealth(ctx context.Context) error {
+	return nil
+}
+
+func (e *scriptedExecutor) Restart(ctx context.Context) error {
+	return nil
 }
 
 func TestPathExecutorCommands(t *testing.T) {
@@ -209,10 +239,15 @@ func TestDockerExecutorStartsContainerWhenMissing(t *testing.T) {
 
 func TestDockerExecutorStartsStoppedContainer(t *testing.T) {
 	mainConfigPath, routeConfigDir, certDir, luaDir := prepareDockerMountSources(t)
+	inspectCalls := 0
 	runner := &fakeRunner{
 		runFn: func(name string, args ...string) ([]byte, error) {
 			if len(args) >= 2 && args[0] == "inspect" {
-				return []byte("false"), nil
+				inspectCalls++
+				if inspectCalls < 3 {
+					return []byte("false"), nil
+				}
+				return []byte("true"), nil
 			}
 			return []byte("ok"), nil
 		},
@@ -234,8 +269,8 @@ func TestDockerExecutorStartsStoppedContainer(t *testing.T) {
 		t.Fatalf("Reload failed: %v", err)
 	}
 
-	if len(runner.calls) != 4 {
-		t.Fatalf("expected 4 calls, got %d", len(runner.calls))
+	if len(runner.calls) != 5 {
+		t.Fatalf("expected 5 calls, got %d", len(runner.calls))
 	}
 	if runner.calls[0].args[0] != "inspect" {
 		t.Fatalf("expected docker inspect on first call, got %#v", runner.calls[0])
@@ -248,6 +283,9 @@ func TestDockerExecutorStartsStoppedContainer(t *testing.T) {
 	}
 	if runner.calls[3].args[0] != "run" {
 		t.Fatalf("expected docker run on fourth call, got %#v", runner.calls[3])
+	}
+	if runner.calls[4].args[0] != "inspect" {
+		t.Fatalf("expected docker inspect after run, got %#v", runner.calls[4])
 	}
 }
 
@@ -287,9 +325,55 @@ func TestDockerExecutorReloadsRunningContainerInPlace(t *testing.T) {
 	}
 }
 
+func TestDockerExecutorReloadRecreatesContainerWhenMountedCertMissing(t *testing.T) {
+	mainConfigPath, routeConfigDir, certDir, luaDir := prepareDockerMountSources(t)
+	runner := &fakeRunner{
+		runFn: func(name string, args ...string) ([]byte, error) {
+			if len(args) >= 1 && args[0] == "inspect" {
+				return []byte("true"), nil
+			}
+			if len(args) >= 2 && args[0] == "exec" {
+				return []byte(`nginx: [emerg] cannot load certificate "/etc/nginx/openflare-certs/1.crt": BIO_new_file() failed (SSL: error:80000002:system library::No such file or directory)`), errors.New("exit status 1")
+			}
+			return []byte("ok"), nil
+		},
+	}
+	executor := &DockerExecutor{
+		DockerBinary:               "docker",
+		ContainerName:              "openflare-openresty",
+		Image:                      "openresty/openresty:alpine",
+		MainConfigPath:             mainConfigPath,
+		RouteConfigDir:             routeConfigDir,
+		CertDir:                    certDir,
+		NginxCertDir:               "/etc/nginx/openflare-certs",
+		LuaDir:                     luaDir,
+		NginxLuaDir:                "/etc/nginx/openflare-lua",
+		OpenrestyObservabilityPort: 18081,
+		Runner:                     runner,
+	}
+
+	if err := executor.Reload(context.Background()); err != nil {
+		t.Fatalf("Reload failed: %v", err)
+	}
+
+	if len(runner.calls) != 6 {
+		t.Fatalf("expected 6 calls, got %d", len(runner.calls))
+	}
+	if runner.calls[2].args[0] != "inspect" || runner.calls[3].args[0] != "rm" || runner.calls[4].args[0] != "run" || runner.calls[5].args[0] != "inspect" {
+		t.Fatalf("expected recreate after reload failure, got %#v", runner.calls)
+	}
+}
+
 func TestDockerExecutorRunContainerMountsManagedFiles(t *testing.T) {
 	mainConfigPath, routeConfigDir, certDir, luaDir := prepareDockerMountSources(t)
-	runner := &fakeRunner{}
+	runner := &fakeRunner{
+		runFn: func(name string, args ...string) ([]byte, error) {
+			if len(args) >= 1 && args[0] == "inspect" {
+				return []byte("true"), nil
+			}
+			return []byte("ok"), nil
+		},
+	}
 	executor := &DockerExecutor{
 		DockerBinary:               "docker",
 		ContainerName:              "openflare-openresty",
@@ -308,8 +392,8 @@ func TestDockerExecutorRunContainerMountsManagedFiles(t *testing.T) {
 		t.Fatalf("runContainer failed: %v", err)
 	}
 
-	if len(runner.calls) != 1 {
-		t.Fatalf("expected one docker run call, got %d", len(runner.calls))
+	if len(runner.calls) != 2 {
+		t.Fatalf("expected docker run plus health check, got %d calls", len(runner.calls))
 	}
 
 	expectedArgs := []string{
@@ -326,6 +410,9 @@ func TestDockerExecutorRunContainerMountsManagedFiles(t *testing.T) {
 	}
 	if !reflect.DeepEqual(runner.calls[0].args, expectedArgs) {
 		t.Fatalf("unexpected docker run args: %#v", runner.calls[0].args)
+	}
+	if !reflect.DeepEqual(runner.calls[1].args, []string{"inspect", "-f", "{{.State.Running}}", "openflare-openresty"}) {
+		t.Fatalf("unexpected docker health check args: %#v", runner.calls[1].args)
 	}
 }
 
@@ -356,14 +443,17 @@ func TestDockerExecutorRecreatesContainerOnStartup(t *testing.T) {
 	if err := executor.EnsureRuntime(context.Background(), true); err != nil {
 		t.Fatalf("EnsureRuntime failed: %v", err)
 	}
-	if len(runner.calls) != 3 {
-		t.Fatalf("expected 3 calls, got %d", len(runner.calls))
+	if len(runner.calls) != 4 {
+		t.Fatalf("expected 4 calls, got %d", len(runner.calls))
 	}
 	if runner.calls[1].args[0] != "rm" {
 		t.Fatalf("expected docker rm on second call, got %#v", runner.calls[1])
 	}
 	if runner.calls[2].args[0] != "run" {
 		t.Fatalf("expected docker run on third call, got %#v", runner.calls[2])
+	}
+	if runner.calls[3].args[0] != "inspect" {
+		t.Fatalf("expected docker inspect after run, got %#v", runner.calls[3])
 	}
 }
 
@@ -497,21 +587,21 @@ func TestManagerApplyAndChecksumIncludeMainConfig(t *testing.T) {
 		Executor:        &fakeExecutor{},
 	}
 
-	err := manager.Apply(
+	outcome := manager.Apply(
 		context.Background(),
 		"include __OPENFLARE_ROUTE_CONFIG__;\naccess_log __OPENFLARE_ACCESS_LOG__ openflare_json;\n",
 		"ssl_certificate __OPENFLARE_CERT_DIR__/1.crt;\n",
 		[]protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
 	)
-	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
+	if outcome.Status != ApplyStatusSuccess {
+		t.Fatalf("Apply failed: %#v", outcome)
 	}
 
 	mainData, err := os.ReadFile(mainPath)
 	if err != nil {
 		t.Fatalf("failed to read main config: %v", err)
 	}
-	expectedMain := "include " + routePath + ";\naccess_log " + filepath.Join(filepath.Dir(routePath), "openflare_access.log") + " openflare_json;\n"
+	expectedMain := "include " + routePath + ";\naccess_log " + filepath.ToSlash(filepath.Join(filepath.Dir(routePath), "openflare_access.log")) + " openflare_json;\n"
 	if string(mainData) != expectedMain {
 		t.Fatalf("unexpected main config: %s", string(mainData))
 	}
@@ -553,8 +643,8 @@ func TestManagerApplyUsesRuntimeRouteConfigPath(t *testing.T) {
 		Executor:               &fakeExecutor{},
 	}
 
-	if err := manager.Apply(context.Background(), "include __OPENFLARE_ROUTE_CONFIG__;\naccess_log __OPENFLARE_ACCESS_LOG__ openflare_json;\n", "server { listen 80; }\n", nil); err != nil {
-		t.Fatalf("Apply failed: %v", err)
+	if outcome := manager.Apply(context.Background(), "include __OPENFLARE_ROUTE_CONFIG__;\naccess_log __OPENFLARE_ACCESS_LOG__ openflare_json;\n", "server { listen 80; }\n", nil); outcome.Status != ApplyStatusSuccess {
+		t.Fatalf("Apply failed: %#v", outcome)
 	}
 
 	mainData, err := os.ReadFile(mainPath)
@@ -631,12 +721,12 @@ func TestManagerApplyWritesSupportFilesAndReplacesPlaceholder(t *testing.T) {
 		Executor:                     &fakeExecutor{},
 	}
 
-	err := manager.Apply(context.Background(), "include __OPENFLARE_ROUTE_CONFIG__;\n__OPENFLARE_RESOLVER_DIRECTIVE__server { listen __OPENFLARE_OBSERVABILITY_LISTEN__; }", "ssl_certificate __OPENFLARE_CERT_DIR__/1.crt;", []protocol.SupportFile{
+	outcome := manager.Apply(context.Background(), "include __OPENFLARE_ROUTE_CONFIG__;\n__OPENFLARE_RESOLVER_DIRECTIVE__server { listen __OPENFLARE_OBSERVABILITY_LISTEN__; }", "ssl_certificate __OPENFLARE_CERT_DIR__/1.crt;", []protocol.SupportFile{
 		{Path: "1.crt", Content: "cert-data"},
 		{Path: "1.key", Content: "key-data"},
 	})
-	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
+	if outcome.Status != ApplyStatusSuccess {
+		t.Fatalf("Apply failed: %#v", outcome)
 	}
 
 	routeData, err := os.ReadFile(manager.RouteConfigPath)
@@ -667,7 +757,7 @@ func TestManagerApplyWritesSupportFilesAndReplacesPlaceholder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected managed lua file to exist, stat err = %v", err)
 	}
-	if luaInfo.Mode().Perm() != 0o644 {
+	if runtime.GOOS != "windows" && luaInfo.Mode().Perm() != 0o644 {
 		t.Fatalf("unexpected lua mode: %o", luaInfo.Mode().Perm())
 	}
 }
@@ -802,11 +892,11 @@ func TestManagerRollbackRestoresCertFiles(t *testing.T) {
 		},
 	}
 
-	err := manager.Apply(context.Background(), "new-main", "new-route", []protocol.SupportFile{
+	outcome := manager.Apply(context.Background(), "new-main", "new-route", []protocol.SupportFile{
 		{Path: "1.crt", Content: "new-cert"},
 	})
-	if err == nil {
-		t.Fatal("expected Apply to fail")
+	if outcome.Status != ApplyStatusFatal {
+		t.Fatalf("expected fatal apply outcome, got %#v", outcome)
 	}
 
 	mainData, err := os.ReadFile(mainPath)
@@ -829,6 +919,51 @@ func TestManagerRollbackRestoresCertFiles(t *testing.T) {
 	}
 	if string(certData) != "old-cert" {
 		t.Fatalf("expected cert rollback, got %s", string(certData))
+	}
+}
+
+func TestManagerApplyReturnsWarningWhenRollbackRecoversRuntime(t *testing.T) {
+	tempDir := t.TempDir()
+	routePath := filepath.Join(tempDir, "routes.conf")
+	mainPath := filepath.Join(tempDir, "nginx.conf")
+	certDir := filepath.Join(tempDir, "certs")
+	if err := os.MkdirAll(certDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(mainPath, []byte("old-main"), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := os.WriteFile(routePath, []byte("old-route"), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(certDir, "1.crt"), []byte("old-cert"), 0o600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	manager := &Manager{
+		MainConfigPath:  mainPath,
+		RouteConfigPath: routePath,
+		CertDir:         certDir,
+		NginxCertDir:    "/etc/nginx/openflare-certs",
+		LuaDir:          filepath.Join(tempDir, "lua"),
+		NginxLuaDir:     "/etc/nginx/openflare-lua",
+		Executor: &scriptedExecutor{
+			reloadErrors: []error{errors.New("target config failed"), nil},
+		},
+	}
+
+	outcome := manager.Apply(context.Background(), "new-main", "new-route", []protocol.SupportFile{
+		{Path: "1.crt", Content: "new-cert"},
+	})
+	if outcome.Status != ApplyStatusWarning {
+		t.Fatalf("expected warning apply outcome, got %#v", outcome)
+	}
+
+	mainData, err := os.ReadFile(mainPath)
+	if err != nil {
+		t.Fatalf("failed to read main config: %v", err)
+	}
+	if string(mainData) != "old-main" {
+		t.Fatalf("expected main rollback, got %s", string(mainData))
 	}
 }
 
@@ -883,11 +1018,11 @@ func TestManagerApplyRejectsCertFilePathTraversal(t *testing.T) {
 		Executor:        &fakeExecutor{},
 	}
 
-	err := manager.Apply(context.Background(), "main", "route", []protocol.SupportFile{
+	outcome := manager.Apply(context.Background(), "main", "route", []protocol.SupportFile{
 		{Path: "../escape.crt", Content: "bad"},
 	})
-	if err == nil {
-		t.Fatal("expected Apply to reject traversal path")
+	if outcome.Status != ApplyStatusWarning {
+		t.Fatalf("expected warning apply outcome, got %#v", outcome)
 	}
 
 	if _, statErr := os.Stat(filepath.Join(tempDir, "escape.crt")); !os.IsNotExist(statErr) {
