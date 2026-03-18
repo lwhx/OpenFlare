@@ -134,6 +134,7 @@ func SetApiRouter(router *gin.Engine) {
 		applyLogRoute.Use(middleware.AdminAuth())
 		{
 			applyLogRoute.GET("/", controller.GetApplyLogs)
+			applyLogRoute.POST("/cleanup", controller.CleanupApplyLogs)
 		}
 		accessLogRoute := apiRouter.Group("/access-logs")
 		accessLogRoute.Use(middleware.AdminAuth())

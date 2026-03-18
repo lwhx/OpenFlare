@@ -323,11 +323,49 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 		t.Fatal("expected heartbeat response to include active config summary")
 	}
 
-	logsResp := performJSONRequest(t, engine, adminToken, http.MethodGet, "/api/apply-logs/?node_id="+createdNode.NodeID, nil)
-	var logs []model.ApplyLog
+	logsResp := performJSONRequest(t, engine, adminToken, http.MethodGet, "/api/apply-logs/?node_id="+createdNode.NodeID+"&pageNo=1&pageSize=1", nil)
+	var logs service.ApplyLogListResult
 	decodeResponseData(t, logsResp, &logs)
-	if len(logs) != 2 {
-		t.Fatalf("expected 2 apply logs, got %d", len(logs))
+	if logs.Current != 1 || logs.Total != 2 || logs.TotalPage != 2 {
+		t.Fatalf("unexpected paged apply logs result: %+v", logs)
+	}
+	if len(logs.Rows) != 1 {
+		t.Fatalf("expected 1 apply log row on page 1, got %d", len(logs.Rows))
+	}
+	if logs.Rows[0].Result != service.ApplyResultFailed {
+		t.Fatalf("expected newest apply log first, got %s", logs.Rows[0].Result)
+	}
+	oldApplyLogTime := time.Now().Add(-48 * time.Hour)
+	if err := model.DB.Model(&model.ApplyLog{}).Where("id = ?", successApplyLog.ID).Update("created_at", oldApplyLogTime).Error; err != nil {
+		t.Fatalf("failed to backdate apply log: %v", err)
+	}
+	cleanupResp := performJSONRequest(t, engine, adminToken, http.MethodPost, "/api/apply-logs/cleanup", map[string]any{
+		"retention_days": 1,
+	})
+	var cleanupResult service.ApplyLogCleanupResult
+	decodeResponseData(t, cleanupResp, &cleanupResult)
+	if cleanupResult.DeleteAll {
+		t.Fatal("expected retention cleanup instead of delete-all cleanup")
+	}
+	if cleanupResult.RetentionDays != 1 || cleanupResult.DeletedCount != 1 {
+		t.Fatalf("unexpected cleanup result: %+v", cleanupResult)
+	}
+	postCleanupResp := performJSONRequest(t, engine, adminToken, http.MethodGet, "/api/apply-logs/?node_id="+createdNode.NodeID, nil)
+	decodeResponseData(t, postCleanupResp, &logs)
+	if logs.Total != 1 || len(logs.Rows) != 1 {
+		t.Fatalf("expected one apply log after retention cleanup, got %+v", logs)
+	}
+	deleteAllResp := performJSONRequest(t, engine, adminToken, http.MethodPost, "/api/apply-logs/cleanup", map[string]any{
+		"delete_all": true,
+	})
+	decodeResponseData(t, deleteAllResp, &cleanupResult)
+	if !cleanupResult.DeleteAll || cleanupResult.DeletedCount != 1 {
+		t.Fatalf("unexpected delete-all cleanup result: %+v", cleanupResult)
+	}
+	emptyLogsResp := performJSONRequest(t, engine, adminToken, http.MethodGet, "/api/apply-logs/?node_id="+createdNode.NodeID, nil)
+	decodeResponseData(t, emptyLogsResp, &logs)
+	if logs.Total != 0 || len(logs.Rows) != 0 || logs.Current != 1 || logs.TotalPage != 0 {
+		t.Fatalf("expected empty apply log page after delete-all cleanup, got %+v", logs)
 	}
 
 	updatedNodeResp := performJSONRequest(t, engine, adminToken, http.MethodPost, "/api/nodes/"+toString(createdNode.ID)+"/update", map[string]any{

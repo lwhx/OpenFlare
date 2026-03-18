@@ -53,6 +53,31 @@ type ApplyLogPayload struct {
 	SupportFileCount    int    `json:"support_file_count"`
 }
 
+type ApplyLogListQuery struct {
+	NodeID   string `json:"node_id"`
+	PageNo   int    `json:"pageNo"`
+	PageSize int    `json:"pageSize"`
+}
+
+type ApplyLogListResult struct {
+	Rows      []*model.ApplyLog `json:"rows"`
+	Current   int               `json:"current"`
+	Total     int               `json:"total"`
+	TotalPage int               `json:"totalPage"`
+}
+
+type ApplyLogCleanupInput struct {
+	DeleteAll     bool `json:"delete_all"`
+	RetentionDays int  `json:"retention_days"`
+}
+
+type ApplyLogCleanupResult struct {
+	DeleteAll     bool       `json:"delete_all"`
+	RetentionDays int        `json:"retention_days"`
+	DeletedCount  int64      `json:"deleted_count"`
+	Cutoff        *time.Time `json:"cutoff,omitempty"`
+}
+
 type AgentConfigResponse struct {
 	Version        string        `json:"version"`
 	Checksum       string        `json:"checksum"`
@@ -314,8 +339,81 @@ func ListNodeViews() ([]*NodeView, error) {
 	return views, nil
 }
 
-func ListApplyLogs(nodeID string) ([]*model.ApplyLog, error) {
-	return model.ListApplyLogs(strings.TrimSpace(nodeID))
+const (
+	defaultApplyLogPageSize  = 20
+	maxApplyLogPageSize      = 200
+	maxApplyLogRetentionDays = 3650
+)
+
+func ListApplyLogsPage(input ApplyLogListQuery) (*ApplyLogListResult, error) {
+	pageNo := normalizeApplyLogPageNo(input.PageNo)
+	pageSize := normalizeApplyLogPageSize(input.PageSize)
+	nodeID := strings.TrimSpace(input.NodeID)
+	rows, err := model.ListApplyLogs(model.ApplyLogQuery{
+		NodeID:   nodeID,
+		PageNo:   pageNo,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		return nil, err
+	}
+	total, err := model.CountApplyLogs(nodeID)
+	if err != nil {
+		return nil, err
+	}
+	totalPage := 0
+	if total > 0 {
+		totalPage = int((total + int64(pageSize) - 1) / int64(pageSize))
+	}
+	return &ApplyLogListResult{
+		Rows:      rows,
+		Current:   pageNo,
+		Total:     int(total),
+		TotalPage: totalPage,
+	}, nil
+}
+
+func CleanupApplyLogs(input ApplyLogCleanupInput) (*ApplyLogCleanupResult, error) {
+	if input.DeleteAll {
+		deleted, err := model.DeleteAllApplyLogs()
+		if err != nil {
+			return nil, err
+		}
+		return &ApplyLogCleanupResult{
+			DeleteAll:    true,
+			DeletedCount: deleted,
+		}, nil
+	}
+	if input.RetentionDays <= 0 || input.RetentionDays > maxApplyLogRetentionDays {
+		return nil, errors.New("retention_days 必须在 1 到 3650 之间")
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(input.RetentionDays) * 24 * time.Hour)
+	deleted, err := model.DeleteApplyLogsBefore(cutoff)
+	if err != nil {
+		return nil, err
+	}
+	return &ApplyLogCleanupResult{
+		RetentionDays: input.RetentionDays,
+		DeletedCount:  deleted,
+		Cutoff:        &cutoff,
+	}, nil
+}
+
+func normalizeApplyLogPageNo(pageNo int) int {
+	if pageNo <= 0 {
+		return 1
+	}
+	return pageNo
+}
+
+func normalizeApplyLogPageSize(pageSize int) int {
+	if pageSize <= 0 {
+		return defaultApplyLogPageSize
+	}
+	if pageSize > maxApplyLogPageSize {
+		return maxApplyLogPageSize
+	}
+	return pageSize
 }
 
 func upsertNode(payload AgentNodePayload) (*model.Node, error) {

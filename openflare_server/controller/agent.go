@@ -3,6 +3,7 @@ package controller
 import (
 	"openflare/model"
 	"openflare/service"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -144,10 +145,45 @@ func GetNodes(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/apply-logs/ [get]
 func GetApplyLogs(c *gin.Context) {
-	logs, err := service.ListApplyLogs(c.Query("node_id"))
+	logs, err := service.ListApplyLogsPage(service.ApplyLogListQuery{
+		NodeID:   c.Query("node_id"),
+		PageNo:   readIntQueryFallback(c, "pageNo", "page_no"),
+		PageSize: readIntQueryFallback(c, "pageSize", "page_size"),
+	})
 	if err != nil {
 		respondFailure(c, err.Error())
 		return
 	}
 	respondSuccess(c, logs)
+}
+
+// CleanupApplyLogs godoc
+// @Summary Cleanup apply logs
+// @Tags ApplyLogs
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /api/apply-logs/cleanup [post]
+func CleanupApplyLogs(c *gin.Context) {
+	var input service.ApplyLogCleanupInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		respondBadRequest(c, "")
+		return
+	}
+	result, err := service.CleanupApplyLogs(input)
+	if err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccess(c, result)
+}
+
+func readIntQueryFallback(c *gin.Context, primary string, secondary string) int {
+	value := c.Query(primary)
+	if value == "" {
+		value = c.Query(secondary)
+	}
+	parsed, _ := strconv.Atoi(value)
+	return parsed
 }

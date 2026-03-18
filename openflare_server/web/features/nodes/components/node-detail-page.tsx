@@ -276,8 +276,13 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
   }, [nodeId, nodesQuery.data]);
 
   const applyLogsQuery = useQuery({
-    queryKey: ['apply-logs', node?.node_id ?? ''],
-    queryFn: () => getApplyLogs(node?.node_id),
+    queryKey: ['apply-logs', node?.node_id ?? '', 1, 10],
+    queryFn: () =>
+      getApplyLogs({
+        node_id: node?.node_id,
+        pageNo: 1,
+        pageSize: 10,
+      }),
     enabled: Boolean(node?.node_id),
     refetchInterval: 5000,
   });
@@ -525,7 +530,7 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
     selectedReleaseChannel === 'preview'
       ? previewAgentReleaseQuery.isFetching
       : stableAgentReleaseQuery.isFetching;
-  const applyLogs = applyLogsQuery.data ?? [];
+  const applyLogs = applyLogsQuery.data?.rows ?? [];
   const dominantStatusCode = statusCodeDistribution[0] ?? null;
   const dominantDomain = topDomains[0] ?? null;
   const topSourceCountry =
@@ -1623,7 +1628,7 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--border-default)]">
-                      {applyLogs.slice(0, 10).map((log) => (
+                      {applyLogs.map((log) => (
                         <tr key={log.id} className="align-top">
                           <td className="px-3 py-4 text-[var(--foreground-primary)]">
                             {log.version}

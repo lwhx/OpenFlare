@@ -1,6 +1,16 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
+type ApplyLogQuery struct {
+	NodeID   string
+	PageNo   int
+	PageSize int
+}
 
 type ApplyLog struct {
 	ID                  uint      `json:"id" gorm:"primaryKey"`
@@ -15,13 +25,29 @@ type ApplyLog struct {
 	CreatedAt           time.Time `json:"created_at"`
 }
 
-func ListApplyLogs(nodeID string) (logs []*ApplyLog, err error) {
-	query := DB.Order("id desc")
+func ListApplyLogs(query ApplyLogQuery) (logs []*ApplyLog, err error) {
+	db := DB.Order("id desc")
+	if query.NodeID != "" {
+		db = db.Where("node_id = ?", query.NodeID)
+	}
+	if query.PageSize > 0 {
+		offset := 0
+		if query.PageNo > 1 {
+			offset = (query.PageNo - 1) * query.PageSize
+		}
+		db = db.Limit(query.PageSize).Offset(offset)
+	}
+	err = db.Find(&logs).Error
+	return logs, err
+}
+
+func CountApplyLogs(nodeID string) (total int64, err error) {
+	query := DB.Model(&ApplyLog{})
 	if nodeID != "" {
 		query = query.Where("node_id = ?", nodeID)
 	}
-	err = query.Find(&logs).Error
-	return logs, err
+	err = query.Count(&total).Error
+	return total, err
 }
 
 func GetLatestApplyLog(nodeID string) (*ApplyLog, error) {
@@ -48,4 +74,14 @@ func GetLatestApplyLogsByNodeIDs(nodeIDs []string) (map[string]*ApplyLog, error)
 		result[log.NodeID] = log
 	}
 	return result, nil
+}
+
+func DeleteAllApplyLogs() (deleted int64, err error) {
+	result := DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&ApplyLog{})
+	return result.RowsAffected, result.Error
+}
+
+func DeleteApplyLogsBefore(before time.Time) (deleted int64, err error) {
+	result := DB.Where("created_at < ?", before).Delete(&ApplyLog{})
+	return result.RowsAffected, result.Error
 }
