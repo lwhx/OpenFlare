@@ -72,8 +72,8 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, "listen 443 ssl http2;") {
 		t.Fatal("expected rendered config to include https server block with http2 enabled")
 	}
-	if !strings.Contains(result.Version.RenderedConfig, `if ($host != "app.example.com") {`) {
-		t.Fatal("expected rendered config to reject unmatched host headers with 404")
+	if strings.Contains(result.Version.RenderedConfig, `if ($host != "app.example.com") {`) {
+		t.Fatal("expected rendered config to avoid per-route host guard")
 	}
 	if !strings.Contains(result.Version.RenderedConfig, "return 301 https://$host$request_uri;") {
 		t.Fatal("expected rendered config to include http redirect")
@@ -138,8 +138,8 @@ func TestPublishConfigVersionRendersCustomHeaders(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, "proxy_set_header Upgrade $http_upgrade;") {
 		t.Fatal("expected rendered config to forward websocket upgrade header")
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "proxy_set_header Connection $http_connection;") {
-		t.Fatal("expected rendered config to forward websocket connection header")
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_set_header Connection $connection_upgrade;") {
+		t.Fatal("expected rendered config to use normalized websocket connection header")
 	}
 	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass https://origin.internal;") {
 		t.Fatal("expected rendered config to keep direct proxy_pass when no resolvers are configured")
@@ -262,7 +262,7 @@ func TestPreviewConfigVersionCanDisableWebsocketHeaders(t *testing.T) {
 	if strings.Contains(preview.RenderedConfig, "proxy_set_header Upgrade $http_upgrade;") {
 		t.Fatal("expected preview config to omit websocket upgrade header when disabled")
 	}
-	if strings.Contains(preview.RenderedConfig, "proxy_set_header Connection $http_connection;") {
+	if strings.Contains(preview.RenderedConfig, "proxy_set_header Connection $connection_upgrade;") {
 		t.Fatal("expected preview config to omit websocket connection header when disabled")
 	}
 }
@@ -411,7 +411,7 @@ func TestPreviewAndDiffConfigVersion(t *testing.T) {
 	}
 }
 
-func TestRenderConfigRejectsUnknownSubdomainHosts(t *testing.T) {
+func TestRenderConfigUsesDefaultServerFallback(t *testing.T) {
 	setupServiceTestDB(t)
 
 	_, err := CreateProxyRoute(ProxyRouteInput{
@@ -431,11 +431,17 @@ func TestRenderConfigRejectsUnknownSubdomainHosts(t *testing.T) {
 	if !strings.Contains(preview.RenderedConfig, `server_name git.arctel.net;`) {
 		t.Fatal("expected rendered config to include exact server_name")
 	}
-	if !strings.Contains(preview.RenderedConfig, `if ($host != "git.arctel.net") {`) {
-		t.Fatal("expected rendered config to guard against unknown subdomain host matches")
+	if strings.Contains(preview.RenderedConfig, `if ($host != "git.arctel.net") {`) {
+		t.Fatal("expected rendered config to avoid per-route host guard")
 	}
-	if !strings.Contains(preview.RenderedConfig, "return 404;") {
-		t.Fatal("expected rendered config to return 404 when host does not exactly match route domain")
+	if !strings.Contains(preview.MainConfig, "listen 80 default_server;") {
+		t.Fatal("expected preview main config to include default http server")
+	}
+	if !strings.Contains(preview.MainConfig, "server_name _;") {
+		t.Fatal("expected preview main config to include default server_name")
+	}
+	if !strings.Contains(preview.MainConfig, "return 404;") {
+		t.Fatal("expected preview main config to return 404 for unmatched hosts")
 	}
 }
 
@@ -483,6 +489,12 @@ func TestOpenRestyMainConfigTemplateRenderAndValidate(t *testing.T) {
 	if !strings.Contains(preview.MainConfig, "access_log __OPENFLARE_ACCESS_LOG__ openflare_json;") {
 		t.Fatal("expected preview main config to preserve managed access log placeholder")
 	}
+	if !strings.Contains(preview.MainConfig, "map $http_upgrade $connection_upgrade {") {
+		t.Fatal("expected preview main config to preserve managed websocket upgrade map")
+	}
+	if !strings.Contains(preview.MainConfig, "listen 80 default_server;") {
+		t.Fatal("expected preview main config to preserve managed default server block")
+	}
 
 	invalidTemplate := strings.ReplaceAll(
 		common.OpenRestyMainConfigTemplate,
@@ -500,6 +512,15 @@ func TestOpenRestyMainConfigTemplateRenderAndValidate(t *testing.T) {
 	)
 	if err := ValidateOpenRestyMainConfigTemplate(invalidTemplate); err == nil {
 		t.Fatal("expected template without managed access log placeholder to fail validation")
+	}
+
+	invalidTemplate = strings.ReplaceAll(
+		common.OpenRestyMainConfigTemplate,
+		"{{OpenRestyConnectionUpgradeMap}}",
+		"",
+	)
+	if err := ValidateOpenRestyMainConfigTemplate(invalidTemplate); err == nil {
+		t.Fatal("expected template without managed websocket upgrade map placeholder to fail validation")
 	}
 }
 

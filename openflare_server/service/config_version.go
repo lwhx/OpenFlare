@@ -136,6 +136,8 @@ var requiredMainConfigTemplatePlaceholders = []string{
 	"{{OpenRestyWorkerProcesses}}",
 	"{{OpenRestyWorkerConnections}}",
 	"{{OpenRestyWorkerRlimitNofile}}",
+	"{{OpenRestyConnectionUpgradeMap}}",
+	"{{OpenRestyDefaultServerBlock}}",
 	"{{OpenRestyAccessLogPath}}",
 	"{{OpenRestyEventsUseDirective}}",
 	"{{OpenRestyEventsMultiAcceptDirective}}",
@@ -664,6 +666,8 @@ func renderMainConfigTemplate(templateText string, cfg openRestyConfigSnapshot) 
 		"{{OpenRestyWorkerProcesses}}", cfg.WorkerProcesses,
 		"{{OpenRestyWorkerConnections}}", fmt.Sprintf("%d", cfg.WorkerConnections),
 		"{{OpenRestyWorkerRlimitNofile}}", fmt.Sprintf("%d", cfg.WorkerRlimitNofile),
+		"{{OpenRestyConnectionUpgradeMap}}", renderConnectionUpgradeMap(),
+		"{{OpenRestyDefaultServerBlock}}", renderDefaultServerBlock(),
 		"{{OpenRestyAccessLogPath}}", nginxAccessLogPlaceholder,
 		"{{OpenRestyEventsUseDirective}}", renderTemplateDirective(cfg.EventsUse != "", fmt.Sprintf("use %s;", cfg.EventsUse)),
 		"{{OpenRestyEventsMultiAcceptDirective}}", renderTemplateDirective(cfg.EventsMultiAcceptEnabled, "multi_accept on;"),
@@ -765,21 +769,25 @@ func nextVersionNumber(now time.Time) (string, error) {
 }
 
 func renderHTTPProxyServer(domain string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, cfg openRestyConfigSnapshot) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s\n    location / {\n%s%s    }\n}\n\n", domain, renderExactHostGuard(domain), renderProxyHeaderBlock(originURL, originHost, customHeaders), renderProxyPassBlock(originURL, cfg))
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    location / {\n%s%s    }\n}\n\n", domain, renderProxyHeaderBlock(originURL, originHost, customHeaders), renderProxyPassBlock(originURL, cfg))
 }
 
 func renderHTTPRedirectServer(domain string) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s\n    return 301 https://$host$request_uri;\n}\n\n", domain, renderExactHostGuard(domain))
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    return 301 https://$host$request_uri;\n}\n\n", domain)
 }
 
 func renderHTTPSServer(domain string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cfg openRestyConfigSnapshot) string {
 	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
 	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-	return fmt.Sprintf("server {\n    listen 443 ssl http2;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s\n    location / {\n%s%s    }\n}\n\n", domain, certPath, keyPath, renderExactHostGuard(domain), renderProxyHeaderBlock(originURL, originHost, customHeaders), renderProxyPassBlock(originURL, cfg))
+	return fmt.Sprintf("server {\n    listen 443 ssl http2;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s%s    }\n}\n\n", domain, certPath, keyPath, renderProxyHeaderBlock(originURL, originHost, customHeaders), renderProxyPassBlock(originURL, cfg))
 }
 
-func renderExactHostGuard(domain string) string {
-	return fmt.Sprintf("    if ($host != %q) {\n        return 404;\n    }\n", domain)
+func renderConnectionUpgradeMap() string {
+	return "    map $http_upgrade $connection_upgrade {\n        default upgrade;\n        ''      close;\n    }\n\n"
+}
+
+func renderDefaultServerBlock() string {
+	return "    server {\n        listen 80 default_server;\n        server_name _;\n\n        return 404;\n    }\n\n"
 }
 
 func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput) string {
@@ -799,7 +807,7 @@ func renderProxyHeaderBlock(originURL string, originHost string, customHeaders [
 	if common.OpenRestyWebsocketEnabled {
 		builder.WriteString("        proxy_http_version 1.1;\n")
 		builder.WriteString("        proxy_set_header Upgrade $http_upgrade;\n")
-		builder.WriteString("        proxy_set_header Connection $http_connection;\n")
+		builder.WriteString("        proxy_set_header Connection $connection_upgrade;\n")
 	}
 	for _, header := range customHeaders {
 		builder.WriteString(fmt.Sprintf("        proxy_set_header %s %s;\n", header.Key, quoteNginxHeaderValue(header.Value)))
