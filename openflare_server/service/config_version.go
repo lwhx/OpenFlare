@@ -775,7 +775,7 @@ func renderHTTPRedirectServer(domain string) string {
 func renderHTTPSServer(domain string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cfg openRestyConfigSnapshot) string {
 	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
 	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-	return fmt.Sprintf("server {\n    listen 443 ssl;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s\n    location / {\n%s%s    }\n}\n\n", domain, certPath, keyPath, renderExactHostGuard(domain), renderProxyHeaderBlock(originURL, originHost, customHeaders), renderProxyPassBlock(originURL, cfg))
+	return fmt.Sprintf("server {\n    listen 443 ssl http2;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s\n    location / {\n%s%s    }\n}\n\n", domain, certPath, keyPath, renderExactHostGuard(domain), renderProxyHeaderBlock(originURL, originHost, customHeaders), renderProxyPassBlock(originURL, cfg))
 }
 
 func renderExactHostGuard(domain string) string {

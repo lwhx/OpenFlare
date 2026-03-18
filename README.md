@@ -206,10 +206,9 @@ go run ./cmd/agent -config /path/to/agent.json
 1. [docs/design.md](./docs/design.md)
 2. [docs/development-guidelines.md](./docs/development-guidelines.md)
 3. [docs/development-plan.md](./docs/development-plan.md)
-4. [docs/frontend-revamp-plan.md](./docs/frontend-revamp-plan.md)
-5. [docs/frontend-development-guidelines.md](./docs/frontend-development-guidelines.md)
-6. [docs/deployment.md](./docs/deployment.md)
-7. [docs/app-config.md](./docs/app-config.md)
+4. [docs/frontend-development-guidelines.md](./docs/frontend-development-guidelines.md)
+5. [docs/deployment.md](./docs/deployment.md)
+6. [docs/app-config.md](./docs/app-config.md)
 
 ## 管理端与接口
 

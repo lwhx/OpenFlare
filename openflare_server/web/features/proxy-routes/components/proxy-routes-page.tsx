@@ -680,7 +680,7 @@ export function ProxyRoutesPage() {
             />
             <ToggleField
               label="启用 HTTPS"
-              description="启用后必须关联 TLS 证书，可选择是否将 HTTP 自动重定向到 HTTPS。"
+              description="启用后必须关联 TLS 证书，并会默认为客户端开启 HTTP/2；可选择是否将 HTTP 自动重定向到 HTTPS。"
               checked={watchedEnableHttps}
               onChange={(checked) => {
                 form.setValue('enable_https', checked, {
