@@ -11,6 +11,13 @@ import (
 
 var proxyHeaderKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
+const (
+	proxyRouteCachePolicyURL        = "url"
+	proxyRouteCachePolicySuffix     = "suffix"
+	proxyRouteCachePolicyPathPrefix = "path_prefix"
+	proxyRouteCachePolicyPathExact  = "path_exact"
+)
+
 type ProxyRouteCustomHeaderInput struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
@@ -24,6 +31,9 @@ type ProxyRouteInput struct {
 	EnableHTTPS   bool                          `json:"enable_https"`
 	CertID        *uint                         `json:"cert_id"`
 	RedirectHTTP  bool                          `json:"redirect_http"`
+	CacheEnabled  bool                          `json:"cache_enabled"`
+	CachePolicy   string                        `json:"cache_policy"`
+	CacheRules    []string                      `json:"cache_rules"`
 	CustomHeaders []ProxyRouteCustomHeaderInput `json:"custom_headers"`
 	Remark        string                        `json:"remark"`
 }
@@ -77,7 +87,16 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	originURL := strings.TrimSpace(input.OriginURL)
 	originHost := strings.TrimSpace(input.OriginHost)
 	remark := strings.TrimSpace(input.Remark)
+	cachePolicy := strings.TrimSpace(input.CachePolicy)
+	cacheRules, err := normalizeCacheRules(input.CacheEnabled, cachePolicy, input.CacheRules)
+	if err != nil {
+		return nil, err
+	}
 	customHeaders, err := normalizeCustomHeaders(input.CustomHeaders)
+	if err != nil {
+		return nil, err
+	}
+	cacheRulesJSON, err := json.Marshal(cacheRules)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +141,9 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	route.EnableHTTPS = input.EnableHTTPS
 	route.CertID = input.CertID
 	route.RedirectHTTP = input.RedirectHTTP
+	route.CacheEnabled = input.CacheEnabled
+	route.CachePolicy = normalizeCachePolicy(input.CacheEnabled, cachePolicy)
+	route.CacheRules = string(cacheRulesJSON)
 	route.CustomHeaders = string(customHeadersJSON)
 	route.Remark = remark
 	return route, nil
@@ -165,6 +187,108 @@ func decodeStoredCustomHeaders(raw string) ([]ProxyRouteCustomHeaderInput, error
 		return nil, errors.New("自定义请求头配置格式不合法")
 	}
 	return normalizeCustomHeaders(headers)
+}
+
+func normalizeCachePolicy(enabled bool, raw string) string {
+	if !enabled {
+		return ""
+	}
+	policy := strings.TrimSpace(raw)
+	if policy == "" {
+		return proxyRouteCachePolicyURL
+	}
+	return policy
+}
+
+func normalizeCacheRules(enabled bool, rawPolicy string, rules []string) ([]string, error) {
+	if !enabled {
+		return []string{}, nil
+	}
+	policy := normalizeCachePolicy(enabled, rawPolicy)
+	switch policy {
+	case proxyRouteCachePolicyURL:
+		return []string{}, nil
+	case proxyRouteCachePolicySuffix:
+		return normalizeCacheSuffixRules(rules)
+	case proxyRouteCachePolicyPathPrefix:
+		return normalizeCachePathRules(rules, true)
+	case proxyRouteCachePolicyPathExact:
+		return normalizeCachePathRules(rules, false)
+	default:
+		return nil, errors.New("缓存策略不支持")
+	}
+}
+
+func normalizeCacheSuffixRules(rules []string) ([]string, error) {
+	normalized := make([]string, 0, len(rules))
+	seen := make(map[string]struct{}, len(rules))
+	for _, rule := range rules {
+		item := strings.TrimSpace(strings.TrimPrefix(rule, "."))
+		if item == "" {
+			continue
+		}
+		if strings.ContainsAny(item, "/\\ \t\r\n") {
+			return nil, errors.New("缓存后缀格式不合法")
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		normalized = append(normalized, item)
+	}
+	if len(normalized) == 0 {
+		return nil, errors.New("按后缀缓存时至少填写一个后缀")
+	}
+	return normalized, nil
+}
+
+func normalizeCachePathRules(rules []string, allowPrefix bool) ([]string, error) {
+	normalized := make([]string, 0, len(rules))
+	seen := make(map[string]struct{}, len(rules))
+	for _, rule := range rules {
+		item := strings.TrimSpace(rule)
+		if item == "" {
+			continue
+		}
+		if !strings.HasPrefix(item, "/") || strings.Contains(item, "://") || strings.ContainsAny(item, " \t\r\n") {
+			return nil, errors.New("缓存路径规则格式不合法")
+		}
+		if !allowPrefix && strings.HasSuffix(item, "/") && len(item) > 1 {
+			item = strings.TrimRight(item, "/")
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		normalized = append(normalized, item)
+	}
+	if len(normalized) == 0 {
+		if allowPrefix {
+			return nil, errors.New("按路径前缀缓存时至少填写一个路径")
+		}
+		return nil, errors.New("按精确路径缓存时至少填写一个路径")
+	}
+	return normalized, nil
+}
+
+func decodeStoredCacheRules(raw string) ([]string, error) {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return []string{}, nil
+	}
+	var rules []string
+	if err := json.Unmarshal([]byte(text), &rules); err != nil {
+		return nil, errors.New("缓存规则格式不合法")
+	}
+	normalized := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		item := strings.TrimSpace(rule)
+		if item == "" {
+			continue
+		}
+		normalized = append(normalized, item)
+	}
+	return normalized, nil
 }
 
 func validateOriginURL(raw string) error {

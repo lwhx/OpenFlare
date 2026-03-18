@@ -50,6 +50,8 @@ const customHeaderSchema = z.object({
   value: z.string(),
 });
 
+const cachePolicyValues = ['url', 'suffix', 'path_prefix', 'path_exact'] as const;
+
 const proxyRouteSchema = z
   .object({
     domain: z.string().trim().min(1, '请输入域名'),
@@ -91,6 +93,9 @@ const proxyRouteSchema = z
     enable_https: z.boolean(),
     cert_id: z.string(),
     redirect_http: z.boolean(),
+    cache_enabled: z.boolean(),
+    cache_policy: z.enum(cachePolicyValues),
+    cache_rules_text: z.string(),
     custom_headers: z.array(customHeaderSchema).min(1),
     remark: z.string().max(255, '备注不能超过 255 个字符'),
   })
@@ -101,6 +106,17 @@ const proxyRouteSchema = z
         path: ['cert_id'],
         message: '启用 HTTPS 时必须选择证书',
       });
+    }
+
+    if (value.cache_enabled) {
+      const cacheRules = parseCacheRulesText(value.cache_rules_text);
+      if (value.cache_policy !== 'url' && cacheRules.length === 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['cache_rules_text'],
+          message: '当前缓存策略至少需要填写一条规则',
+        });
+      }
     }
 
     value.custom_headers.forEach((header, index) => {
@@ -152,6 +168,9 @@ const defaultValues: ProxyRouteFormValues = {
   enable_https: false,
   cert_id: '',
   redirect_http: false,
+  cache_enabled: false,
+  cache_policy: 'url',
+  cache_rules_text: '',
   custom_headers: [{ key: '', value: '' }],
   remark: '',
 };
@@ -195,6 +214,52 @@ function parseCustomHeaders(rawValue: string) {
   }
 }
 
+function parseCacheRules(rawValue: string) {
+  if (!rawValue) {
+    return [] as string[];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as string[];
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseCacheRulesText(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildCachePolicyLabel(policy: string) {
+  switch (policy) {
+    case 'suffix':
+      return '按后缀';
+    case 'path_prefix':
+      return '按前缀';
+    case 'path_exact':
+      return '按路径';
+    default:
+      return '按 URL';
+  }
+}
+
+function getCacheRulesHint(policy: string) {
+  switch (policy) {
+    case 'suffix':
+      return '每行一个后缀，例如：jpg、css、js。';
+    case 'path_prefix':
+      return '每行一个路径前缀，例如：/assets、/static/images。';
+    case 'path_exact':
+      return '每行一个精确路径，例如：/robots.txt、/manifest.json。';
+    default:
+      return '按 URL 缓存时无需额外规则，系统会按请求 URL 粒度缓存。';
+  }
+}
+
 function buildCertificateLabel(certificate: TlsCertificateItem) {
   return certificate.not_after
     ? `${certificate.name}（到期：${formatDateTime(certificate.not_after)}）`
@@ -211,6 +276,11 @@ function toPayload(values: ProxyRouteFormValues): ProxyRouteMutationPayload {
     cert_id:
       values.enable_https && values.cert_id ? Number(values.cert_id) : null,
     redirect_http: values.enable_https ? values.redirect_http : false,
+    cache_enabled: values.cache_enabled,
+    cache_policy: values.cache_enabled ? values.cache_policy : 'url',
+    cache_rules: values.cache_enabled
+      ? parseCacheRulesText(values.cache_rules_text)
+      : [],
     custom_headers: values.custom_headers
       .map((item) => ({ key: item.key.trim(), value: item.value.trim() }))
       .filter((item) => item.key || item.value),
@@ -220,6 +290,7 @@ function toPayload(values: ProxyRouteFormValues): ProxyRouteMutationPayload {
 
 function toFormValues(route: ProxyRouteItem): ProxyRouteFormValues {
   const headers = parseCustomHeaders(route.custom_headers);
+  const cacheRules = parseCacheRules(route.cache_rules);
 
   return {
     domain: route.domain,
@@ -229,6 +300,9 @@ function toFormValues(route: ProxyRouteItem): ProxyRouteFormValues {
     enable_https: route.enable_https,
     cert_id: route.cert_id ? String(route.cert_id) : '',
     redirect_http: route.redirect_http,
+    cache_enabled: route.cache_enabled,
+    cache_policy: (route.cache_policy || 'url') as ProxyRouteFormValues['cache_policy'],
+    cache_rules_text: cacheRules.join('\n'),
     custom_headers: headers.length > 0 ? headers : [{ key: '', value: '' }],
     remark: route.remark || '',
   };
@@ -287,6 +361,14 @@ export function ProxyRoutesPage() {
   const watchedRedirectHttp = useWatch({
     control: form.control,
     name: 'redirect_http',
+  });
+  const watchedCacheEnabled = useWatch({
+    control: form.control,
+    name: 'cache_enabled',
+  });
+  const watchedCachePolicy = useWatch({
+    control: form.control,
+    name: 'cache_policy',
   });
   const watchedCertId = useWatch({ control: form.control, name: 'cert_id' });
 
@@ -514,6 +596,7 @@ export function ProxyRoutesPage() {
                     <th className="px-3 py-3 font-medium">域名</th>
                     <th className="px-3 py-3 font-medium">源站地址</th>
                     <th className="px-3 py-3 font-medium">HTTPS</th>
+                    <th className="px-3 py-3 font-medium">缓存</th>
                     <th className="px-3 py-3 font-medium">请求头</th>
                     <th className="px-3 py-3 font-medium">状态</th>
                     <th className="px-3 py-3 font-medium">备注</th>
@@ -524,6 +607,7 @@ export function ProxyRoutesPage() {
                 <tbody className="divide-y divide-[var(--border-default)]">
                   {routes.map((route) => {
                     const headers = parseCustomHeaders(route.custom_headers);
+                    const cacheRules = parseCacheRules(route.cache_rules);
 
                     return (
                       <tr key={route.id} className="align-top">
@@ -552,6 +636,23 @@ export function ProxyRoutesPage() {
                             </div>
                           ) : (
                             <StatusBadge label="HTTP" variant="warning" />
+                          )}
+                        </td>
+                        <td className="px-3 py-4">
+                          {route.cache_enabled ? (
+                            <div className="space-y-2">
+                              <StatusBadge
+                                label={buildCachePolicyLabel(route.cache_policy)}
+                                variant="success"
+                              />
+                              <p className="text-xs text-[var(--foreground-muted)]">
+                                {cacheRules.length > 0
+                                  ? `${cacheRules.length} 条规则`
+                                  : '按 URL 粒度缓存'}
+                              </p>
+                            </div>
+                          ) : (
+                            <StatusBadge label="关闭" variant="warning" />
                           )}
                         </td>
                         <td className="px-3 py-4">
@@ -738,6 +839,74 @@ export function ProxyRoutesPage() {
               }
             />
           </div>
+
+          <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+            <ToggleField
+              label="启用规则缓存"
+              description="仅对当前规则生效；系统会自动绕过非 GET、Authorization 和常见登录态 Cookie 请求。"
+              checked={watchedCacheEnabled}
+              onChange={(checked) => {
+                form.setValue('cache_enabled', checked, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+                if (!checked) {
+                  form.setValue('cache_policy', 'url', {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+                  form.setValue('cache_rules_text', '', {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+                }
+              }}
+            />
+            <ResourceField
+              label="缓存策略"
+              hint="按 URL 会缓存所有符合安全条件的 URL；其余策略会先匹配规则再决定是否缓存。"
+            >
+              <ResourceSelect
+                value={watchedCachePolicy}
+                disabled={!watchedCacheEnabled}
+                onChange={(event) =>
+                  form.setValue(
+                    'cache_policy',
+                    event.target.value as ProxyRouteFormValues['cache_policy'],
+                    {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    },
+                  )
+                }
+              >
+                <option value="url">按 URL 缓存</option>
+                <option value="suffix">按后缀匹配缓存</option>
+                <option value="path_prefix">按路径前缀缓存</option>
+                <option value="path_exact">按精确路径缓存</option>
+              </ResourceSelect>
+            </ResourceField>
+          </div>
+
+          <ResourceField
+            label="缓存规则"
+            hint={getCacheRulesHint(watchedCachePolicy)}
+            error={form.formState.errors.cache_rules_text?.message}
+          >
+            <ResourceTextarea
+              placeholder={
+                watchedCachePolicy === 'suffix'
+                  ? 'jpg\ncss\njs'
+                  : watchedCachePolicy === 'path_prefix'
+                    ? '/assets\n/static/images'
+                    : watchedCachePolicy === 'path_exact'
+                      ? '/robots.txt\n/manifest.json'
+                      : '按 URL 缓存无需填写规则'
+              }
+              disabled={!watchedCacheEnabled || watchedCachePolicy === 'url'}
+              {...form.register('cache_rules_text')}
+            />
+          </ResourceField>
 
           <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">

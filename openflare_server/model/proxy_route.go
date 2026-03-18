@@ -11,6 +11,9 @@ type ProxyRoute struct {
 	EnableHTTPS   bool      `json:"enable_https" gorm:"column:enable_https;not null;default:false"`
 	CertID        *uint     `json:"cert_id"`
 	RedirectHTTP  bool      `json:"redirect_http" gorm:"not null;default:false"`
+	CacheEnabled  bool      `json:"cache_enabled" gorm:"not null;default:false"`
+	CachePolicy   string    `json:"cache_policy" gorm:"size:32;not null;default:''"`
+	CacheRules    string    `json:"cache_rules" gorm:"type:text;not null;default:'[]'"`
 	CustomHeaders string    `json:"custom_headers" gorm:"type:text;not null;default:'[]'"`
 	Remark        string    `json:"remark" gorm:"size:255"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -46,6 +49,9 @@ func (route *ProxyRoute) Update() error {
 		"enable_https":   route.EnableHTTPS,
 		"cert_id":        route.CertID,
 		"redirect_http":  route.RedirectHTTP,
+		"cache_enabled":  route.CacheEnabled,
+		"cache_policy":   route.CachePolicy,
+		"cache_rules":    route.CacheRules,
 		"custom_headers": route.CustomHeaders,
 		"remark":         route.Remark,
 	}).Error

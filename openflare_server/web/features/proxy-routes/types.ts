@@ -12,6 +12,9 @@ export interface ProxyRouteItem {
   enable_https: boolean;
   cert_id: number | null;
   redirect_http: boolean;
+  cache_enabled: boolean;
+  cache_policy: string;
+  cache_rules: string;
   custom_headers: string;
   remark: string;
   created_at: string;
@@ -26,6 +29,9 @@ export interface ProxyRouteMutationPayload {
   enable_https: boolean;
   cert_id: number | null;
   redirect_http: boolean;
+  cache_enabled: boolean;
+  cache_policy: string;
+  cache_rules: string[];
   custom_headers: ProxyRouteCustomHeader[];
   remark: string;
 }

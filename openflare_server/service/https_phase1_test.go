@@ -149,6 +149,86 @@ func TestPublishConfigVersionRendersCustomHeaders(t *testing.T) {
 	}
 }
 
+func TestCreateProxyRouteRejectsCachePolicyWithoutRules(t *testing.T) {
+	setupServiceTestDB(t)
+
+	_, err := CreateProxyRoute(ProxyRouteInput{
+		Domain:       "cache.example.com",
+		OriginURL:    "https://origin.internal",
+		Enabled:      true,
+		CacheEnabled: true,
+		CachePolicy:  proxyRouteCachePolicySuffix,
+	})
+	if err == nil || !strings.Contains(err.Error(), "至少填写一个后缀") {
+		t.Fatalf("expected cache rule validation error, got %v", err)
+	}
+}
+
+func TestPublishConfigVersionRendersRouteLevelCachePolicy(t *testing.T) {
+	setupServiceTestDB(t)
+	if err := model.UpdateOption("OpenRestyCacheEnabled", "true"); err != nil {
+		t.Fatalf("UpdateOption OpenRestyCacheEnabled failed: %v", err)
+	}
+	if err := model.UpdateOption("OpenRestyCachePath", "/var/cache/openresty/openflare"); err != nil {
+		t.Fatalf("UpdateOption OpenRestyCachePath failed: %v", err)
+	}
+
+	_, err := CreateProxyRoute(ProxyRouteInput{
+		Domain:       "static.example.com",
+		OriginURL:    "https://origin.internal",
+		Enabled:      true,
+		CacheEnabled: true,
+		CachePolicy:  proxyRouteCachePolicySuffix,
+		CacheRules:   []string{"jpg", ".css", "js"},
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyRoute cached failed: %v", err)
+	}
+	_, err = CreateProxyRoute(ProxyRouteInput{
+		Domain:    "nocache.example.com",
+		OriginURL: "https://origin.internal",
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyRoute uncached failed: %v", err)
+	}
+
+	result, err := PublishConfigVersion("root")
+	if err != nil {
+		t.Fatalf("PublishConfigVersion failed: %v", err)
+	}
+	if !strings.Contains(result.Version.MainConfig, "proxy_cache_path /var/cache/openresty/openflare") {
+		t.Fatal("expected main config to include cache zone when cache infra is enabled")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_cache_methods GET;") {
+		t.Fatal("expected rendered config to only cache GET requests")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_cache_bypass $openflare_skip_cache;") {
+		t.Fatal("expected rendered config to bypass cache when request is unsafe")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "proxy_no_cache $openflare_skip_cache;") {
+		t.Fatal("expected rendered config to avoid storing unsafe requests in cache")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "if ($http_authorization != \"\")") {
+		t.Fatal("expected rendered config to bypass authenticated requests")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "if ($request_method != GET)") {
+		t.Fatal("expected rendered config to bypass non-GET requests")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "if ($uri !~* \"\\\\.(?:jpg|css|js)$\")") {
+		t.Fatal("expected rendered config to render suffix cache matching rule")
+	}
+	if strings.Count(result.Version.RenderedConfig, "proxy_cache openflare_cache;") != 1 {
+		t.Fatal("expected only cache-enabled route to include proxy_cache directive")
+	}
+	if !strings.Contains(result.Version.SnapshotJSON, `"cache_enabled":true`) {
+		t.Fatal("expected snapshot to include route cache toggle")
+	}
+	if !strings.Contains(result.Version.SnapshotJSON, `"cache_policy":"suffix"`) {
+		t.Fatal("expected snapshot to include route cache policy")
+	}
+}
+
 func TestPublishConfigVersionOverridesOriginHostHeader(t *testing.T) {
 	setupServiceTestDB(t)
 

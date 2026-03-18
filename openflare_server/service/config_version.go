@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"openflare/common"
 	"openflare/model"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -65,8 +66,17 @@ type snapshotRoute struct {
 	EnableHTTPS   bool                          `json:"enable_https"`
 	CertID        *uint                         `json:"cert_id,omitempty"`
 	RedirectHTTP  bool                          `json:"redirect_http"`
+	CacheEnabled  bool                          `json:"cache_enabled"`
+	CachePolicy   string                        `json:"cache_policy,omitempty"`
+	CacheRules    []string                      `json:"cache_rules,omitempty"`
 	CustomHeaders []ProxyRouteCustomHeaderInput `json:"custom_headers,omitempty"`
 	Remark        string                        `json:"remark,omitempty"`
+}
+
+type routeCacheConfig struct {
+	Enabled bool
+	Policy  string
+	Rules   []string
 }
 
 type openRestyConfigSnapshot struct {
@@ -391,6 +401,10 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 		if err != nil {
 			return nil, fmt.Errorf("路由 %s 自定义请求头无效", route.Domain)
 		}
+		cacheRules, err := decodeStoredCacheRules(route.CacheRules)
+		if err != nil {
+			return nil, fmt.Errorf("路由 %s 缓存规则无效", route.Domain)
+		}
 		items = append(items, snapshotRoute{
 			Domain:        route.Domain,
 			OriginURL:     route.OriginURL,
@@ -399,6 +413,9 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 			EnableHTTPS:   route.EnableHTTPS,
 			CertID:        route.CertID,
 			RedirectHTTP:  route.RedirectHTTP,
+			CacheEnabled:  route.CacheEnabled,
+			CachePolicy:   route.CachePolicy,
+			CacheRules:    cacheRules,
 			CustomHeaders: customHeaders,
 			Remark:        route.Remark,
 		})
@@ -435,13 +452,26 @@ func normalizeSnapshotRoutes(routes []snapshotRoute) []snapshotRoute {
 		if err == nil {
 			routes[index].CustomHeaders = normalizedHeaders
 		}
+		normalizedCacheRules, err := normalizeCacheRules(routes[index].CacheEnabled, routes[index].CachePolicy, routes[index].CacheRules)
+		if err == nil {
+			routes[index].CachePolicy = normalizeCachePolicy(routes[index].CacheEnabled, routes[index].CachePolicy)
+			routes[index].CacheRules = normalizedCacheRules
+		}
 	}
 	return routes
 }
 
 func snapshotRouteConfigEqual(left snapshotRoute, right snapshotRoute) bool {
-	if left.Domain != right.Domain || left.OriginURL != right.OriginURL || left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP || !uintPointerEqual(left.CertID, right.CertID) {
+	if left.Domain != right.Domain || left.OriginURL != right.OriginURL || left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP || left.CacheEnabled != right.CacheEnabled || left.CachePolicy != right.CachePolicy || !uintPointerEqual(left.CertID, right.CertID) {
 		return false
+	}
+	if len(left.CacheRules) != len(right.CacheRules) {
+		return false
+	}
+	for index := range left.CacheRules {
+		if left.CacheRules[index] != right.CacheRules[index] {
+			return false
+		}
 	}
 	if len(left.CustomHeaders) != len(right.CustomHeaders) {
 		return false
@@ -611,8 +641,17 @@ func renderRouteConfig(routes []*model.ProxyRoute, cfg openRestyConfigSnapshot) 
 		if err != nil {
 			return "", nil, fmt.Errorf("路由 %s 自定义请求头无效", route.Domain)
 		}
+		cacheRules, err := decodeStoredCacheRules(route.CacheRules)
+		if err != nil {
+			return "", nil, fmt.Errorf("路由 %s 缓存规则无效", route.Domain)
+		}
+		cacheConfig := routeCacheConfig{
+			Enabled: route.CacheEnabled,
+			Policy:  route.CachePolicy,
+			Rules:   cacheRules,
+		}
 		if !route.EnableHTTPS {
-			builder.WriteString(renderHTTPProxyServer(route.Domain, route.OriginURL, route.OriginHost, customHeaders, cfg))
+			builder.WriteString(renderHTTPProxyServer(route.Domain, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, cfg))
 			continue
 		}
 		if route.CertID == nil || *route.CertID == 0 {
@@ -629,9 +668,9 @@ func renderRouteConfig(routes []*model.ProxyRoute, cfg openRestyConfigSnapshot) 
 		if route.RedirectHTTP {
 			builder.WriteString(renderHTTPRedirectServer(route.Domain))
 		} else {
-			builder.WriteString(renderHTTPProxyServer(route.Domain, route.OriginURL, route.OriginHost, customHeaders, cfg))
+			builder.WriteString(renderHTTPProxyServer(route.Domain, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, cfg))
 		}
-		builder.WriteString(renderHTTPSServer(route.Domain, route.OriginURL, route.OriginHost, certificate.ID, customHeaders, cfg))
+		builder.WriteString(renderHTTPSServer(route.Domain, route.OriginURL, route.OriginHost, certificate.ID, customHeaders, cacheConfig, cfg))
 	}
 	return builder.String(), dedupeSupportFiles(supportFiles), nil
 }
@@ -768,18 +807,18 @@ func nextVersionNumber(now time.Time) (string, error) {
 	return fmt.Sprintf("%s-%03d", prefix, count+1), nil
 }
 
-func renderHTTPProxyServer(domain string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, cfg openRestyConfigSnapshot) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    location / {\n%s%s    }\n}\n\n", domain, renderProxyHeaderBlock(originURL, originHost, customHeaders), renderProxyPassBlock(originURL, cfg))
+func renderHTTPProxyServer(domain string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, cfg openRestyConfigSnapshot) string {
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    location / {\n%s%s%s    }\n}\n\n", domain, renderProxyHeaderBlock(originURL, originHost, customHeaders), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, cfg))
 }
 
 func renderHTTPRedirectServer(domain string) string {
 	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    return 301 https://$host$request_uri;\n}\n\n", domain)
 }
 
-func renderHTTPSServer(domain string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cfg openRestyConfigSnapshot) string {
+func renderHTTPSServer(domain string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, cfg openRestyConfigSnapshot) string {
 	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
 	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-	return fmt.Sprintf("server {\n    listen 443 ssl http2;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s%s    }\n}\n\n", domain, certPath, keyPath, renderProxyHeaderBlock(originURL, originHost, customHeaders), renderProxyPassBlock(originURL, cfg))
+	return fmt.Sprintf("server {\n    listen 443 ssl http2;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s%s%s    }\n}\n\n", domain, certPath, keyPath, renderProxyHeaderBlock(originURL, originHost, customHeaders), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, cfg))
 }
 
 func renderConnectionUpgradeMap() string {
@@ -812,10 +851,72 @@ func renderProxyHeaderBlock(originURL string, originHost string, customHeaders [
 	for _, header := range customHeaders {
 		builder.WriteString(fmt.Sprintf("        proxy_set_header %s %s;\n", header.Key, quoteNginxHeaderValue(header.Value)))
 	}
-	if common.OpenRestyCacheEnabled {
-		builder.WriteString("        proxy_cache openflare_cache;\n")
-	}
 	return builder.String()
+}
+
+func renderRouteCacheBlock(cacheConfig routeCacheConfig, cfg openRestyConfigSnapshot) string {
+	if !cfg.CacheEnabled || !cacheConfig.Enabled {
+		return ""
+	}
+	var builder strings.Builder
+	builder.WriteString("        set $openflare_skip_cache 0;\n")
+	builder.WriteString("        if ($request_method != GET) {\n            set $openflare_skip_cache 1;\n        }\n")
+	builder.WriteString("        if ($http_authorization != \"\") {\n            set $openflare_skip_cache 1;\n        }\n")
+	builder.WriteString("        if ($http_cookie ~* \"(session|sess|token|auth|jwt|logged_in|remember|laravel_session|connect\\\\.sid|_session)\") {\n            set $openflare_skip_cache 1;\n        }\n")
+	builder.WriteString("        if ($http_cache_control ~* \"(no-cache|no-store|private)\") {\n            set $openflare_skip_cache 1;\n        }\n")
+	if policyCondition := renderRouteCachePolicyCondition(cacheConfig); policyCondition != "" {
+		builder.WriteString(policyCondition)
+	}
+	builder.WriteString("        proxy_cache openflare_cache;\n")
+	builder.WriteString("        proxy_cache_methods GET;\n")
+	builder.WriteString("        proxy_cache_bypass $openflare_skip_cache;\n")
+	builder.WriteString("        proxy_no_cache $openflare_skip_cache;\n")
+	return builder.String()
+}
+
+func renderRouteCachePolicyCondition(cacheConfig routeCacheConfig) string {
+	switch cacheConfig.Policy {
+	case proxyRouteCachePolicySuffix:
+		return fmt.Sprintf("        if ($uri !~* %s) {\n            set $openflare_skip_cache 1;\n        }\n", quoteNginxStringLiteral(buildSuffixMatchPattern(cacheConfig.Rules)))
+	case proxyRouteCachePolicyPathPrefix:
+		return fmt.Sprintf("        if ($uri !~ %s) {\n            set $openflare_skip_cache 1;\n        }\n", quoteNginxStringLiteral(buildPathPrefixMatchPattern(cacheConfig.Rules)))
+	case proxyRouteCachePolicyPathExact:
+		return fmt.Sprintf("        if ($uri !~ %s) {\n            set $openflare_skip_cache 1;\n        }\n", quoteNginxStringLiteral(buildPathExactMatchPattern(cacheConfig.Rules)))
+	default:
+		return ""
+	}
+}
+
+func buildSuffixMatchPattern(rules []string) string {
+	parts := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		parts = append(parts, regexp.QuoteMeta(rule))
+	}
+	return fmt.Sprintf("\\.(?:%s)$", strings.Join(parts, "|"))
+}
+
+func buildPathPrefixMatchPattern(rules []string) string {
+	parts := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		trimmed := strings.TrimRight(rule, "/")
+		if trimmed == "" {
+			trimmed = "/"
+		}
+		if trimmed == "/" {
+			parts = append(parts, "/")
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s(?:/|$)", regexp.QuoteMeta(trimmed)))
+	}
+	return fmt.Sprintf("^(?:%s)", strings.Join(parts, "|"))
+}
+
+func buildPathExactMatchPattern(rules []string) string {
+	parts := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		parts = append(parts, regexp.QuoteMeta(rule))
+	}
+	return fmt.Sprintf("^(?:%s)$", strings.Join(parts, "|"))
 }
 
 func renderProxyPassBlock(originURL string, cfg openRestyConfigSnapshot) string {

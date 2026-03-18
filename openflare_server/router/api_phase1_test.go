@@ -44,11 +44,14 @@ func TestPhase1PublishLifecycle(t *testing.T) {
 	token := prepareRootToken(t)
 
 	createBody := map[string]any{
-		"domain":      "app.example.com",
-		"origin_url":  "https://origin-a.internal",
-		"origin_host": "origin-a.internal",
-		"enabled":     true,
-		"remark":      "primary route",
+		"domain":        "app.example.com",
+		"origin_url":    "https://origin-a.internal",
+		"origin_host":   "origin-a.internal",
+		"enabled":       true,
+		"cache_enabled": true,
+		"cache_policy":  "path_prefix",
+		"cache_rules":   []string{"/assets", "/static"},
+		"remark":        "primary route",
 	}
 	resp := performJSONRequest(t, engine, token, http.MethodPost, "/api/proxy-routes/", createBody)
 	var createdRoute model.ProxyRoute
@@ -58,6 +61,12 @@ func TestPhase1PublishLifecycle(t *testing.T) {
 	}
 	if createdRoute.OriginHost != "origin-a.internal" {
 		t.Fatalf("unexpected created route origin host: %s", createdRoute.OriginHost)
+	}
+	if !createdRoute.CacheEnabled || createdRoute.CachePolicy != "path_prefix" {
+		t.Fatalf("expected route cache settings to persist, got %+v", createdRoute)
+	}
+	if !strings.Contains(createdRoute.CacheRules, "/assets") {
+		t.Fatalf("expected route cache rules to persist, got %s", createdRoute.CacheRules)
 	}
 
 	resp = performJSONRequest(t, engine, token, http.MethodGet, "/api/proxy-routes/", nil)
@@ -103,11 +112,14 @@ func TestPhase1PublishLifecycle(t *testing.T) {
 	initialRendered := version1.RenderedConfig
 
 	updateBody := map[string]any{
-		"domain":      "app.example.com",
-		"origin_url":  "https://origin-b.internal",
-		"origin_host": "origin-b.internal",
-		"enabled":     true,
-		"remark":      "updated route",
+		"domain":        "app.example.com",
+		"origin_url":    "https://origin-b.internal",
+		"origin_host":   "origin-b.internal",
+		"enabled":       true,
+		"cache_enabled": true,
+		"cache_policy":  "path_exact",
+		"cache_rules":   []string{"/robots.txt"},
+		"remark":        "updated route",
 	}
 	routePath := "/api/proxy-routes/" + toString(createdRoute.ID)
 	resp = performJSONRequest(t, engine, token, http.MethodPost, routePath+"/update", updateBody)
@@ -117,6 +129,9 @@ func TestPhase1PublishLifecycle(t *testing.T) {
 	}
 	if createdRoute.OriginHost != "origin-b.internal" {
 		t.Fatalf("unexpected updated route origin host: %s", createdRoute.OriginHost)
+	}
+	if createdRoute.CachePolicy != "path_exact" || !strings.Contains(createdRoute.CacheRules, "/robots.txt") {
+		t.Fatalf("expected updated route cache rules to persist, got %+v", createdRoute)
 	}
 
 	resp = performJSONRequest(t, engine, token, http.MethodPost, "/api/config-versions/publish", nil)
