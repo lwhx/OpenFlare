@@ -1326,7 +1326,7 @@ export function SettingsPage() {
 
     if (activeTab === 'database') {
       return (
-        <div className="space-y-6">
+        <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
           <AppCard
             title="自动数据清理"
             description="每天凌晨 3 点自动清理超出保留期的观测数据，统一作用于访问日志、性能快照和请求聚合。"
@@ -1365,60 +1365,62 @@ export function SettingsPage() {
               </PrimaryButton>
             }
           >
-            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-              <ToggleField
-                label="启用每日自动清理"
-                description="开启后，服务端每天自动删除保留天数之外的观测数据。"
-                checked={databaseFields.DatabaseAutoCleanupEnabled}
-                onChange={(checked) =>
-                  setDatabaseFields((previous) => ({
-                    ...previous,
-                    DatabaseAutoCleanupEnabled: checked,
-                  }))
-                }
-              />
-              <div className="space-y-4 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] p-5">
-                <ResourceField
-                  label="自动清理保留天数"
-                  hint="必须至少保留 1 天，服务端不允许配置为 24 小时以内。"
-                >
-                  <ResourceInput
-                    type="number"
-                    min={1}
-                    value={databaseFields.DatabaseAutoCleanupRetentionDays}
-                    onChange={(event) =>
-                      setDatabaseFields((previous) => ({
-                        ...previous,
-                        DatabaseAutoCleanupRetentionDays: event.target.value,
-                      }))
-                    }
-                    placeholder="例如 30"
-                  />
-                </ResourceField>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-base)] px-4 py-4">
-                    <p className="text-xs tracking-[0.2em] uppercase text-[var(--foreground-muted)]">
-                      触发频率
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--foreground-primary)]">
-                      每天一次
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-base)] px-4 py-4">
-                    <p className="text-xs tracking-[0.2em] uppercase text-[var(--foreground-muted)]">
-                      默认执行时间
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--foreground-primary)]">
-                      凌晨 3:00
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-base)] px-4 py-4">
-                    <p className="text-xs tracking-[0.2em] uppercase text-[var(--foreground-muted)]">
-                      生效范围
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--foreground-primary)]">
-                      三类观测表
-                    </p>
+            <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] p-5">
+              <div className="space-y-5">
+                <ToggleField
+                  label="启用每日自动清理"
+                  description="开启后，服务端每天自动删除保留天数之外的观测数据。"
+                  checked={databaseFields.DatabaseAutoCleanupEnabled}
+                  onChange={(checked) =>
+                    setDatabaseFields((previous) => ({
+                      ...previous,
+                      DatabaseAutoCleanupEnabled: checked,
+                    }))
+                  }
+                />
+                <div className="border-t border-[var(--border-default)] pt-5">
+                  <ResourceField
+                    label="自动清理保留天数"
+                    hint="必须至少保留 1 天，服务端不允许配置为 24 小时以内。"
+                  >
+                    <ResourceInput
+                      type="number"
+                      min={1}
+                      value={databaseFields.DatabaseAutoCleanupRetentionDays}
+                      onChange={(event) =>
+                        setDatabaseFields((previous) => ({
+                          ...previous,
+                          DatabaseAutoCleanupRetentionDays: event.target.value,
+                        }))
+                      }
+                      placeholder="例如 30"
+                    />
+                  </ResourceField>
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-base)] px-4 py-4">
+                      <p className="text-xs tracking-[0.2em] uppercase text-[var(--foreground-muted)]">
+                        触发频率
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-[var(--foreground-primary)]">
+                        每天一次
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-base)] px-4 py-4">
+                      <p className="text-xs tracking-[0.2em] uppercase text-[var(--foreground-muted)]">
+                        默认执行时间
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-[var(--foreground-primary)]">
+                        凌晨 3:00
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-base)] px-4 py-4">
+                      <p className="text-xs tracking-[0.2em] uppercase text-[var(--foreground-muted)]">
+                        生效范围
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-[var(--foreground-primary)]">
+                        三类观测表
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
