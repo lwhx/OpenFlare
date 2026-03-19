@@ -226,6 +226,9 @@ go run ./cmd/agent -config /path/to/agent.json
 
 登录管理端后，可访问 Swagger UI：`/swagger/index.html`
 
+如需重新生成 Swagger 文档，请使用与服务端依赖一致的版本：
+`go install github.com/swaggo/swag/cmd/swag@v1.16.4`
+
 ## 开源协议
 
 本项目采用 [Apache License 2.0](./LICENSE) 开源。

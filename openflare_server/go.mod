@@ -16,7 +16,7 @@ require (
 	github.com/oschwald/maxminddb-golang v1.13.1
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
-	github.com/swaggo/swag v1.8.12
+	github.com/swaggo/swag v1.16.4
 	golang.org/x/crypto v0.45.0
 	golang.org/x/net v0.47.0
 	gorm.io/driver/postgres v1.6.0

@@ -107,7 +107,7 @@ docker compose up -d
 如需在本地重新生成文档：
 
 ```bash
-go install github.com/swaggo/swag/cmd/swag@latest
+go install github.com/swaggo/swag/cmd/swag@v1.16.4
 cd openflare_server
 swag init -g main.go -o docs
 ```
