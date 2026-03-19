@@ -256,6 +256,159 @@ func TestEnsureDatabaseSchemaUpToDateUpgradesLegacyDatabase(t *testing.T) {
 	}
 }
 
+func TestEnsureDatabaseSchemaUpToDateMigratesObservabilityShardsToID(t *testing.T) {
+	db := openBareTestSQLiteDB(t, "legacy-observability-shards.db")
+	if err := registerSharding(db, "sqlite"); err != nil {
+		t.Fatalf("register sharding: %v", err)
+	}
+	if err := autoMigrateAll(db); err != nil {
+		t.Fatalf("auto migrate db: %v", err)
+	}
+	if err := autoMigrateSchemaMetadata(db); err != nil {
+		t.Fatalf("auto migrate schema metadata: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if err := db.Table("node_metric_snapshots_00").Create(&NodeMetricSnapshot{
+		ID:               1,
+		NodeID:           "node-a",
+		CapturedAt:       now.Add(-2 * time.Minute),
+		CPUUsagePercent:  22,
+		MemoryUsedBytes:  2,
+		MemoryTotalBytes: 8,
+	}).Error; err != nil {
+		t.Fatalf("seed metric snapshot shard 00: %v", err)
+	}
+	if err := db.Table("node_metric_snapshots_01").Create(&NodeMetricSnapshot{
+		ID:               1,
+		NodeID:           "node-b",
+		CapturedAt:       now.Add(-time.Minute),
+		CPUUsagePercent:  44,
+		MemoryUsedBytes:  4,
+		MemoryTotalBytes: 8,
+	}).Error; err != nil {
+		t.Fatalf("seed metric snapshot shard 01: %v", err)
+	}
+	if err := db.Table("node_request_reports_00").Create(&NodeRequestReport{
+		ID:                 1,
+		NodeID:             "node-a",
+		WindowStartedAt:    now.Add(-3 * time.Minute),
+		WindowEndedAt:      now.Add(-2 * time.Minute),
+		RequestCount:       12,
+		ErrorCount:         1,
+		UniqueVisitorCount: 6,
+	}).Error; err != nil {
+		t.Fatalf("seed request report shard 00: %v", err)
+	}
+	if err := db.Table("node_request_reports_01").Create(&NodeRequestReport{
+		ID:                 1,
+		NodeID:             "node-b",
+		WindowStartedAt:    now.Add(-2 * time.Minute),
+		WindowEndedAt:      now.Add(-time.Minute),
+		RequestCount:       21,
+		ErrorCount:         2,
+		UniqueVisitorCount: 9,
+	}).Error; err != nil {
+		t.Fatalf("seed request report shard 01: %v", err)
+	}
+	if err := db.Table("node_access_logs_00").Create(&NodeAccessLog{
+		ID:         1,
+		NodeID:     "node-a",
+		LoggedAt:   now.Add(-90 * time.Second),
+		RemoteAddr: "203.0.113.10",
+		Host:       "a.example.com",
+		Path:       "/alpha",
+		StatusCode: 200,
+	}).Error; err != nil {
+		t.Fatalf("seed access log shard 00: %v", err)
+	}
+	if err := db.Table("node_access_logs_01").Create(&NodeAccessLog{
+		ID:         1,
+		NodeID:     "node-b",
+		LoggedAt:   now.Add(-60 * time.Second),
+		RemoteAddr: "203.0.113.11",
+		Host:       "b.example.com",
+		Path:       "/beta",
+		StatusCode: 502,
+	}).Error; err != nil {
+		t.Fatalf("seed access log shard 01: %v", err)
+	}
+	if err := saveDatabaseSchemaVersion(db, 2); err != nil {
+		t.Fatalf("save schema version: %v", err)
+	}
+
+	previousDB := DB
+	DB = db
+	t.Cleanup(func() {
+		DB = previousDB
+	})
+
+	if err := ensureDatabaseSchemaUpToDate(db, "sqlite"); err != nil {
+		t.Fatalf("ensureDatabaseSchemaUpToDate: %v", err)
+	}
+
+	version, exists, err := loadDatabaseSchemaVersion(db)
+	if err != nil {
+		t.Fatalf("loadDatabaseSchemaVersion: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected migrated database to keep schema version record")
+	}
+	if version != currentDatabaseSchemaVersion {
+		t.Fatalf("unexpected schema version: got %d want %d", version, currentDatabaseSchemaVersion)
+	}
+
+	for _, baseTable := range shardedObservabilityBaseTables() {
+		for _, table := range observabilityShardTables(baseTable) {
+			legacyTable := legacyObservabilityShardTableName(table)
+			if db.Migrator().HasTable(legacyTable) {
+				t.Fatalf("expected legacy shard table %s to be removed", legacyTable)
+			}
+		}
+	}
+
+	snapshots, err := ListMetricSnapshotsSince(time.Time{})
+	if err != nil {
+		t.Fatalf("ListMetricSnapshotsSince failed: %v", err)
+	}
+	if len(snapshots) != 2 {
+		t.Fatalf("expected 2 migrated metric snapshots, got %+v", snapshots)
+	}
+	reports, err := ListRequestReportsSince(time.Time{})
+	if err != nil {
+		t.Fatalf("ListRequestReportsSince failed: %v", err)
+	}
+	if len(reports) != 2 {
+		t.Fatalf("expected 2 migrated request reports, got %+v", reports)
+	}
+	logs, err := ListNodeAccessLogs(NodeAccessLogQuery{Page: 0, PageSize: 10})
+	if err != nil {
+		t.Fatalf("ListNodeAccessLogs failed: %v", err)
+	}
+	if len(logs) != 2 {
+		t.Fatalf("expected 2 migrated access logs, got %+v", logs)
+	}
+
+	seenSnapshotIDs := make(map[uint]struct{}, len(snapshots))
+	for _, item := range snapshots {
+		if item == nil || item.ID == 0 {
+			t.Fatalf("expected migrated metric snapshot to have a new non-zero id: %+v", item)
+		}
+		if _, exists := seenSnapshotIDs[item.ID]; exists {
+			t.Fatalf("expected migrated metric snapshot ids to be unique, got duplicate %d", item.ID)
+		}
+		seenSnapshotIDs[item.ID] = struct{}{}
+		targetTable := observabilityShardTableForID("node_metric_snapshots", item.ID)
+		var count int64
+		if err := db.Table(targetTable).Where("id = ?", item.ID).Count(&count).Error; err != nil {
+			t.Fatalf("count migrated metric snapshot in target shard: %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("expected migrated metric snapshot id %d to be stored in %s", item.ID, targetTable)
+		}
+	}
+}
+
 func TestRunDatabaseSchemaMigrationDoesNotAdvanceVersionWhenValidationFails(t *testing.T) {
 	db := openBareTestSQLiteDB(t, "failed-validation.db")
 

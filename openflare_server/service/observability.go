@@ -176,7 +176,14 @@ func persistNodeMetricSnapshot(tx *gorm.DB, nodeID string, snapshot *AgentNodeMe
 		OpenrestyTxBytes:     snapshot.OpenrestyTxBytes,
 		OpenrestyConnections: snapshot.OpenrestyConnections,
 	}
-	return tx.Where("node_id = ? AND captured_at = ?", nodeID, record.CapturedAt).FirstOrCreate(record).Error
+	exists, err := model.NodeMetricSnapshotExists(tx, nodeID, record.CapturedAt)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return tx.Create(record).Error
 }
 
 func persistNodeTrafficReport(tx *gorm.DB, nodeID string, report *AgentNodeTrafficReport, reportedAt time.Time) error {
@@ -197,7 +204,14 @@ func persistNodeTrafficReport(tx *gorm.DB, nodeID string, report *AgentNodeTraff
 		TopDomainsJSON:      marshalJSON(report.TopDomains),
 		SourceCountriesJSON: marshalJSON(report.SourceCountries),
 	}
-	return tx.Where("node_id = ? AND window_started_at = ? AND window_ended_at = ?", nodeID, record.WindowStartedAt, record.WindowEndedAt).FirstOrCreate(record).Error
+	exists, err := model.NodeRequestReportExists(tx, nodeID, record.WindowStartedAt, record.WindowEndedAt)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return tx.Create(record).Error
 }
 
 func persistNodeAccessLogs(tx *gorm.DB, nodeID string, logs []AgentNodeAccessLog, reportedAt time.Time) error {
@@ -224,19 +238,19 @@ func persistNodeAccessLogs(tx *gorm.DB, nodeID string, logs []AgentNodeAccessLog
 		if resolver != nil {
 			record.Region = resolver.Resolve(record.RemoteAddr)
 		}
-		if err := tx.Where(
-			"node_id = ? AND logged_at = ? AND remote_addr = ? AND host = ? AND path = ? AND status_code = ?",
-			nodeID,
-			record.LoggedAt,
-			record.RemoteAddr,
-			record.Host,
-			record.Path,
-			record.StatusCode,
-		).FirstOrCreate(record).Error; err != nil {
+		exists, err := model.NodeAccessLogExists(tx, record)
+		if err != nil {
+			return err
+		}
+		if exists {
+			continue
+		}
+		if err := tx.Create(record).Error; err != nil {
 			return err
 		}
 	}
-	return tx.Where("node_id = ? AND logged_at < ?", nodeID, reportedAt.Add(-nodeAccessLogRetentionWindow)).Delete(&model.NodeAccessLog{}).Error
+	_, err = model.DeleteNodeAccessLogsByNodeBefore(tx, nodeID, reportedAt.Add(-nodeAccessLogRetentionWindow))
+	return err
 }
 
 func reconcileNodeHealthEvents(tx *gorm.DB, nodeID string, events []AgentNodeHealthEvent, reportedAt time.Time) error {

@@ -92,6 +92,10 @@ type NodeAccessLogTrendPointRow struct {
 	RequestCount int64 `json:"request_count"`
 }
 
+func (log *NodeAccessLog) BeforeCreate(tx *gorm.DB) error {
+	return assignObservabilityID(&log.ID)
+}
+
 func ListNodeAccessLogs(query NodeAccessLogQuery) (logs []*NodeAccessLog, err error) {
 	all, err := listNodeAccessLogsAcrossShards(query)
 	if err != nil {
@@ -238,6 +242,46 @@ func ListNodeAccessLogIPTrend(query NodeAccessLogIPTrendQuery) (items []*NodeAcc
 func DeleteNodeAccessLogsBefore(before time.Time) (deleted int64, err error) {
 	for _, table := range observabilityShardTables("node_access_logs") {
 		result := DB.Table(table).Where("logged_at < ?", before).Delete(&NodeAccessLog{})
+		if result.Error != nil {
+			return deleted, result.Error
+		}
+		deleted += result.RowsAffected
+	}
+	return deleted, nil
+}
+
+func NodeAccessLogExists(db *gorm.DB, record *NodeAccessLog) (bool, error) {
+	if record == nil {
+		return false, nil
+	}
+	db = normalizeShardedDB(db)
+	for _, table := range observabilityShardTables("node_access_logs") {
+		var count int64
+		if err := db.Table(table).
+			Where(
+				"node_id = ? AND logged_at = ? AND remote_addr = ? AND host = ? AND path = ? AND status_code = ?",
+				record.NodeID,
+				record.LoggedAt,
+				record.RemoteAddr,
+				record.Host,
+				record.Path,
+				record.StatusCode,
+			).
+			Limit(1).
+			Count(&count).Error; err != nil {
+			return false, err
+		}
+		if count > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func DeleteNodeAccessLogsByNodeBefore(db *gorm.DB, nodeID string, before time.Time) (deleted int64, err error) {
+	db = normalizeShardedDB(db)
+	for _, table := range observabilityShardTables("node_access_logs") {
+		result := db.Table(table).Where("node_id = ? AND logged_at < ?", nodeID, before).Delete(&NodeAccessLog{})
 		if result.Error != nil {
 			return deleted, result.Error
 		}

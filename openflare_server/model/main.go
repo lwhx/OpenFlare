@@ -292,6 +292,193 @@ func validateDatabaseSchemaV2(db *gorm.DB, backend string) error {
 	return nil
 }
 
+func validateDatabaseSchemaV3(db *gorm.DB, backend string) error {
+	if err := validateDatabaseSchemaV2(db, backend); err != nil {
+		return err
+	}
+	for _, baseTable := range shardedObservabilityBaseTables() {
+		for _, table := range observabilityShardTables(baseTable) {
+			legacyTable := legacyObservabilityShardTableName(table)
+			if db.Migrator().HasTable(legacyTable) {
+				return fmt.Errorf("legacy sharded table %s still exists", legacyTable)
+			}
+		}
+	}
+	return nil
+}
+
+func renameLegacyObservabilityShardTables(db *gorm.DB) error {
+	for _, baseTable := range shardedObservabilityBaseTables() {
+		for _, table := range observabilityShardTables(baseTable) {
+			legacyTable := legacyObservabilityShardTableName(table)
+			if db.Migrator().HasTable(legacyTable) {
+				return fmt.Errorf("legacy sharded table %s already exists", legacyTable)
+			}
+			if !db.Migrator().HasTable(table) {
+				continue
+			}
+			if err := db.Migrator().RenameTable(table, legacyTable); err != nil {
+				return fmt.Errorf("rename sharded table %s to %s failed: %w", table, legacyTable, err)
+			}
+		}
+	}
+	return nil
+}
+
+func dropLegacyObservabilityShardTables(db *gorm.DB) error {
+	for _, baseTable := range shardedObservabilityBaseTables() {
+		for _, table := range observabilityShardTables(baseTable) {
+			legacyTable := legacyObservabilityShardTableName(table)
+			if !db.Migrator().HasTable(legacyTable) {
+				continue
+			}
+			if err := db.Migrator().DropTable(legacyTable); err != nil {
+				return fmt.Errorf("drop legacy sharded table %s failed: %w", legacyTable, err)
+			}
+		}
+	}
+	return nil
+}
+
+func migrateLegacyNodeMetricSnapshots(db *gorm.DB) error {
+	for _, table := range observabilityShardTables("node_metric_snapshots") {
+		legacyTable := legacyObservabilityShardTableName(table)
+		if !db.Migrator().HasTable(legacyTable) {
+			continue
+		}
+		var lastSeenID uint
+		for {
+			var rows []NodeMetricSnapshot
+			query := db.Table(legacyTable).Order("id ASC").Limit(500)
+			if lastSeenID > 0 {
+				query = query.Where("id > ?", lastSeenID)
+			}
+			if err := query.Find(&rows).Error; err != nil {
+				return fmt.Errorf("query legacy sharded table %s failed: %w", legacyTable, err)
+			}
+			if len(rows) == 0 {
+				break
+			}
+			lastSeenID = rows[len(rows)-1].ID
+			grouped := make(map[string][]NodeMetricSnapshot, observabilityShardCount)
+			for index := range rows {
+				rows[index].ID = 0
+				if err := assignObservabilityID(&rows[index].ID); err != nil {
+					return err
+				}
+				targetTable := observabilityShardTableForID("node_metric_snapshots", rows[index].ID)
+				grouped[targetTable] = append(grouped[targetTable], rows[index])
+			}
+			for targetTable, batch := range grouped {
+				if err := db.Table(targetTable).Create(&batch).Error; err != nil {
+					return fmt.Errorf("write migrated rows into %s failed: %w", targetTable, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func migrateLegacyNodeRequestReports(db *gorm.DB) error {
+	for _, table := range observabilityShardTables("node_request_reports") {
+		legacyTable := legacyObservabilityShardTableName(table)
+		if !db.Migrator().HasTable(legacyTable) {
+			continue
+		}
+		var lastSeenID uint
+		for {
+			var rows []NodeRequestReport
+			query := db.Table(legacyTable).Order("id ASC").Limit(500)
+			if lastSeenID > 0 {
+				query = query.Where("id > ?", lastSeenID)
+			}
+			if err := query.Find(&rows).Error; err != nil {
+				return fmt.Errorf("query legacy sharded table %s failed: %w", legacyTable, err)
+			}
+			if len(rows) == 0 {
+				break
+			}
+			lastSeenID = rows[len(rows)-1].ID
+			grouped := make(map[string][]NodeRequestReport, observabilityShardCount)
+			for index := range rows {
+				rows[index].ID = 0
+				if err := assignObservabilityID(&rows[index].ID); err != nil {
+					return err
+				}
+				targetTable := observabilityShardTableForID("node_request_reports", rows[index].ID)
+				grouped[targetTable] = append(grouped[targetTable], rows[index])
+			}
+			for targetTable, batch := range grouped {
+				if err := db.Table(targetTable).Create(&batch).Error; err != nil {
+					return fmt.Errorf("write migrated rows into %s failed: %w", targetTable, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func migrateLegacyNodeAccessLogs(db *gorm.DB) error {
+	for _, table := range observabilityShardTables("node_access_logs") {
+		legacyTable := legacyObservabilityShardTableName(table)
+		if !db.Migrator().HasTable(legacyTable) {
+			continue
+		}
+		var lastSeenID uint
+		for {
+			var rows []NodeAccessLog
+			query := db.Table(legacyTable).Order("id ASC").Limit(500)
+			if lastSeenID > 0 {
+				query = query.Where("id > ?", lastSeenID)
+			}
+			if err := query.Find(&rows).Error; err != nil {
+				return fmt.Errorf("query legacy sharded table %s failed: %w", legacyTable, err)
+			}
+			if len(rows) == 0 {
+				break
+			}
+			lastSeenID = rows[len(rows)-1].ID
+			grouped := make(map[string][]NodeAccessLog, observabilityShardCount)
+			for index := range rows {
+				rows[index].ID = 0
+				if err := assignObservabilityID(&rows[index].ID); err != nil {
+					return err
+				}
+				targetTable := observabilityShardTableForID("node_access_logs", rows[index].ID)
+				grouped[targetTable] = append(grouped[targetTable], rows[index])
+			}
+			for targetTable, batch := range grouped {
+				if err := db.Table(targetTable).Create(&batch).Error; err != nil {
+					return fmt.Errorf("write migrated rows into %s failed: %w", targetTable, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func migrateObservabilityShardsToID(db *gorm.DB, backend string) error {
+	if db == nil {
+		return fmt.Errorf("database handle is nil")
+	}
+	if err := renameLegacyObservabilityShardTables(db); err != nil {
+		return err
+	}
+	if err := applyCurrentSchema(db, backend); err != nil {
+		return err
+	}
+	if err := migrateLegacyNodeMetricSnapshots(db); err != nil {
+		return err
+	}
+	if err := migrateLegacyNodeRequestReports(db); err != nil {
+		return err
+	}
+	if err := migrateLegacyNodeAccessLogs(db); err != nil {
+		return err
+	}
+	return dropLegacyObservabilityShardTables(db)
+}
+
 func databaseSchemaMigrations() []databaseSchemaMigration {
 	return []databaseSchemaMigration{
 		{
@@ -299,6 +486,12 @@ func databaseSchemaMigrations() []databaseSchemaMigration {
 			toVersion:   2,
 			migrate:     applyCurrentSchema,
 			validate:    validateDatabaseSchemaV2,
+		},
+		{
+			fromVersion: 2,
+			toVersion:   3,
+			migrate:     migrateObservabilityShardsToID,
+			validate:    validateDatabaseSchemaV3,
 		},
 	}
 }
@@ -354,7 +547,7 @@ func initializeFreshDatabaseSchema(db *gorm.DB, backend string) error {
 	if err := migrateSQLiteDataIfNeeded(db, backend); err != nil {
 		return err
 	}
-	if err := validateDatabaseSchemaV2(db, backend); err != nil {
+	if err := validateDatabaseSchemaV3(db, backend); err != nil {
 		return err
 	}
 	return saveDatabaseSchemaVersion(db, currentDatabaseSchemaVersion)

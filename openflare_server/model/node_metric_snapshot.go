@@ -26,20 +26,42 @@ type NodeMetricSnapshot struct {
 	CreatedAt            time.Time `json:"created_at"`
 }
 
+func (snapshot *NodeMetricSnapshot) BeforeCreate(tx *gorm.DB) error {
+	return assignObservabilityID(&snapshot.ID)
+}
+
 func (snapshot *NodeMetricSnapshot) Insert() error {
 	return DB.Create(snapshot).Error
 }
 
 func ListNodeMetricSnapshots(nodeID string, since time.Time, limit int) (snapshots []*NodeMetricSnapshot, err error) {
-	query := DB.Where("node_id = ?", nodeID).Order("captured_at desc")
-	if !since.IsZero() {
-		query = query.Where("captured_at >= ?", since)
+	rows, err := queryAcrossShards("node_metric_snapshots", func(tx *gorm.DB) ([]*NodeMetricSnapshot, error) {
+		var shardRows []*NodeMetricSnapshot
+		query := tx.Order("captured_at desc, id desc")
+		if nodeID != "" {
+			query = query.Where("node_id = ?", nodeID)
+		}
+		if !since.IsZero() {
+			query = query.Where("captured_at >= ?", since)
+		}
+		if err := query.Find(&shardRows).Error; err != nil {
+			return nil, err
+		}
+		return shardRows, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	if limit > 0 {
-		query = query.Limit(limit)
+	sort.Slice(rows, func(i int, j int) bool {
+		if rows[i].CapturedAt.Equal(rows[j].CapturedAt) {
+			return rows[i].ID > rows[j].ID
+		}
+		return rows[i].CapturedAt.After(rows[j].CapturedAt)
+	})
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
 	}
-	err = query.Find(&snapshots).Error
-	return snapshots, err
+	return rows, nil
 }
 
 func ListMetricSnapshotsSince(since time.Time) (snapshots []*NodeMetricSnapshot, err error) {
@@ -64,4 +86,21 @@ func ListMetricSnapshotsSince(since time.Time) (snapshots []*NodeMetricSnapshot,
 		return rows[i].CapturedAt.After(rows[j].CapturedAt)
 	})
 	return rows, nil
+}
+
+func NodeMetricSnapshotExists(db *gorm.DB, nodeID string, capturedAt time.Time) (bool, error) {
+	db = normalizeShardedDB(db)
+	for _, table := range observabilityShardTables("node_metric_snapshots") {
+		var count int64
+		if err := db.Table(table).
+			Where("node_id = ? AND captured_at = ?", nodeID, capturedAt).
+			Limit(1).
+			Count(&count).Error; err != nil {
+			return false, err
+		}
+		if count > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }

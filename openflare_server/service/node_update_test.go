@@ -882,6 +882,15 @@ func TestHeartbeatNodePersistsBufferedObservabilityPayload(t *testing.T) {
 					TopDomains:          map[string]int64{"edge.example.com": 40},
 					SourceCountries:     map[string]int64{"CN": 20},
 				},
+				AccessLogs: []AgentNodeAccessLog{
+					{
+						LoggedAtUnix: now.Add(-110 * time.Second).Unix(),
+						RemoteAddr:   "203.0.113.21",
+						Host:         "edge.example.com",
+						Path:         "/buffered",
+						StatusCode:   200,
+					},
+				},
 			},
 		},
 	})
@@ -902,6 +911,18 @@ func TestHeartbeatNodePersistsBufferedObservabilityPayload(t *testing.T) {
 	}
 	if len(reports) != 2 {
 		t.Fatalf("expected replay dedupe to keep report count stable, got %+v", reports)
+	}
+	accessLogs, err = model.ListNodeAccessLogs(model.NodeAccessLogQuery{
+		NodeID:   node.NodeID,
+		Since:    time.Time{},
+		Page:     0,
+		PageSize: 10,
+	})
+	if err != nil {
+		t.Fatalf("expected node access logs query to succeed after replay: %v", err)
+	}
+	if len(accessLogs) != 1 {
+		t.Fatalf("expected replay dedupe to keep access log count stable, got %+v", accessLogs)
 	}
 }
 
