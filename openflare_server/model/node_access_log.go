@@ -18,7 +18,6 @@ type NodeAccessLog struct {
 	Host       string    `json:"host" gorm:"index;size:255"`
 	Path       string    `json:"path" gorm:"size:2048"`
 	StatusCode int       `json:"status_code" gorm:"index"`
-	RawJSON    string    `json:"raw_json" gorm:"type:text"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 

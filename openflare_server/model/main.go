@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
@@ -144,6 +145,50 @@ func migrateTextColumns(db *gorm.DB, backend string) error {
 		sql := fmt.Sprintf(`ALTER TABLE "%s" ALTER COLUMN "%s" TYPE text`, item.table, item.column)
 		if err := db.Exec(sql).Error; err != nil {
 			return fmt.Errorf("migrate column %s.%s to text failed: %w", item.table, item.column, err)
+		}
+	}
+	return nil
+}
+
+func migrateObservabilityLegacyColumns(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	if !db.Migrator().HasTable(&NodeHealthEvent{}) || !db.Migrator().HasColumn(&NodeHealthEvent{}, "raw_json") {
+		return nil
+	}
+	type legacyHealthEventRaw struct {
+		ID           uint
+		RawJSON      string
+		MetadataJSON string
+	}
+	type legacyHealthEventPayload struct {
+		Metadata map[string]string `json:"metadata"`
+	}
+
+	var rows []legacyHealthEventRaw
+	if err := db.Model(&NodeHealthEvent{}).
+		Select("id, raw_json, metadata_json").
+		Where("raw_json <> '' AND (metadata_json IS NULL OR metadata_json = '')").
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("query legacy node health event raw_json failed: %w", err)
+	}
+	for _, row := range rows {
+		var payload legacyHealthEventPayload
+		if err := json.Unmarshal([]byte(row.RawJSON), &payload); err != nil {
+			continue
+		}
+		if len(payload.Metadata) == 0 {
+			continue
+		}
+		metadataJSON, err := json.Marshal(payload.Metadata)
+		if err != nil {
+			continue
+		}
+		if err := db.Model(&NodeHealthEvent{}).
+			Where("id = ?", row.ID).
+			Update("metadata_json", string(metadataJSON)).Error; err != nil {
+			return fmt.Errorf("migrate node health event metadata_json failed: %w", err)
 		}
 	}
 	return nil
@@ -308,6 +353,9 @@ func InitDB() (err error) {
 		return err
 	}
 	if err = migrateTextColumns(db, backend); err != nil {
+		return err
+	}
+	if err = migrateObservabilityLegacyColumns(db); err != nil {
 		return err
 	}
 	if err = migrateSQLiteDataIfNeeded(db, backend); err != nil {

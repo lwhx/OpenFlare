@@ -23,7 +23,6 @@ type NodeMetricSnapshot struct {
 	OpenrestyRxBytes     int64     `json:"openresty_rx_bytes"`
 	OpenrestyTxBytes     int64     `json:"openresty_tx_bytes"`
 	OpenrestyConnections int64     `json:"openresty_connections"`
-	RawJSON              string    `json:"raw_json" gorm:"type:text"`
 	CreatedAt            time.Time `json:"created_at"`
 }
 

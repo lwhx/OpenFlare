@@ -1,8 +1,10 @@
 package model
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -152,5 +154,51 @@ func TestRegisterShardingAutoMigratesShardTables(t *testing.T) {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("expected sharded table %s to exist", table)
 		}
+	}
+}
+
+func TestMigrateObservabilityLegacyColumnsBackfillsHealthEventMetadata(t *testing.T) {
+	db := openTestSQLiteDB(t, "legacy-health-events.db")
+
+	if err := db.Exec("ALTER TABLE node_health_events ADD COLUMN raw_json TEXT").Error; err != nil {
+		t.Fatalf("add raw_json column: %v", err)
+	}
+	rawJSON, err := json.Marshal(map[string]any{
+		"event_type": "sync_error",
+		"metadata": map[string]string{
+			"reason": "checksum_mismatch",
+			"scope":  "routes",
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal raw json: %v", err)
+	}
+	event := &NodeHealthEvent{
+		NodeID:           "node-legacy",
+		EventType:        "sync_error",
+		Severity:         "warning",
+		Status:           "active",
+		Message:          "checksum mismatch",
+		FirstTriggeredAt: time.Now().Add(-time.Minute),
+		LastTriggeredAt:  time.Now(),
+		ReportedAt:       time.Now(),
+	}
+	if err := db.Create(event).Error; err != nil {
+		t.Fatalf("create health event: %v", err)
+	}
+	if err := db.Exec("UPDATE node_health_events SET raw_json = ? WHERE id = ?", string(rawJSON), event.ID).Error; err != nil {
+		t.Fatalf("seed legacy raw_json: %v", err)
+	}
+
+	if err := migrateObservabilityLegacyColumns(db); err != nil {
+		t.Fatalf("migrateObservabilityLegacyColumns: %v", err)
+	}
+
+	var got NodeHealthEvent
+	if err := db.First(&got, event.ID).Error; err != nil {
+		t.Fatalf("query health event: %v", err)
+	}
+	if got.MetadataJSON == "" {
+		t.Fatal("expected metadata_json to be backfilled")
 	}
 }

@@ -20,7 +20,6 @@ type NodeSystemProfile struct {
 	TotalDiskBytes   int64     `json:"total_disk_bytes"`
 	UptimeSeconds    int64     `json:"uptime_seconds"`
 	ReportedAt       time.Time `json:"reported_at" gorm:"index"`
-	RawJSON          string    `json:"raw_json" gorm:"type:text"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -49,7 +48,6 @@ func UpsertNodeSystemProfile(profile *NodeSystemProfile) error {
 			"total_disk_bytes",
 			"uptime_seconds",
 			"reported_at",
-			"raw_json",
 			"updated_at",
 		}),
 	}).Create(profile).Error

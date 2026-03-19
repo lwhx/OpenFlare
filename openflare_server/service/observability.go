@@ -152,7 +152,6 @@ func persistNodeSystemProfile(tx *gorm.DB, nodeID string, profile *AgentNodeSyst
 		TotalDiskBytes:   profile.TotalDiskBytes,
 		UptimeSeconds:    profile.UptimeSeconds,
 		ReportedAt:       timeFromUnix(profile.ReportedAtUnix, reportedAt),
-		RawJSON:          marshalJSON(profile),
 	}
 	return tx.Model(&model.NodeSystemProfile{}).Where("node_id = ?", nodeID).Assign(record).FirstOrCreate(record).Error
 }
@@ -176,7 +175,6 @@ func persistNodeMetricSnapshot(tx *gorm.DB, nodeID string, snapshot *AgentNodeMe
 		OpenrestyRxBytes:     snapshot.OpenrestyRxBytes,
 		OpenrestyTxBytes:     snapshot.OpenrestyTxBytes,
 		OpenrestyConnections: snapshot.OpenrestyConnections,
-		RawJSON:              marshalJSON(snapshot),
 	}
 	return tx.Where("node_id = ? AND captured_at = ?", nodeID, record.CapturedAt).FirstOrCreate(record).Error
 }
@@ -198,7 +196,6 @@ func persistNodeTrafficReport(tx *gorm.DB, nodeID string, report *AgentNodeTraff
 		StatusCodesJSON:     marshalJSON(report.StatusCodes),
 		TopDomainsJSON:      marshalJSON(report.TopDomains),
 		SourceCountriesJSON: marshalJSON(report.SourceCountries),
-		RawJSON:             marshalJSON(report),
 	}
 	return tx.Where("node_id = ? AND window_started_at = ? AND window_ended_at = ?", nodeID, record.WindowStartedAt, record.WindowEndedAt).FirstOrCreate(record).Error
 }
@@ -223,7 +220,6 @@ func persistNodeAccessLogs(tx *gorm.DB, nodeID string, logs []AgentNodeAccessLog
 			Host:       strings.TrimSpace(item.Host),
 			Path:       truncateForDatabase(strings.TrimSpace(item.Path), nodeAccessLogPathMaxLength),
 			StatusCode: item.StatusCode,
-			RawJSON:    marshalJSON(item),
 		}
 		if resolver != nil {
 			record.Region = resolver.Resolve(record.RemoteAddr)
@@ -275,7 +271,7 @@ func reconcileNodeHealthEvents(tx *gorm.DB, nodeID string, events []AgentNodeHea
 			existing.Message = normalizeHealthEventMessage(event.Message)
 			existing.LastTriggeredAt = triggeredAt
 			existing.ReportedAt = reportedAt
-			existing.RawJSON = marshalJSON(event)
+			existing.MetadataJSON = marshalJSON(event.Metadata)
 			existing.ResolvedAt = nil
 			if err := tx.Save(existing).Error; err != nil {
 				return err
@@ -291,7 +287,7 @@ func reconcileNodeHealthEvents(tx *gorm.DB, nodeID string, events []AgentNodeHea
 			FirstTriggeredAt: triggeredAt,
 			LastTriggeredAt:  triggeredAt,
 			ReportedAt:       reportedAt,
-			RawJSON:          marshalJSON(event),
+			MetadataJSON:     marshalJSON(event.Metadata),
 		}
 		if err := tx.Create(record).Error; err != nil {
 			return err

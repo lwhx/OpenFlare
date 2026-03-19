@@ -13,7 +13,7 @@ type NodeHealthEvent struct {
 	LastTriggeredAt  time.Time  `json:"last_triggered_at" gorm:"index"`
 	ReportedAt       time.Time  `json:"reported_at" gorm:"index"`
 	ResolvedAt       *time.Time `json:"resolved_at" gorm:"index"`
-	RawJSON          string     `json:"raw_json" gorm:"type:text"`
+	MetadataJSON     string     `json:"metadata_json" gorm:"type:text"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 }

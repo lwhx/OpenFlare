@@ -188,6 +188,7 @@ export interface NodeHealthEvent {
   severity: string;
   status: string;
   message: string;
+  metadata_json?: string;
   first_triggered_at: string;
   last_triggered_at: string;
   reported_at: string;

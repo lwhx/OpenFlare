@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -677,6 +678,9 @@ func TestHeartbeatNodePersistsObservabilityPayload(t *testing.T) {
 				Severity:        NodeHealthSeverityCritical,
 				Message:         "reload failed",
 				TriggeredAtUnix: time.Now().Add(-2 * time.Minute).Unix(),
+				Metadata: map[string]string{
+					"source": "runtime",
+				},
 			},
 		},
 	})
@@ -730,6 +734,16 @@ func TestHeartbeatNodePersistsObservabilityPayload(t *testing.T) {
 	}
 	if len(events) != 1 || events[0].EventType != "openresty_unhealthy" {
 		t.Fatalf("unexpected active health events: %+v", events)
+	}
+	if events[0].MetadataJSON == "" {
+		t.Fatal("expected metadata_json to persist")
+	}
+	var metadata map[string]string
+	if err := json.Unmarshal([]byte(events[0].MetadataJSON), &metadata); err != nil {
+		t.Fatalf("expected metadata_json to be valid json: %v", err)
+	}
+	if metadata["source"] != "runtime" {
+		t.Fatalf("unexpected metadata json: %+v", metadata)
 	}
 }
 

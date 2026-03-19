@@ -18,7 +18,6 @@ type NodeRequestReport struct {
 	StatusCodesJSON     string    `json:"status_codes_json" gorm:"type:text"`
 	TopDomainsJSON      string    `json:"top_domains_json" gorm:"type:text"`
 	SourceCountriesJSON string    `json:"source_countries_json" gorm:"type:text"`
-	RawJSON             string    `json:"raw_json" gorm:"type:text"`
 	CreatedAt           time.Time `json:"created_at"`
 }
 
