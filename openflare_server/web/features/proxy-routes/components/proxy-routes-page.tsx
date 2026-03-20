@@ -11,8 +11,8 @@ import { ErrorState } from '@/components/feedback/error-state';
 import { InlineMessage } from '@/components/feedback/inline-message';
 import { LoadingState } from '@/components/feedback/loading-state';
 import { PageHeader } from '@/components/layout/page-header';
-import { AppModal } from '@/components/ui/app-modal';
 import { AppCard } from '@/components/ui/app-card';
+import { AppModal } from '@/components/ui/app-modal';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
   getConfigVersionDiff,
@@ -52,6 +52,7 @@ import {
   SecondaryButton,
   ToggleField,
 } from '@/features/shared/components/resource-primitives';
+import { cn } from '@/lib/utils/cn';
 import { formatDateTime } from '@/lib/utils/date';
 
 const customHeaderSchema = z.object({
@@ -59,22 +60,25 @@ const customHeaderSchema = z.object({
   value: z.string(),
 });
 
+const originProtocolValues = ['http', 'https'] as const;
 const cachePolicyValues = [
   'url',
   'suffix',
   'path_prefix',
   'path_exact',
 ] as const;
-const originProtocolValues = ['http', 'https'] as const;
+
+const originRowSchema = z.object({
+  scheme: z.enum(originProtocolValues),
+  address: z.string(),
+  port: z.string(),
+});
 
 const proxyRouteSchema = z
   .object({
-    managed_domain_id: z.string().trim().min(1, '请选择网站'),
+    managed_domain_id: z.string().trim().min(1, '请选择目标域名'),
     subdomain_label: z.string(),
-    origin_id: z.string(),
-    origin_scheme: z.enum(originProtocolValues),
-    origin_address: z.string().trim().min(1, '请输入源站地址'),
-    origin_port: z.string().trim().min(1, '请输入端口'),
+    origin_rows: z.array(originRowSchema).min(1),
     origin_uri: z.string(),
     origin_host: z
       .string()
@@ -94,7 +98,6 @@ const proxyRouteSchema = z
             })()),
         '请输入合法的回源主机名',
       ),
-    upstreams_text: z.string(),
     enabled: z.boolean(),
     enable_https: z.boolean(),
     cert_id: z.string(),
@@ -114,7 +117,7 @@ const proxyRouteSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['subdomain_label'],
-        message: '请输入二级域名',
+        message: '请输入子域名前缀',
       });
     }
 
@@ -126,7 +129,7 @@ const proxyRouteSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['subdomain_label'],
-        message: '二级域名仅支持单个标签，且只能包含字母、数字和中划线',
+        message: '子域名前缀仅支持单个标签，且只能包含字母、数字和中划线',
       });
     }
 
@@ -135,35 +138,6 @@ const proxyRouteSchema = z
         code: z.ZodIssueCode.custom,
         path: ['cert_id'],
         message: '启用 HTTPS 时必须选择证书',
-      });
-    }
-
-    const normalizedOriginAddress = value.origin_address.trim();
-    if (
-      normalizedOriginAddress &&
-      (/[/?#]/.test(normalizedOriginAddress) ||
-        normalizedOriginAddress.includes('://'))
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['origin_address'],
-        message: '源站地址仅支持 IP、域名或主机名',
-      });
-    }
-
-    const normalizedOriginPort = value.origin_port.trim();
-    const portNumber = Number(normalizedOriginPort);
-    if (
-      normalizedOriginPort &&
-      (!/^\d+$/.test(normalizedOriginPort) ||
-        !Number.isInteger(portNumber) ||
-        portNumber < 1 ||
-        portNumber > 65535)
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['origin_port'],
-        message: '端口需为 1 到 65535 的整数',
       });
     }
 
@@ -176,35 +150,70 @@ const proxyRouteSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['origin_uri'],
-        message: '源站路径需以 / 或 ? 开头',
+        message: '回源路径需以 / 或 ? 开头',
       });
     }
 
-    const primaryOriginURL = buildOriginUrl(
-      value.origin_scheme,
-      value.origin_address,
-      value.origin_port,
-      value.origin_uri,
-    );
-    if (!primaryOriginURL) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['origin_address'],
-        message: '请输入完整的源站信息',
-      });
-    }
+    value.origin_rows.forEach((row, index) => {
+      const normalizedAddress = row.address.trim();
+      const normalizedPort = row.port.trim();
 
-    const upstreams = parseUpstreamsText(
-      primaryOriginURL,
-      value.upstreams_text,
-    );
-    if (upstreams.length === 0) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['origin_address'],
-        message: '至少需要一个上游地址',
-      });
-    }
+      if (!normalizedAddress) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['origin_rows', index, 'address'],
+          message: '请输入源站地址',
+        });
+      }
+
+      if (
+        normalizedAddress &&
+        (/[/?#]/.test(normalizedAddress) || normalizedAddress.includes('://'))
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['origin_rows', index, 'address'],
+          message: '源站地址仅支持 IP、域名或主机名',
+        });
+      }
+
+      if (!normalizedPort) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['origin_rows', index, 'port'],
+          message: '请输入端口',
+        });
+      }
+
+      const portNumber = Number(normalizedPort);
+      if (
+        normalizedPort &&
+        (!/^\d+$/.test(normalizedPort) ||
+          !Number.isInteger(portNumber) ||
+          portNumber < 1 ||
+          portNumber > 65535)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['origin_rows', index, 'port'],
+          message: '端口需为 1 到 65535 的整数',
+        });
+      }
+
+      const originURL = buildOriginUrl(
+        row.scheme,
+        row.address,
+        row.port,
+        index === 0 ? value.origin_uri : '',
+      );
+      if (!originURL) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['origin_rows', index, 'address'],
+          message: '请输入完整的源站信息',
+        });
+      }
+    });
 
     if (value.cache_enabled) {
       const cacheRules = parseCacheRulesText(value.cache_rules_text);
@@ -252,22 +261,27 @@ const proxyRouteSchema = z
   });
 
 type ProxyRouteFormValues = z.infer<typeof proxyRouteSchema>;
+type OriginRowFormValue = ProxyRouteFormValues['origin_rows'][number];
 
 type FeedbackState = {
   tone: 'info' | 'success' | 'danger';
   message: string;
 };
 
+type SectionIconProps = {
+  className?: string;
+};
+
+const INPUT_CLASS_NAME = 'h-10 rounded-xl px-3 py-2 text-sm';
+const PANEL_CLASS_NAME =
+  'rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--surface-elevated)_82%,white_18%)] p-4 shadow-[var(--shadow-soft)]';
+
 const defaultValues: ProxyRouteFormValues = {
   managed_domain_id: '',
   subdomain_label: '',
-  origin_id: '',
-  origin_scheme: 'https',
-  origin_address: '',
-  origin_port: '',
+  origin_rows: [{ scheme: 'https', address: '', port: '443' }],
   origin_uri: '',
   origin_host: '',
-  upstreams_text: '',
   enabled: true,
   enable_https: false,
   cert_id: '',
@@ -284,6 +298,141 @@ const certificatesQueryKey = ['tls-certificates'];
 const managedDomainsQueryKey = ['managed-domains'];
 const originsQueryKey = ['origins'];
 const versionsQueryKey = ['config-versions'];
+
+function GlobeIcon({ className }: SectionIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c3 3.2 4.5 6.2 4.5 9s-1.5 5.8-4.5 9c-3-3.2-4.5-6.2-4.5-9S9 6.2 12 3Z" />
+    </svg>
+  );
+}
+
+function ServerIcon({ className }: SectionIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="4" y="4" width="16" height="6" rx="1.5" />
+      <rect x="4" y="14" width="16" height="6" rx="1.5" />
+      <path d="M8 7h.01M8 17h.01M12 7h6M12 17h6" />
+    </svg>
+  );
+}
+
+function ShieldIcon({ className }: SectionIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 3 5 6v5c0 4.7 2.8 8.9 7 10 4.2-1.1 7-5.3 7-10V6l-7-3Z" />
+      <path d="m9.5 12 1.8 1.8 3.7-4" />
+    </svg>
+  );
+}
+
+function SlidersIcon({ className }: SectionIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M5 6h14M5 18h14M8 6v12M16 6v12" />
+      <circle cx="8" cy="10" r="2" />
+      <circle cx="16" cy="14" r="2" />
+    </svg>
+  );
+}
+
+function SearchIcon({ className }: SectionIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="6" />
+      <path d="m20 20-4.2-4.2" />
+    </svg>
+  );
+}
+
+function PlusIcon({ className }: SectionIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className }: SectionIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M4 7h16M9 7V5h6v2M8 10v7M12 10v7M16 10v7M6 7l1 12h10l1-12" />
+    </svg>
+  );
+}
+
+function ChevronIcon({
+  className,
+  expanded = false,
+}: SectionIconProps & { expanded?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={cn(
+        'transition-transform duration-200',
+        expanded ? 'rotate-180' : '',
+        className,
+      )}
+      aria-hidden="true"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
 
 function hasConfigChanges(diff: {
   active_version?: string;
@@ -353,12 +502,6 @@ function parseUpstreams(rawValue: string) {
   }
 }
 
-function parseUpstreamsText(primary: string, value: string) {
-  return [primary.trim(), ...value.split(/\r?\n/)]
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function buildCachePolicyLabel(policy: string) {
   switch (policy) {
     case 'suffix':
@@ -426,33 +569,46 @@ function parseOriginUrl(rawValue: string) {
     return {
       scheme: 'https' as const,
       address: '',
-      port: '',
+      port: '443',
       uri: '',
     };
   }
 }
 
-function toPayload(values: ProxyRouteFormValues): ProxyRouteMutationPayload {
+function getDefaultPortForScheme(scheme: 'http' | 'https') {
+  return scheme === 'http' ? '80' : '443';
+}
+
+function toPayload(
+  values: ProxyRouteFormValues,
+  origins: OriginItem[],
+): ProxyRouteMutationPayload {
+  const primaryOrigin = values.origin_rows[0];
   const primaryOriginUrl = buildOriginUrl(
-    values.origin_scheme,
-    values.origin_address,
-    values.origin_port,
+    primaryOrigin.scheme,
+    primaryOrigin.address,
+    primaryOrigin.port,
     values.origin_uri,
   );
+  const primaryOriginRecord =
+    origins.find(
+      (item) =>
+        item.address.toLowerCase() === primaryOrigin.address.trim().toLowerCase(),
+    ) ?? null;
 
   return {
     domain: buildRouteDomain(values.managed_domain_id, values.subdomain_label),
-    origin_id: values.origin_id ? Number(values.origin_id) : null,
+    origin_id: primaryOriginRecord ? primaryOriginRecord.id : null,
     origin_url: primaryOriginUrl,
-    origin_scheme: values.origin_scheme,
-    origin_address: values.origin_address.trim(),
-    origin_port: values.origin_port.trim(),
+    origin_scheme: primaryOrigin.scheme,
+    origin_address: primaryOrigin.address.trim(),
+    origin_port: primaryOrigin.port.trim(),
     origin_uri: values.origin_uri.trim(),
     origin_host: values.origin_host.trim(),
-    upstreams: parseUpstreamsText(
-      primaryOriginUrl,
-      values.upstreams_text,
-    ).slice(1),
+    upstreams: values.origin_rows
+      .slice(1)
+      .map((row) => buildOriginUrl(row.scheme, row.address, row.port, ''))
+      .filter(Boolean),
     enabled: values.enabled,
     enable_https: values.enable_https,
     cert_id:
@@ -488,18 +644,32 @@ function toFormValues(
     );
   }
 
-  const parsedOrigin = parseOriginUrl(route.origin_url);
+  const primaryOrigin = parseOriginUrl(route.origin_url);
+  const originRows: OriginRowFormValue[] = [
+    {
+      scheme: primaryOrigin.scheme,
+      address: primaryOrigin.address,
+      port: primaryOrigin.port,
+    },
+    ...upstreams.map((upstream) => {
+      const parsed = parseOriginUrl(upstream);
+      return {
+        scheme: parsed.scheme,
+        address: parsed.address,
+        port: parsed.port,
+      };
+    }),
+  ];
 
   return {
     managed_domain_id: managedDomainMatch.managedDomainId,
     subdomain_label: managedDomainMatch.subdomainLabel,
-    origin_id: route.origin_id ? String(route.origin_id) : '',
-    origin_scheme: parsedOrigin.scheme,
-    origin_address: parsedOrigin.address,
-    origin_port: parsedOrigin.port,
-    origin_uri: parsedOrigin.uri,
+    origin_rows:
+      originRows.length > 0
+        ? originRows
+        : [{ scheme: 'https', address: '', port: '443' }],
+    origin_uri: primaryOrigin.uri,
     origin_host: route.origin_host || '',
-    upstreams_text: upstreams.slice(1).join('\n'),
     enabled: route.enabled,
     enable_https: route.enable_https,
     cert_id: route.cert_id ? String(route.cert_id) : '',
@@ -520,7 +690,7 @@ function getMatchMessage(
   enabled: boolean,
 ) {
   if (!enabled) {
-    return '启用 HTTPS 后，系统会根据输入域名尝试自动匹配托管证书。';
+    return '若目标域名已绑定证书，HTTPS 会默认开启；你也可以稍后手动开启。';
   }
 
   if (isMatching) {
@@ -528,14 +698,165 @@ function getMatchMessage(
   }
 
   if (!domain.trim()) {
-    return '输入域名后会自动匹配证书，并优先推荐精确匹配规则。';
+    return '输入完整域名后会自动匹配证书，并优先推荐精确匹配规则。';
   }
 
   if (matchResult?.matched && matchResult.candidate) {
-    return `已匹配${matchResult.candidate.match_type === 'exact' ? '精确' : '通配符'}规则 ${matchResult.candidate.domain}，推荐证书：${matchResult.candidate.certificate_name}`;
+    return `已匹配${matchResult.candidate.match_type === 'exact' ? '精确' : '通配符'}证书规则 ${matchResult.candidate.domain}，默认推荐 ${matchResult.candidate.certificate_name}`;
   }
 
   return '未找到匹配证书，可继续手动选择。';
+}
+
+function isLocalOriginAddress(address: string) {
+  const normalized = address.trim().toLowerCase();
+  return (
+    normalized === 'localhost' ||
+    normalized.endsWith('.local') ||
+    normalized.endsWith('.internal') ||
+    /^10\./.test(normalized) ||
+    /^192\.168\./.test(normalized) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized) ||
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd')
+  );
+}
+
+function ProxyRuleSection({
+  title,
+  icon,
+  action,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 text-[var(--foreground-primary)]">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--surface-elevated)] text-[var(--foreground-secondary)]">
+            {icon}
+          </span>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.16em]">
+            {title}
+          </h3>
+        </div>
+        {action}
+      </div>
+      <div className={PANEL_CLASS_NAME}>{children}</div>
+    </section>
+  );
+}
+
+function SearchableManagedDomainField({
+  value,
+  domains,
+  error,
+  onSelect,
+}: {
+  value: string;
+  domains: ManagedDomainItem[];
+  error?: string;
+  onSelect: (value: string) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  const selectedDomain =
+    domains.find((item) => item.domain === value)?.domain ?? value;
+  const filteredDomains = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) {
+      return domains;
+    }
+
+    return domains.filter((item) =>
+      item.domain.toLowerCase().includes(keyword),
+    );
+  }, [domains, search]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearch('');
+    }
+  }, [isOpen]);
+
+  return (
+    <ResourceField
+      label="Select Target Domain"
+      hint="带搜索的域名下拉框会先展示已托管域名，再决定后续是否需要子域名前缀。"
+      error={error}
+    >
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 text-left text-sm text-[var(--foreground-primary)] transition outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--accent-soft)]',
+            INPUT_CLASS_NAME,
+          )}
+        >
+          <SearchIcon className="h-4 w-4 text-[var(--foreground-muted)]" />
+          <span className={selectedDomain ? '' : 'text-[var(--foreground-muted)]'}>
+            {selectedDomain || '搜索并选择目标域名'}
+          </span>
+          <ChevronIcon
+            expanded={isOpen}
+            className="ml-auto h-4 w-4 text-[var(--foreground-muted)]"
+          />
+        </button>
+
+        {isOpen ? (
+          <div className="absolute inset-x-0 top-[calc(100%+8px)] z-20 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-panel)] p-3 shadow-[var(--shadow-soft)]">
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--foreground-muted)]" />
+              <ResourceInput
+                value={search}
+                placeholder="搜索域名"
+                onChange={(event) => setSearch(event.target.value)}
+                className={cn(INPUT_CLASS_NAME, 'pl-9')}
+              />
+            </div>
+            <div className="mt-3 max-h-56 space-y-1 overflow-y-auto">
+              {filteredDomains.length > 0 ? (
+                filteredDomains.map((domain) => (
+                  <button
+                    key={domain.id}
+                    type="button"
+                    onClick={() => {
+                      onSelect(domain.domain);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-[var(--control-background-hover)]',
+                      value === domain.domain
+                        ? 'bg-[var(--accent-soft)] text-[var(--foreground-primary)]'
+                        : 'text-[var(--foreground-secondary)]',
+                    )}
+                  >
+                    <span>{domain.domain}</span>
+                    {domain.cert_id ? (
+                      <span className="rounded-full bg-[var(--surface-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--foreground-muted)]">
+                        TLS
+                      </span>
+                    ) : null}
+                  </button>
+                ))
+              ) : (
+                <p className="rounded-xl border border-dashed border-[var(--border-default)] px-3 py-4 text-sm text-[var(--foreground-secondary)]">
+                  未发现匹配域名
+                </p>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </ResourceField>
+  );
 }
 
 export function ProxyRoutesPage() {
@@ -546,13 +867,32 @@ export function ProxyRoutesPage() {
   const [matchResult, setMatchResult] =
     useState<ManagedDomainMatchResult | null>(null);
   const [isMatching, setIsMatching] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [activeOriginRowIndex, setActiveOriginRowIndex] = useState<
+    number | null
+  >(null);
 
   const form = useForm<ProxyRouteFormValues>({
     resolver: zodResolver(proxyRouteSchema),
     defaultValues,
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const {
+    fields: originFields,
+    append: appendOrigin,
+    remove: removeOrigin,
+    replace: replaceOrigins,
+  } = useFieldArray({
+    control: form.control,
+    name: 'origin_rows',
+  });
+
+  const {
+    fields: headerFields,
+    append: appendHeader,
+    remove: removeHeader,
+    replace: replaceHeaders,
+  } = useFieldArray({
     control: form.control,
     name: 'custom_headers',
   });
@@ -565,17 +905,9 @@ export function ProxyRoutesPage() {
     control: form.control,
     name: 'subdomain_label',
   });
-  const watchedOriginAddress = useWatch({
+  const watchedOriginRows = useWatch({
     control: form.control,
-    name: 'origin_address',
-  });
-  const watchedOriginScheme = useWatch({
-    control: form.control,
-    name: 'origin_scheme',
-  });
-  const watchedOriginPort = useWatch({
-    control: form.control,
-    name: 'origin_port',
+    name: 'origin_rows',
   });
   const watchedOriginURI = useWatch({
     control: form.control,
@@ -620,9 +952,55 @@ export function ProxyRoutesPage() {
     queryFn: getOrigins,
   });
 
+  const managedDomains = useMemo(
+    () => managedDomainsQuery.data ?? [],
+    [managedDomainsQuery.data],
+  );
+  const origins = useMemo(() => originsQuery.data ?? [], [originsQuery.data]);
+  const certificates = useMemo(
+    () => certificatesQuery.data ?? [],
+    [certificatesQuery.data],
+  );
+
+  const selectedManagedDomain = useMemo(
+    () =>
+      managedDomains.find((item) => item.domain === watchedManagedDomain) ??
+      null,
+    [managedDomains, watchedManagedDomain],
+  );
+
+  const selectedManagedDomainValue =
+    selectedManagedDomain?.domain ?? watchedManagedDomain;
+  const isWildcardSelection = isWildcardManagedDomain(
+    selectedManagedDomainValue,
+  );
+  const effectiveDomain = buildRouteDomain(
+    selectedManagedDomainValue,
+    watchedSubdomainLabel,
+  );
+
+  const primaryOriginRow =
+    watchedOriginRows?.[0] ?? defaultValues.origin_rows[0];
+  const matchedOrigin = useMemo(
+    () =>
+      origins.find(
+        (item) =>
+          item.address.toLowerCase() ===
+          primaryOriginRow.address.trim().toLowerCase(),
+      ) ?? null,
+    [origins, primaryOriginRow.address],
+  );
+
+  const primaryOriginPreview = buildOriginUrl(
+    primaryOriginRow.scheme,
+    primaryOriginRow.address,
+    primaryOriginRow.port,
+    watchedOriginURI,
+  );
+
   const saveMutation = useMutation({
     mutationFn: async (values: ProxyRouteFormValues) => {
-      const payload = toPayload(values);
+      const payload = toPayload(values, origins);
       return editingRouteId
         ? updateProxyRoute(editingRouteId, payload)
         : createProxyRoute(payload);
@@ -635,6 +1013,7 @@ export function ProxyRoutesPage() {
       setEditingRouteId(null);
       setIsEditorOpen(false);
       setMatchResult(null);
+      setIsAdvancedOpen(false);
       form.reset(defaultValues);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: routesQueryKey }),
@@ -672,71 +1051,6 @@ export function ProxyRoutesPage() {
     },
   });
 
-  const handlePublish = async () => {
-    setFeedback(null);
-
-    try {
-      const diff = await getConfigVersionDiff();
-      if (!hasConfigChanges(diff)) {
-        setFeedback({
-          tone: 'info',
-          message: '当前规则没有变更，已阻止重复发布。',
-        });
-        return;
-      }
-
-      publishMutation.mutate();
-    } catch (error) {
-      setFeedback({ tone: 'danger', message: getErrorMessage(error) });
-    }
-  };
-
-  const managedDomains = useMemo(
-    () => managedDomainsQuery.data ?? [],
-    [managedDomainsQuery.data],
-  );
-  const origins = useMemo(() => originsQuery.data ?? [], [originsQuery.data]);
-
-  const matchedOrigin = useMemo(
-    () =>
-      origins.find(
-        (item) =>
-          item.address.toLowerCase() ===
-          watchedOriginAddress.trim().toLowerCase(),
-      ) ?? null,
-    [origins, watchedOriginAddress],
-  );
-
-  const selectedManagedDomain = useMemo(
-    () =>
-      managedDomains.find((item) => item.domain === watchedManagedDomain) ??
-      null,
-    [managedDomains, watchedManagedDomain],
-  );
-
-  const selectedManagedDomainValue =
-    selectedManagedDomain?.domain ?? watchedManagedDomain;
-  const isWildcardSelection = isWildcardManagedDomain(
-    selectedManagedDomainValue,
-  );
-  const effectiveDomain = buildRouteDomain(
-    selectedManagedDomainValue,
-    watchedSubdomainLabel,
-  );
-  const primaryOriginPreview = buildOriginUrl(
-    watchedOriginScheme,
-    watchedOriginAddress,
-    watchedOriginPort,
-    watchedOriginURI,
-  );
-
-  useEffect(() => {
-    form.setValue('origin_id', matchedOrigin ? String(matchedOrigin.id) : '', {
-      shouldDirty: true,
-      shouldValidate: false,
-    });
-  }, [form, matchedOrigin]);
-
   useEffect(() => {
     if (!watchedEnableHttps) {
       setMatchResult(null);
@@ -758,6 +1072,7 @@ export function ProxyRoutesPage() {
         if (cancelled) {
           return;
         }
+
         setMatchResult(result);
         if (result.candidate?.certificate_id && !form.getValues('cert_id')) {
           form.setValue('cert_id', String(result.candidate.certificate_id), {
@@ -781,18 +1096,34 @@ export function ProxyRoutesPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [effectiveDomain, watchedEnableHttps, form]);
+  }, [effectiveDomain, form, watchedEnableHttps]);
 
-  const certificates = useMemo(
-    () => certificatesQuery.data ?? [],
-    [certificatesQuery.data],
-  );
+  const handlePublish = async () => {
+    setFeedback(null);
+
+    try {
+      const diff = await getConfigVersionDiff();
+      if (!hasConfigChanges(diff)) {
+        setFeedback({
+          tone: 'info',
+          message: '当前规则没有变更，已阻止重复发布。',
+        });
+        return;
+      }
+
+      publishMutation.mutate();
+    } catch (error) {
+      setFeedback({ tone: 'danger', message: getErrorMessage(error) });
+    }
+  };
 
   const handleReset = () => {
     setFeedback(null);
     setEditingRouteId(null);
     setIsEditorOpen(false);
     setMatchResult(null);
+    setIsAdvancedOpen(false);
+    setActiveOriginRowIndex(null);
     form.reset(defaultValues);
   };
 
@@ -800,6 +1131,7 @@ export function ProxyRoutesPage() {
     setFeedback(null);
     setEditingRouteId(null);
     setMatchResult(null);
+    setIsAdvancedOpen(false);
     form.reset(defaultValues);
     setIsEditorOpen(true);
   };
@@ -815,6 +1147,7 @@ export function ProxyRoutesPage() {
     setMatchResult(null);
     try {
       form.reset(toFormValues(route, managedDomains));
+      setIsAdvancedOpen(Boolean(route.origin_host || route.remark));
       setIsEditorOpen(true);
     } catch (error) {
       setFeedback({ tone: 'danger', message: getErrorMessage(error) });
@@ -831,12 +1164,43 @@ export function ProxyRoutesPage() {
   };
 
   const handleRemoveHeader = (index: number) => {
-    if (fields.length === 1) {
-      replace([{ key: '', value: '' }]);
+    if (headerFields.length === 1) {
+      replaceHeaders([{ key: '', value: '' }]);
       return;
     }
 
-    remove(index);
+    removeHeader(index);
+  };
+
+  const handleManagedDomainSelect = (domainValue: string) => {
+    const domain = managedDomains.find((item) => item.domain === domainValue);
+
+    form.setValue('managed_domain_id', domainValue, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+
+    if (!isWildcardManagedDomain(domainValue)) {
+      form.setValue('subdomain_label', '', {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+
+    const currentCertId = form.getValues('cert_id');
+    const autoCertId = domain?.cert_id ? String(domain.cert_id) : '';
+    if (autoCertId) {
+      form.setValue('enable_https', true, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      if (!currentCertId) {
+        form.setValue('cert_id', autoCertId, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+    }
   };
 
   const routes = routesQuery.data || [];
@@ -1001,6 +1365,7 @@ export function ProxyRoutesPage() {
           )}
         </AppCard>
       </div>
+
       <AppModal
         isOpen={isEditorOpen}
         onClose={handleReset}
@@ -1032,397 +1397,359 @@ export function ProxyRoutesPage() {
       >
         <form
           id="proxy-route-editor-form"
-          className="space-y-5"
+          className="space-y-6"
           onSubmit={handleSubmit}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <ResourceField
-              label="网站"
-              hint="先选择已托管的网站，再根据类型补充规则域名。"
-              error={form.formState.errors.managed_domain_id?.message}
-            >
-              <ResourceSelect
+          <ProxyRuleSection
+            title="域名设置"
+            icon={<GlobeIcon className="h-4 w-4" />}
+          >
+            <div className="space-y-4">
+              <SearchableManagedDomainField
                 value={watchedManagedDomain}
-                disabled={managedDomainsQuery.isLoading}
-                onChange={(event) => {
-                  const nextDomain = event.target.value;
+                domains={managedDomains}
+                error={form.formState.errors.managed_domain_id?.message}
+                onSelect={handleManagedDomainSelect}
+              />
 
-                  form.setValue('managed_domain_id', nextDomain, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
+              {selectedManagedDomain ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {isWildcardSelection ? (
+                    <ResourceField
+                      label="Subdomain Prefix"
+                      hint="当前选择的是通配符域名，仅输入最前面的前缀即可。"
+                      error={form.formState.errors.subdomain_label?.message}
+                    >
+                      <ResourceInput
+                        placeholder="e.g. ai"
+                        className={INPUT_CLASS_NAME}
+                        {...form.register('subdomain_label')}
+                      />
+                    </ResourceField>
+                  ) : (
+                    <div />
+                  )}
 
-                  if (!isWildcardManagedDomain(nextDomain)) {
-                    form.setValue('subdomain_label', '', {
+                  <ResourceField
+                    label="Rule Preview"
+                    hint="这里会实时展示最终生效的规则域名。"
+                  >
+                    <div
+                      className={cn(
+                        'flex items-center rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--surface-panel)] px-3 font-mono text-sm text-[var(--foreground-secondary)]',
+                        INPUT_CLASS_NAME,
+                      )}
+                    >
+                      {effectiveDomain || '请选择目标域名'}
+                    </div>
+                  </ResourceField>
+                </div>
+              ) : null}
+            </div>
+          </ProxyRuleSection>
+
+          <ProxyRuleSection
+            title="Origin Settings"
+            icon={<ServerIcon className="h-4 w-4" />}
+            action={
+              <button
+                type="button"
+                onClick={() =>
+                  appendOrigin({
+                    scheme: primaryOriginRow.scheme,
+                    address: '',
+                    port: getDefaultPortForScheme(primaryOriginRow.scheme),
+                  })
+                }
+                className="inline-flex items-center gap-1 text-sm font-medium text-[var(--brand-primary)] transition hover:opacity-80"
+              >
+                <PlusIcon className="h-4 w-4" />
+                Add Row
+              </button>
+            }
+          >
+            <div className="space-y-3">
+              {originFields.map((field, index) => {
+                const currentRow =
+                  watchedOriginRows?.[index] ?? defaultValues.origin_rows[0];
+                const keyword = currentRow.address.trim().toLowerCase();
+                const suggestions = origins.filter((origin) => {
+                  if (!keyword) {
+                    return false;
+                  }
+
+                  return (
+                    origin.address.toLowerCase().includes(keyword) ||
+                    origin.name.toLowerCase().includes(keyword)
+                  );
+                });
+
+                return (
+                  <div key={field.id} className="space-y-2">
+                    <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)_96px_44px]">
+                      <div>
+                        <span className="sr-only">{`协议 ${index + 1}`}</span>
+                        <ResourceSelect
+                          value={currentRow.scheme}
+                          className={INPUT_CLASS_NAME}
+                          onChange={(event) => {
+                            const nextScheme =
+                              event.target.value as OriginRowFormValue['scheme'];
+                            form.setValue(
+                              `origin_rows.${index}.scheme`,
+                              nextScheme,
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              },
+                            );
+
+                            const currentPort = form.getValues(
+                              `origin_rows.${index}.port`,
+                            );
+                            if (
+                              !currentPort ||
+                              currentPort === '80' ||
+                              currentPort === '443'
+                            ) {
+                              form.setValue(
+                                `origin_rows.${index}.port`,
+                                getDefaultPortForScheme(nextScheme),
+                                {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                },
+                              );
+                            }
+                          }}
+                        >
+                          <option value="https">HTTPS</option>
+                          <option value="http">HTTP</option>
+                        </ResourceSelect>
+                      </div>
+
+                      <div className="relative">
+                        <span className="sr-only">{`源站地址 ${index + 1}`}</span>
+                        <ResourceInput
+                          placeholder="192.168.1.45"
+                          className={INPUT_CLASS_NAME}
+                          {...form.register(`origin_rows.${index}.address`)}
+                          onFocus={() => setActiveOriginRowIndex(index)}
+                        />
+                        {activeOriginRowIndex === index && keyword ? (
+                          <div className="absolute inset-x-0 top-[calc(100%+8px)] z-20 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-panel)] p-2 shadow-[var(--shadow-soft)]">
+                            {suggestions.length > 0 ? (
+                              <div className="space-y-1">
+                                {suggestions.map((origin) => (
+                                  <button
+                                    key={origin.id}
+                                    type="button"
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    onClick={() => {
+                                      form.setValue(
+                                        `origin_rows.${index}.address`,
+                                        origin.address,
+                                        {
+                                          shouldDirty: true,
+                                          shouldValidate: true,
+                                        },
+                                      );
+                                      setActiveOriginRowIndex(null);
+                                    }}
+                                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-[var(--control-background-hover)]"
+                                  >
+                                    <span className="text-[var(--foreground-primary)]">
+                                      {origin.address}
+                                      {origin.name ? (
+                                        <span className="ml-1 text-[var(--foreground-muted)]">
+                                          ({origin.name})
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                    {isLocalOriginAddress(origin.address) ? (
+                                      <span className="rounded-md bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--foreground-secondary)]">
+                                        Local
+                                      </span>
+                                    ) : null}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-dashed border-[var(--border-default)] px-3 py-4 text-sm text-[var(--foreground-secondary)]">
+                                未发现匹配资产，请手动输入
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div>
+                        <span className="sr-only">{`端口 ${index + 1}`}</span>
+                        <ResourceInput
+                          placeholder="443"
+                          className={INPUT_CLASS_NAME}
+                          {...form.register(`origin_rows.${index}.port`)}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (originFields.length === 1) {
+                            replaceOrigins([defaultValues.origin_rows[0]]);
+                            return;
+                          }
+                          removeOrigin(index);
+                        }}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-default)] bg-[var(--surface-panel)] text-[var(--foreground-muted)] transition hover:border-[var(--status-danger-border)] hover:text-[var(--status-danger-foreground)]"
+                        aria-label={`删除源站 ${index + 1}`}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {(form.formState.errors.origin_rows?.[index]?.address
+                      ?.message ||
+                      form.formState.errors.origin_rows?.[index]?.port
+                        ?.message) && (
+                      <p className="text-xs text-[var(--status-danger-foreground)]">
+                        {form.formState.errors.origin_rows?.[index]?.address
+                          ?.message ||
+                          form.formState.errors.origin_rows?.[index]?.port
+                            ?.message}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
+                <ResourceField
+                  label="Primary Origin Preview"
+                  hint={
+                    matchedOrigin
+                      ? `当前会复用已存在的源站 ${matchedOrigin.name}。`
+                      : '如果地址尚未收录，保存规则时会自动创建一个新源站。'
+                  }
+                >
+                  <div
+                    className={cn(
+                      'flex items-center rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--surface-panel)] px-3 font-mono text-sm text-[var(--foreground-secondary)]',
+                      INPUT_CLASS_NAME,
+                    )}
+                  >
+                    {primaryOriginPreview || '填写主源站后显示完整回源地址'}
+                  </div>
+                </ResourceField>
+
+                <ResourceField
+                  label="Origin Path / Query"
+                  hint="保留原有高级能力，可选填写 /api 或 ?token=demo。"
+                  error={form.formState.errors.origin_uri?.message}
+                >
+                  <ResourceInput
+                    placeholder="/api"
+                    className={INPUT_CLASS_NAME}
+                    {...form.register('origin_uri')}
+                  />
+                </ResourceField>
+              </div>
+            </div>
+          </ProxyRuleSection>
+
+          <ProxyRuleSection
+            title="Protocol"
+            icon={<ShieldIcon className="h-4 w-4" />}
+          >
+            <div className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <ToggleField
+                  label="HTTPS Access"
+                  description="若所选域名已有证书，系统会默认开启；开启后即可选择或调整证书。"
+                  checked={watchedEnableHttps}
+                  onChange={(checked) => {
+                    form.setValue('enable_https', checked, {
                       shouldDirty: true,
                       shouldValidate: true,
                     });
+
+                    if (checked && !form.getValues('cert_id') && selectedManagedDomain?.cert_id) {
+                      form.setValue('cert_id', String(selectedManagedDomain.cert_id), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+
+                    if (!checked) {
+                      form.setValue('cert_id', '', {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      form.setValue('redirect_http', false, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+                  }}
+                />
+
+                <ToggleField
+                  label="启用规则"
+                  description="关闭后该规则不会参与配置渲染与发布。"
+                  checked={watchedEnabled}
+                  onChange={(checked) =>
+                    form.setValue('enabled', checked, { shouldDirty: true })
                   }
-                }}
-              >
-                <option value="">请选择网站</option>
-                {managedDomains.map((domain) => (
-                  <option key={domain.id} value={domain.domain}>
-                    {domain.domain}
-                  </option>
-                ))}
-              </ResourceSelect>
-            </ResourceField>
-            <ResourceField
-              label="源站协议"
-              hint="先选择回源协议，再选择或输入源站地址。"
-            >
-              <ResourceSelect
-                value={watchedOriginScheme}
-                onChange={(event) =>
-                  form.setValue(
-                    'origin_scheme',
-                    event.target.value as ProxyRouteFormValues['origin_scheme'],
-                    {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    },
-                  )
-                }
-              >
-                <option value="https">https</option>
-                <option value="http">http</option>
-              </ResourceSelect>
-            </ResourceField>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
-            <ResourceField
-              label="源站"
-              hint="可从已有源站中选择，也可以直接输入新地址；保存规则后会自动创建不存在的源站。"
-              error={form.formState.errors.origin_address?.message}
-            >
-              <ResourceInput
-                list="proxy-route-origin-addresses"
-                placeholder="origin.internal"
-                {...form.register('origin_address')}
-              />
-              <datalist id="proxy-route-origin-addresses">
-                {origins.map((origin) => (
-                  <option
-                    key={origin.id}
-                    value={origin.address}
-                    label={origin.name}
-                  />
-                ))}
-              </datalist>
-            </ResourceField>
-            <ResourceField
-              label="端口"
-              hint="规则主源站的访问端口。"
-              error={form.formState.errors.origin_port?.message}
-            >
-              <ResourceInput
-                placeholder="443"
-                {...form.register('origin_port')}
-              />
-            </ResourceField>
-          </div>
-
-          {selectedManagedDomain ? (
-            isWildcardSelection ? (
-              <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-                <ResourceField
-                  label="二级域名"
-                  hint={`当前网站为通配符 ${selectedManagedDomain.domain}，这里只需填写前缀，例如 ai。`}
-                  error={form.formState.errors.subdomain_label?.message}
-                >
-                  <ResourceInput
-                    placeholder="ai"
-                    {...form.register('subdomain_label')}
-                  />
-                </ResourceField>
-                <AppCard
-                  title="规则域名预览"
-                  description="系统会自动拼接通配符后缀，生成最终规则域名。"
-                >
-                  <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
-                    {effectiveDomain
-                      ? `当前将生成规则域名 ${effectiveDomain}`
-                      : `请输入二级域名前缀，系统会自动生成 *.${selectedManagedDomain.domain.slice(2)} 下的规则域名。`}
-                  </p>
-                </AppCard>
+                />
               </div>
-            ) : (
-              <AppCard
-                title="规则域名预览"
-                description="当前网站为精确域名，规则会直接使用该网站。"
-              >
-                <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
-                  {`当前将直接使用 ${selectedManagedDomain.domain} 作为规则域名，无需再填写网站名。`}
-                </p>
-              </AppCard>
-            )
-          ) : null}
 
-          <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
-            <ResourceField
-              label="源站路径"
-              hint="可选，用于保留已有带路径或查询参数的回源能力，例如 /api 或 ?token=demo。"
-              error={form.formState.errors.origin_uri?.message}
-            >
-              <ResourceInput
-                placeholder="/api"
-                {...form.register('origin_uri')}
-              />
-            </ResourceField>
-            <AppCard
-              title="主源站预览"
-              description={
-                matchedOrigin
-                  ? `当前会复用已存在的源站 ${matchedOrigin.name}。`
-                  : '如果这里的地址尚未收录，保存规则时会自动创建一个新源站。'
-              }
-            >
-              <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
-                {primaryOriginPreview ||
-                  '选择协议、输入源站和端口后，这里会显示最终主源站地址。'}
-              </p>
-            </AppCard>
-          </div>
-
-          <ResourceField
-            label="回源主机名"
-            hint="可选。填写后将覆盖回源请求的 Host，留空则默认使用访问域名 $host"
-            error={form.formState.errors.origin_host?.message}
-          >
-            <ResourceInput {...form.register('origin_host')} />
-          </ResourceField>
-
-          <ResourceField
-            label="附加上游"
-            hint="可选。每行一个上游地址，用于同一规则下的负载均衡；需与主上游保持相同协议，且不能带路径或查询参数。"
-            error={form.formState.errors.upstreams_text?.message}
-          >
-            <ResourceTextarea
-              placeholder={
-                'https://origin-b.internal\nhttps://origin-c.internal'
-              }
-              {...form.register('upstreams_text')}
-            />
-          </ResourceField>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ToggleField
-              label="启用规则"
-              description="关闭后该规则不会参与配置渲染与发布。"
-              checked={watchedEnabled}
-              onChange={(checked) =>
-                form.setValue('enabled', checked, { shouldDirty: true })
-              }
-            />
-            <ToggleField
-              label="启用 HTTPS"
-              description="启用后必须关联 TLS 证书，并会默认为客户端开启 HTTP/2；可选择是否将 HTTP 自动重定向到 HTTPS。"
-              checked={watchedEnableHttps}
-              onChange={(checked) => {
-                form.setValue('enable_https', checked, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
-                if (!checked) {
-                  form.setValue('cert_id', '', {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                  form.setValue('redirect_http', false, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                }
-              }}
-            />
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-            <ResourceField
-              label="TLS 证书"
-              hint="启用 HTTPS 后可自动推荐匹配证书，也支持手动选择。"
-              error={form.formState.errors.cert_id?.message}
-            >
-              <ResourceSelect
-                value={watchedCertId}
-                disabled={!watchedEnableHttps || certificatesQuery.isLoading}
-                onChange={(event) =>
-                  form.setValue('cert_id', event.target.value, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
-                }
-              >
-                <option value="">请选择证书</option>
-                {certificates.map((certificate) => (
-                  <option key={certificate.id} value={certificate.id}>
-                    {buildCertificateLabel(certificate)}
-                  </option>
-                ))}
-              </ResourceSelect>
-            </ResourceField>
-            <ToggleField
-              label="HTTP 跳转 HTTPS"
-              description="仅在启用 HTTPS 后可开启。开启后会将 HTTP 请求重定向到 HTTPS。"
-              checked={watchedRedirectHttp}
-              disabled={!watchedEnableHttps}
-              onChange={(checked) =>
-                form.setValue('redirect_http', checked, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-            <ToggleField
-              label="启用规则缓存"
-              description="仅对当前规则生效；系统会自动绕过非 GET、Authorization 和常见登录态 Cookie 请求。"
-              checked={watchedCacheEnabled}
-              onChange={(checked) => {
-                form.setValue('cache_enabled', checked, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
-                if (!checked) {
-                  form.setValue('cache_policy', 'url', {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                  form.setValue('cache_rules_text', '', {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                }
-              }}
-            />
-            <ResourceField
-              label="缓存策略"
-              hint="按 URL 会缓存所有符合安全条件的 URL；其余策略会先匹配规则再决定是否缓存。"
-            >
-              <ResourceSelect
-                value={watchedCachePolicy}
-                disabled={!watchedCacheEnabled}
-                onChange={(event) =>
-                  form.setValue(
-                    'cache_policy',
-                    event.target.value as ProxyRouteFormValues['cache_policy'],
-                    {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    },
-                  )
-                }
-              >
-                <option value="url">按 URL 缓存</option>
-                <option value="suffix">按后缀匹配缓存</option>
-                <option value="path_prefix">按路径前缀缓存</option>
-                <option value="path_exact">按精确路径缓存</option>
-              </ResourceSelect>
-            </ResourceField>
-          </div>
-
-          <ResourceField
-            label="缓存规则"
-            hint={getCacheRulesHint(watchedCachePolicy)}
-            error={form.formState.errors.cache_rules_text?.message}
-          >
-            <ResourceTextarea
-              placeholder={
-                watchedCachePolicy === 'suffix'
-                  ? 'jpg\ncss\njs'
-                  : watchedCachePolicy === 'path_prefix'
-                    ? '/assets\n/static/images'
-                    : watchedCachePolicy === 'path_exact'
-                      ? '/robots.txt\n/manifest.json'
-                      : '按 URL 缓存无需填写规则'
-              }
-              disabled={!watchedCacheEnabled || watchedCachePolicy === 'url'}
-              {...form.register('cache_rules_text')}
-            />
-          </ResourceField>
-
-          <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-[var(--foreground-primary)]">
-                  自定义请求头
-                </p>
-                <p className="mt-1 text-xs leading-5 text-[var(--foreground-secondary)]">
-                  可为空。若填写，请保证 Header 名称合法且不包含换行。
-                </p>
-              </div>
-              <SecondaryButton
-                type="button"
-                onClick={() => append({ key: '', value: '' })}
-                className="px-3 py-2 text-xs"
-              >
-                添加请求头
-              </SecondaryButton>
-            </div>
-
-            <div className="mt-4 space-y-4">
-              {fields.map((field, index) => (
-                <div
-                  key={field.id}
-                  className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"
-                >
+              {watchedEnableHttps ? (
+                <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
                   <ResourceField
-                    label={
-                      index === 0 ? 'Header 名称' : `Header 名称 ${index + 1}`
-                    }
-                    error={
-                      form.formState.errors.custom_headers?.[index]?.key
-                        ?.message
-                    }
+                    label="Select Certificate"
+                    hint={getMatchMessage(
+                      matchResult,
+                      isMatching,
+                      effectiveDomain,
+                      watchedEnableHttps,
+                    )}
+                    error={form.formState.errors.cert_id?.message}
                   >
-                    <ResourceInput
-                      placeholder="X-Trace-Id"
-                      {...form.register(`custom_headers.${index}.key`)}
-                    />
-                  </ResourceField>
-                  <ResourceField
-                    label={index === 0 ? 'Header 值' : `Header 值 ${index + 1}`}
-                    error={
-                      form.formState.errors.custom_headers?.[index]?.value
-                        ?.message
-                    }
-                  >
-                    <ResourceInput
-                      placeholder="$request_id"
-                      {...form.register(`custom_headers.${index}.value`)}
-                    />
-                  </ResourceField>
-                  <div className="flex items-end">
-                    <DangerButton
-                      type="button"
-                      onClick={() => handleRemoveHeader(index)}
-                      className="w-full px-3 py-3 text-xs md:w-auto"
+                    <ResourceSelect
+                      value={watchedCertId}
+                      disabled={certificatesQuery.isLoading}
+                      className={INPUT_CLASS_NAME}
+                      onChange={(event) =>
+                        form.setValue('cert_id', event.target.value, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        })
+                      }
                     >
-                      删除
-                    </DangerButton>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                      <option value="">请选择证书</option>
+                      {certificates.map((certificate) => (
+                        <option key={certificate.id} value={certificate.id}>
+                          {buildCertificateLabel(certificate)}
+                        </option>
+                      ))}
+                    </ResourceSelect>
+                  </ResourceField>
 
-          <AppCard
-            title="证书匹配提示"
-            description="根据域名自动匹配托管证书，优先使用精确匹配规则。"
-          >
-            <div className="space-y-3">
-              <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
-                {getMatchMessage(
-                  matchResult,
-                  isMatching,
-                  effectiveDomain,
-                  watchedEnableHttps,
-                )}
-              </p>
+                  <ToggleField
+                    label="HTTP 跳转 HTTPS"
+                    description="开启后会将 HTTP 请求重定向到 HTTPS。"
+                    checked={watchedRedirectHttp}
+                    disabled={!watchedEnableHttps}
+                    onChange={(checked) =>
+                      form.setValue('redirect_http', checked, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
+
               {matchResult?.matched && matchResult.candidates.length > 1 ? (
                 <div className="flex flex-wrap gap-2">
                   {matchResult.candidates.map((candidate) => (
@@ -1436,24 +1763,194 @@ export function ProxyRoutesPage() {
                   ))}
                 </div>
               ) : null}
-              <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4 text-sm text-[var(--foreground-secondary)]">
-                当前可选证书：
-                {certificatesQuery.isLoading
-                  ? '加载中...'
-                  : `${certificates.length} 张`}
-              </div>
             </div>
-          </AppCard>
+          </ProxyRuleSection>
 
-          <ResourceField
-            label="备注"
-            error={form.formState.errors.remark?.message}
-          >
-            <ResourceTextarea
-              placeholder="例如：主站生产流量入口"
-              {...form.register('remark')}
-            />
-          </ResourceField>
+          <section className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setIsAdvancedOpen((current) => !current)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+            >
+              <div className="flex items-center gap-3 text-[var(--foreground-primary)]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-default)] bg-[var(--surface-elevated)] text-[var(--foreground-secondary)]">
+                  <SlidersIcon className="h-4 w-4" />
+                </span>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.16em]">
+                  Advanced Settings
+                </h3>
+              </div>
+              <ChevronIcon
+                expanded={isAdvancedOpen}
+                className="h-5 w-5 text-[var(--foreground-muted)]"
+              />
+            </button>
+
+            {isAdvancedOpen ? (
+              <div className={cn(PANEL_CLASS_NAME, 'space-y-4')}>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="space-y-4">
+                    <ResourceField
+                      label="Origin Host Header"
+                      hint="留空则默认使用访问域名 $host。"
+                      error={form.formState.errors.origin_host?.message}
+                    >
+                      <ResourceInput
+                        placeholder="example.com"
+                        className={INPUT_CLASS_NAME}
+                        {...form.register('origin_host')}
+                      />
+                    </ResourceField>
+
+                    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-panel)] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--foreground-primary)]">
+                            Custom Request Headers
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-[var(--foreground-secondary)]">
+                            使用 Key | Value 横向排列，方便快速录入运维透传头。
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => appendHeader({ key: '', value: '' })}
+                          className="text-sm font-medium text-[var(--brand-primary)] transition hover:opacity-80"
+                        >
+                          + Add Header
+                        </button>
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        {headerFields.map((field, index) => (
+                          <div
+                            key={field.id}
+                            className="grid gap-3 md:grid-cols-[1fr_1fr_28px]"
+                          >
+                            <ResourceInput
+                              placeholder="X-Forwarded-For"
+                              className={INPUT_CLASS_NAME}
+                              {...form.register(`custom_headers.${index}.key`)}
+                            />
+                            <ResourceInput
+                              placeholder="$remote_addr"
+                              className={INPUT_CLASS_NAME}
+                              {...form.register(`custom_headers.${index}.value`)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveHeader(index)}
+                              className="flex h-10 w-7 items-center justify-center text-lg text-[var(--foreground-muted)] transition hover:text-[var(--status-danger-foreground)]"
+                              aria-label={`删除请求头 ${index + 1}`}
+                            >
+                              ×
+                            </button>
+
+                            {(form.formState.errors.custom_headers?.[index]?.key
+                              ?.message ||
+                              form.formState.errors.custom_headers?.[index]
+                                ?.value?.message) && (
+                              <p className="md:col-span-3 text-xs text-[var(--status-danger-foreground)]">
+                                {form.formState.errors.custom_headers?.[index]
+                                  ?.key?.message ||
+                                  form.formState.errors.custom_headers?.[index]
+                                    ?.value?.message}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <ToggleField
+                      label="Enable Rule Caching"
+                      description="仅对当前规则生效；系统会自动绕过非 GET、Authorization 和常见登录态 Cookie 请求。"
+                      checked={watchedCacheEnabled}
+                      onChange={(checked) => {
+                        form.setValue('cache_enabled', checked, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                        if (!checked) {
+                          form.setValue('cache_policy', 'url', {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          form.setValue('cache_rules_text', '', {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                    />
+
+                    <ResourceField
+                      label="缓存策略"
+                      hint="按 URL 会缓存所有符合安全条件的 URL；其余策略会先匹配规则再决定是否缓存。"
+                    >
+                      <ResourceSelect
+                        value={watchedCachePolicy}
+                        disabled={!watchedCacheEnabled}
+                        className={INPUT_CLASS_NAME}
+                        onChange={(event) =>
+                          form.setValue(
+                            'cache_policy',
+                            event.target
+                              .value as ProxyRouteFormValues['cache_policy'],
+                            {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            },
+                          )
+                        }
+                      >
+                        <option value="url">按 URL 缓存</option>
+                        <option value="suffix">按后缀匹配缓存</option>
+                        <option value="path_prefix">按路径前缀缓存</option>
+                        <option value="path_exact">按精确路径缓存</option>
+                      </ResourceSelect>
+                    </ResourceField>
+
+                    <ResourceField
+                      label="缓存规则"
+                      hint={getCacheRulesHint(watchedCachePolicy)}
+                      error={form.formState.errors.cache_rules_text?.message}
+                    >
+                      <ResourceTextarea
+                        placeholder={
+                          watchedCachePolicy === 'suffix'
+                            ? 'jpg\ncss\njs'
+                            : watchedCachePolicy === 'path_prefix'
+                              ? '/assets\n/static/images'
+                              : watchedCachePolicy === 'path_exact'
+                                ? '/robots.txt\n/manifest.json'
+                                : '按 URL 缓存无需填写规则'
+                        }
+                        disabled={
+                          !watchedCacheEnabled || watchedCachePolicy === 'url'
+                        }
+                        className="min-h-32 rounded-xl"
+                        {...form.register('cache_rules_text')}
+                      />
+                    </ResourceField>
+                  </div>
+                </div>
+
+                <ResourceField
+                  label="Remarks"
+                  error={form.formState.errors.remark?.message}
+                >
+                  <ResourceTextarea
+                    placeholder="Internal notes for this rule..."
+                    className="min-h-28 rounded-xl"
+                    {...form.register('remark')}
+                  />
+                </ResourceField>
+              </div>
+            ) : null}
+          </section>
         </form>
       </AppModal>
     </>
