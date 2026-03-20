@@ -18,6 +18,8 @@ import {
   getConfigVersionDiff,
   publishConfigVersion,
 } from '@/features/config-versions/api/config-versions';
+import { getManagedDomains } from '@/features/managed-domains/api/managed-domains';
+import type { ManagedDomainItem } from '@/features/managed-domains/types';
 import {
   createProxyRoute,
   deleteProxyRoute,
@@ -33,6 +35,11 @@ import type {
   ProxyRouteMutationPayload,
   TlsCertificateItem,
 } from '@/features/proxy-routes/types';
+import {
+  buildRouteDomain,
+  findManagedDomainForRoute,
+  isWildcardManagedDomain,
+} from '@/features/proxy-routes/utils';
 import {
   DangerButton,
   PrimaryButton,
@@ -50,11 +57,17 @@ const customHeaderSchema = z.object({
   value: z.string(),
 });
 
-const cachePolicyValues = ['url', 'suffix', 'path_prefix', 'path_exact'] as const;
+const cachePolicyValues = [
+  'url',
+  'suffix',
+  'path_prefix',
+  'path_exact',
+] as const;
 
 const proxyRouteSchema = z
   .object({
-    domain: z.string().trim().min(1, '请输入域名'),
+    managed_domain_id: z.string().trim().min(1, '请选择网站'),
+    subdomain_label: z.string(),
     origin_url: z
       .string()
       .trim()
@@ -101,6 +114,30 @@ const proxyRouteSchema = z
     remark: z.string().max(255, '备注不能超过 255 个字符'),
   })
   .superRefine((value, context) => {
+    const selectedManagedDomain = value.managed_domain_id.trim();
+    const subdomainLabel = value.subdomain_label.trim();
+    const isWildcard = selectedManagedDomain.startsWith('*.');
+
+    if (isWildcard && !subdomainLabel) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subdomain_label'],
+        message: '请输入二级域名',
+      });
+    }
+
+    if (
+      isWildcard &&
+      subdomainLabel &&
+      !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(subdomainLabel)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subdomain_label'],
+        message: '二级域名仅支持单个标签，且只能包含字母、数字和中划线',
+      });
+    }
+
     if (value.enable_https && !value.cert_id) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -109,7 +146,10 @@ const proxyRouteSchema = z
       });
     }
 
-    const upstreams = parseUpstreamsText(value.origin_url, value.upstreams_text);
+    const upstreams = parseUpstreamsText(
+      value.origin_url,
+      value.upstreams_text,
+    );
     if (upstreams.length === 0) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -171,7 +211,8 @@ type FeedbackState = {
 };
 
 const defaultValues: ProxyRouteFormValues = {
-  domain: '',
+  managed_domain_id: '',
+  subdomain_label: '',
   origin_url: '',
   origin_host: '',
   upstreams_text: '',
@@ -188,6 +229,7 @@ const defaultValues: ProxyRouteFormValues = {
 
 const routesQueryKey = ['proxy-routes'];
 const certificatesQueryKey = ['tls-certificates'];
+const managedDomainsQueryKey = ['managed-domains'];
 const versionsQueryKey = ['config-versions'];
 
 function hasConfigChanges(diff: {
@@ -298,10 +340,13 @@ function buildCertificateLabel(certificate: TlsCertificateItem) {
 
 function toPayload(values: ProxyRouteFormValues): ProxyRouteMutationPayload {
   return {
-    domain: values.domain.trim(),
+    domain: buildRouteDomain(values.managed_domain_id, values.subdomain_label),
     origin_url: values.origin_url.trim(),
     origin_host: values.origin_host.trim(),
-    upstreams: parseUpstreamsText(values.origin_url, values.upstreams_text).slice(1),
+    upstreams: parseUpstreamsText(
+      values.origin_url,
+      values.upstreams_text,
+    ).slice(1),
     enabled: values.enabled,
     enable_https: values.enable_https,
     cert_id:
@@ -319,13 +364,27 @@ function toPayload(values: ProxyRouteFormValues): ProxyRouteMutationPayload {
   };
 }
 
-function toFormValues(route: ProxyRouteItem): ProxyRouteFormValues {
+function toFormValues(
+  route: ProxyRouteItem,
+  managedDomains: ManagedDomainItem[],
+): ProxyRouteFormValues {
   const headers = parseCustomHeaders(route.custom_headers);
   const cacheRules = parseCacheRules(route.cache_rules);
   const upstreams = parseUpstreams(route.upstreams);
+  const managedDomainMatch = findManagedDomainForRoute(
+    route.domain,
+    managedDomains,
+  );
+
+  if (!managedDomainMatch) {
+    throw new Error(
+      `规则 ${route.domain} 未匹配到网站，请先补充对应网站后再编辑。`,
+    );
+  }
 
   return {
-    domain: route.domain,
+    managed_domain_id: managedDomainMatch.managedDomainId,
+    subdomain_label: managedDomainMatch.subdomainLabel,
     origin_url: route.origin_url,
     origin_host: route.origin_host || '',
     upstreams_text: upstreams.slice(1).join('\n'),
@@ -334,7 +393,8 @@ function toFormValues(route: ProxyRouteItem): ProxyRouteFormValues {
     cert_id: route.cert_id ? String(route.cert_id) : '',
     redirect_http: route.redirect_http,
     cache_enabled: route.cache_enabled,
-    cache_policy: (route.cache_policy || 'url') as ProxyRouteFormValues['cache_policy'],
+    cache_policy: (route.cache_policy ||
+      'url') as ProxyRouteFormValues['cache_policy'],
     cache_rules_text: cacheRules.join('\n'),
     custom_headers: headers.length > 0 ? headers : [{ key: '', value: '' }],
     remark: route.remark || '',
@@ -385,7 +445,14 @@ export function ProxyRoutesPage() {
     name: 'custom_headers',
   });
 
-  const watchedDomain = useWatch({ control: form.control, name: 'domain' });
+  const watchedManagedDomain = useWatch({
+    control: form.control,
+    name: 'managed_domain_id',
+  });
+  const watchedSubdomainLabel = useWatch({
+    control: form.control,
+    name: 'subdomain_label',
+  });
   const watchedEnabled = useWatch({ control: form.control, name: 'enabled' });
   const watchedEnableHttps = useWatch({
     control: form.control,
@@ -415,6 +482,11 @@ export function ProxyRoutesPage() {
     queryFn: getTlsCertificates,
   });
 
+  const managedDomainsQuery = useQuery({
+    queryKey: managedDomainsQueryKey,
+    queryFn: getManagedDomains,
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (values: ProxyRouteFormValues) => {
       const payload = toPayload(values);
@@ -431,7 +503,10 @@ export function ProxyRoutesPage() {
       setIsEditorOpen(false);
       setMatchResult(null);
       form.reset(defaultValues);
-      await queryClient.invalidateQueries({ queryKey: routesQueryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: routesQueryKey }),
+        queryClient.invalidateQueries({ queryKey: managedDomainsQueryKey }),
+      ]);
     },
     onError: (error) => {
       setFeedback({ tone: 'danger', message: getErrorMessage(error) });
@@ -482,6 +557,28 @@ export function ProxyRoutesPage() {
     }
   };
 
+  const managedDomains = useMemo(
+    () => managedDomainsQuery.data ?? [],
+    [managedDomainsQuery.data],
+  );
+
+  const selectedManagedDomain = useMemo(
+    () =>
+      managedDomains.find((item) => item.domain === watchedManagedDomain) ??
+      null,
+    [managedDomains, watchedManagedDomain],
+  );
+
+  const selectedManagedDomainValue =
+    selectedManagedDomain?.domain ?? watchedManagedDomain;
+  const isWildcardSelection = isWildcardManagedDomain(
+    selectedManagedDomainValue,
+  );
+  const effectiveDomain = buildRouteDomain(
+    selectedManagedDomainValue,
+    watchedSubdomainLabel,
+  );
+
   useEffect(() => {
     if (!watchedEnableHttps) {
       setMatchResult(null);
@@ -489,7 +586,7 @@ export function ProxyRoutesPage() {
       return;
     }
 
-    const normalizedDomain = watchedDomain.trim().toLowerCase();
+    const normalizedDomain = effectiveDomain.trim().toLowerCase();
     if (!normalizedDomain) {
       setMatchResult(null);
       return;
@@ -526,7 +623,7 @@ export function ProxyRoutesPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [watchedDomain, watchedEnableHttps, form]);
+  }, [effectiveDomain, watchedEnableHttps, form]);
 
   const certificates = useMemo(
     () => certificatesQuery.data ?? [],
@@ -558,8 +655,12 @@ export function ProxyRoutesPage() {
     setFeedback(null);
     setEditingRouteId(route.id);
     setMatchResult(null);
-    form.reset(toFormValues(route));
-    setIsEditorOpen(true);
+    try {
+      form.reset(toFormValues(route, managedDomains));
+      setIsEditorOpen(true);
+    } catch (error) {
+      setFeedback({ tone: 'danger', message: getErrorMessage(error) });
+    }
   };
 
   const handleDelete = (route: ProxyRouteItem) => {
@@ -679,7 +780,9 @@ export function ProxyRoutesPage() {
                           {route.cache_enabled ? (
                             <div className="space-y-2">
                               <StatusBadge
-                                label={buildCachePolicyLabel(route.cache_policy)}
+                                label={buildCachePolicyLabel(
+                                  route.cache_policy,
+                                )}
                                 variant="success"
                               />
                               <p className="text-xs text-[var(--foreground-muted)]">
@@ -776,14 +879,36 @@ export function ProxyRoutesPage() {
         >
           <div className="grid gap-4 md:grid-cols-2">
             <ResourceField
-              label="域名"
-              hint="示例：example.com"
-              error={form.formState.errors.domain?.message}
+              label="网站"
+              hint="先选择已托管的网站，再根据类型补充规则域名。"
+              error={form.formState.errors.managed_domain_id?.message}
             >
-              <ResourceInput
-                placeholder="example.com"
-                {...form.register('domain')}
-              />
+              <ResourceSelect
+                value={watchedManagedDomain}
+                disabled={managedDomainsQuery.isLoading}
+                onChange={(event) => {
+                  const nextDomain = event.target.value;
+
+                  form.setValue('managed_domain_id', nextDomain, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+
+                  if (!isWildcardManagedDomain(nextDomain)) {
+                    form.setValue('subdomain_label', '', {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }
+                }}
+              >
+                <option value="">请选择网站</option>
+                {managedDomains.map((domain) => (
+                  <option key={domain.id} value={domain.domain}>
+                    {domain.domain}
+                  </option>
+                ))}
+              </ResourceSelect>
             </ResourceField>
             <ResourceField
               label="源站地址"
@@ -797,14 +922,48 @@ export function ProxyRoutesPage() {
             </ResourceField>
           </div>
 
+          {selectedManagedDomain ? (
+            isWildcardSelection ? (
+              <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
+                <ResourceField
+                  label="二级域名"
+                  hint={`当前网站为通配符 ${selectedManagedDomain.domain}，这里只需填写前缀，例如 ai。`}
+                  error={form.formState.errors.subdomain_label?.message}
+                >
+                  <ResourceInput
+                    placeholder="ai"
+                    {...form.register('subdomain_label')}
+                  />
+                </ResourceField>
+                <AppCard
+                  title="规则域名预览"
+                  description="系统会自动拼接通配符后缀，生成最终规则域名。"
+                >
+                  <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
+                    {effectiveDomain
+                      ? `当前将生成规则域名 ${effectiveDomain}`
+                      : `请输入二级域名前缀，系统会自动生成 *.${selectedManagedDomain.domain.slice(2)} 下的规则域名。`}
+                  </p>
+                </AppCard>
+              </div>
+            ) : (
+              <AppCard
+                title="规则域名预览"
+                description="当前网站为精确域名，规则会直接使用该网站。"
+              >
+                <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
+                  {`当前将直接使用 ${selectedManagedDomain.domain} 作为规则域名，无需再填写网站名。`}
+                </p>
+              </AppCard>
+            )
+          ) : null}
+
           <ResourceField
             label="回源主机名"
             hint="可选。填写后将覆盖回源请求的 Host，留空则默认使用访问域名 $host"
             error={form.formState.errors.origin_host?.message}
           >
-            <ResourceInput
-              {...form.register('origin_host')}
-            />
+            <ResourceInput {...form.register('origin_host')} />
           </ResourceField>
 
           <ResourceField
@@ -813,7 +972,9 @@ export function ProxyRoutesPage() {
             error={form.formState.errors.upstreams_text?.message}
           >
             <ResourceTextarea
-              placeholder={'https://origin-b.internal\nhttps://origin-c.internal'}
+              placeholder={
+                'https://origin-b.internal\nhttps://origin-c.internal'
+              }
               {...form.register('upstreams_text')}
             />
           </ResourceField>
@@ -1030,7 +1191,7 @@ export function ProxyRoutesPage() {
                 {getMatchMessage(
                   matchResult,
                   isMatching,
-                  watchedDomain,
+                  effectiveDomain,
                   watchedEnableHttps,
                 )}
               </p>
