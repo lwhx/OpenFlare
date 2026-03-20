@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -763,13 +763,15 @@ function SearchableManagedDomainField({
   error?: string;
   onSelect: (value: string) => void;
 }) {
-  const [search, setSearch] = useState('');
+  const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const selectedDomain =
     domains.find((item) => item.domain === value)?.domain ?? value;
   const filteredDomains = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const keyword = inputValue.trim().toLowerCase();
     if (!keyword) {
       return domains;
     }
@@ -777,73 +779,157 @@ function SearchableManagedDomainField({
     return domains.filter((item) =>
       item.domain.toLowerCase().includes(keyword),
     );
-  }, [domains, search]);
+  }, [domains, inputValue]);
+  const highlightedDomain =
+    filteredDomains[Math.min(highlightedIndex, Math.max(filteredDomains.length - 1, 0))] ??
+    null;
+
+  useEffect(() => {
+    if (value) {
+      setInputValue(value);
+      return;
+    }
+
+    if (!isOpen) {
+      setInputValue('');
+    }
+  }, [isOpen, value]);
+
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [inputValue]);
+
+  useEffect(() => {
+    if (highlightedIndex > filteredDomains.length - 1) {
+      setHighlightedIndex(0);
+    }
+  }, [filteredDomains.length, highlightedIndex]);
 
   useEffect(() => {
     if (!isOpen) {
-      setSearch('');
+      return;
     }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
   }, [isOpen]);
 
   return (
     <ResourceField
       label="Select Target Domain"
-      hint="带搜索的域名下拉框会先展示已托管域名，再决定后续是否需要子域名前缀。"
+      hint="直接输入域名关键字进行本地模糊匹配，按 Enter 选择当前匹配项。"
       error={error}
     >
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setIsOpen((current) => !current)}
-          className={cn(
-            'flex w-full items-center gap-3 rounded-xl border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 text-left text-sm text-[var(--foreground-primary)] transition outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--accent-soft)]',
-            INPUT_CLASS_NAME,
-          )}
-        >
-          <SearchIcon className="h-4 w-4 text-[var(--foreground-muted)]" />
-          <span className={selectedDomain ? '' : 'text-[var(--foreground-muted)]'}>
-            {selectedDomain || '搜索并选择目标域名'}
-          </span>
-          <ChevronIcon
-            expanded={isOpen}
-            className="ml-auto h-4 w-4 text-[var(--foreground-muted)]"
+      <div ref={containerRef} className="relative">
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--foreground-muted)]" />
+          <ResourceInput
+            value={inputValue}
+            placeholder="输入并搜索目标域名"
+            className={cn(INPUT_CLASS_NAME, 'pl-9 pr-10')}
+            onFocus={() => setIsOpen(true)}
+            onChange={(event) => {
+              setInputValue(event.target.value);
+              setIsOpen(true);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' && filteredDomains.length > 0) {
+                event.preventDefault();
+                setIsOpen(true);
+                setHighlightedIndex((current) =>
+                  current >= filteredDomains.length - 1 ? 0 : current + 1,
+                );
+                return;
+              }
+
+              if (event.key === 'ArrowUp' && filteredDomains.length > 0) {
+                event.preventDefault();
+                setIsOpen(true);
+                setHighlightedIndex((current) =>
+                  current <= 0 ? filteredDomains.length - 1 : current - 1,
+                );
+                return;
+              }
+
+              if (event.key === 'Enter' && highlightedDomain) {
+                event.preventDefault();
+                onSelect(highlightedDomain.domain);
+                setInputValue(highlightedDomain.domain);
+                setIsOpen(false);
+                setHighlightedIndex(0);
+                return;
+              }
+
+              if (event.key === 'Escape') {
+                setIsOpen(false);
+              }
+            }}
           />
-        </button>
+          <button
+            type="button"
+            onClick={() => setIsOpen((current) => !current)}
+            aria-label="切换域名候选列表"
+            className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--foreground-muted)] transition hover:bg-[var(--control-background-hover)]"
+          >
+            <ChevronIcon
+              expanded={isOpen}
+              className="h-4 w-4 text-[var(--foreground-muted)]"
+            />
+          </button>
+        </div>
 
         {isOpen ? (
           <div className="absolute inset-x-0 top-[calc(100%+8px)] z-20 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-panel)] p-3 shadow-[var(--shadow-soft)]">
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--foreground-muted)]" />
-              <ResourceInput
-                value={search}
-                placeholder="搜索域名"
-                onChange={(event) => setSearch(event.target.value)}
-                className={cn(INPUT_CLASS_NAME, 'pl-9')}
-              />
+            <div className="mb-2 flex items-center justify-between gap-3 px-1 text-xs text-[var(--foreground-secondary)]">
+              <span>
+                {highlightedDomain
+                  ? `按 Enter 选择 ${highlightedDomain.domain}`
+                  : '继续输入以匹配目标域名'}
+              </span>
+              <span>{`${filteredDomains.length} 个结果`}</span>
             </div>
-            <div className="mt-3 max-h-56 space-y-1 overflow-y-auto">
+            <div className="max-h-56 space-y-1 overflow-y-auto">
               {filteredDomains.length > 0 ? (
-                filteredDomains.map((domain) => (
+                filteredDomains.map((domain, index) => (
                   <button
                     key={domain.id}
                     type="button"
                     onClick={() => {
                       onSelect(domain.domain);
+                      setInputValue(domain.domain);
                       setIsOpen(false);
+                      setHighlightedIndex(0);
                     }}
                     className={cn(
                       'flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-[var(--control-background-hover)]',
                       value === domain.domain
                         ? 'bg-[var(--accent-soft)] text-[var(--foreground-primary)]'
-                        : 'text-[var(--foreground-secondary)]',
+                        : index === highlightedIndex
+                          ? 'bg-[var(--control-background)] text-[var(--foreground-primary)]'
+                          : 'text-[var(--foreground-secondary)]',
                     )}
                   >
                     <span>{domain.domain}</span>
-                    {domain.cert_id ? (
-                      <span className="rounded-full bg-[var(--surface-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--foreground-muted)]">
-                        TLS
-                      </span>
-                    ) : null}
+                    <div className="flex items-center gap-2">
+                      {index === highlightedIndex ? (
+                        <span className="rounded-full bg-[var(--surface-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--foreground-muted)]">
+                          Enter
+                        </span>
+                      ) : null}
+                      {domain.cert_id ? (
+                        <span className="rounded-full bg-[var(--surface-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--foreground-muted)]">
+                          TLS
+                        </span>
+                      ) : null}
+                    </div>
                   </button>
                 ))
               ) : (
@@ -1405,46 +1491,35 @@ export function ProxyRoutesPage() {
             icon={<GlobeIcon className="h-4 w-4" />}
           >
             <div className="space-y-4">
-              <SearchableManagedDomainField
-                value={watchedManagedDomain}
-                domains={managedDomains}
-                error={form.formState.errors.managed_domain_id?.message}
-                onSelect={handleManagedDomainSelect}
-              />
+              <div
+                className={cn(
+                  'grid gap-4',
+                  selectedManagedDomain && isWildcardSelection
+                    ? 'md:grid-cols-2'
+                    : 'md:grid-cols-1',
+                )}
+              >
+                <SearchableManagedDomainField
+                  value={watchedManagedDomain}
+                  domains={managedDomains}
+                  error={form.formState.errors.managed_domain_id?.message}
+                  onSelect={handleManagedDomainSelect}
+                />
 
-              {selectedManagedDomain ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {isWildcardSelection ? (
-                    <ResourceField
-                      label="Subdomain Prefix"
-                      hint="当前选择的是通配符域名，仅输入最前面的前缀即可。"
-                      error={form.formState.errors.subdomain_label?.message}
-                    >
-                      <ResourceInput
-                        placeholder="e.g. ai"
-                        className={INPUT_CLASS_NAME}
-                        {...form.register('subdomain_label')}
-                      />
-                    </ResourceField>
-                  ) : (
-                    <div />
-                  )}
-
+                {selectedManagedDomain && isWildcardSelection ? (
                   <ResourceField
-                    label="Rule Preview"
-                    hint="这里会实时展示最终生效的规则域名。"
+                    label="Subdomain Prefix"
+                    hint="当前选择的是通配符域名，仅输入最前面的前缀即可。"
+                    error={form.formState.errors.subdomain_label?.message}
                   >
-                    <div
-                      className={cn(
-                        'flex items-center rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--surface-panel)] px-3 font-mono text-sm text-[var(--foreground-secondary)]',
-                        INPUT_CLASS_NAME,
-                      )}
-                    >
-                      {effectiveDomain || '请选择目标域名'}
-                    </div>
+                    <ResourceInput
+                      placeholder="e.g. ai"
+                      className={INPUT_CLASS_NAME}
+                      {...form.register('subdomain_label')}
+                    />
                   </ResourceField>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
           </ProxyRuleSection>
 

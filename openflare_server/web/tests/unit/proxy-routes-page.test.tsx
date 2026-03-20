@@ -160,17 +160,15 @@ describe('ProxyRoutesPage', () => {
     await user.click(await screen.findByRole('button', { name: '新增规则' }));
     const dialog = await screen.findByRole('dialog', { name: '新增规则' });
 
-    await user.click(
-      within(dialog).getByRole('button', { name: /Select Target Domain/ }),
-    );
-    await user.click(await screen.findByText('*.example.com'));
+    const domainInput = within(dialog).getByPlaceholderText('输入并搜索目标域名');
+    await user.type(domainInput, 'example');
+    await user.keyboard('{Enter}');
 
     expect(await screen.findByPlaceholderText('e.g. ai')).toBeInTheDocument();
-    expect(screen.getByText('*.example.com')).toBeInTheDocument();
+    expect(domainInput).toHaveValue('*.example.com');
 
     await user.type(screen.getByPlaceholderText('e.g. ai'), 'ai');
-
-    expect(screen.getByText('ai.example.com')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. ai')).toHaveValue('ai');
   });
 
   it('uses exact website directly without showing subdomain input', async () => {
@@ -199,13 +197,12 @@ describe('ProxyRoutesPage', () => {
     await user.click(await screen.findByRole('button', { name: '新增规则' }));
     const dialog = await screen.findByRole('dialog', { name: '新增规则' });
 
-    await user.click(
-      within(dialog).getByRole('button', { name: /Select Target Domain/ }),
-    );
-    await user.click(await screen.findByText('a.example.com'));
+    const domainInput = within(dialog).getByPlaceholderText('输入并搜索目标域名');
+    await user.type(domainInput, 'a.example');
+    await user.keyboard('{Enter}');
 
     expect(screen.queryByPlaceholderText('e.g. ai')).not.toBeInTheDocument();
-    expect((await screen.findAllByText('a.example.com')).length).toBeGreaterThan(0);
+    expect(domainInput).toHaveValue('a.example.com');
     expect(await screen.findByText('Select Certificate')).toBeInTheDocument();
   });
 
@@ -245,11 +242,9 @@ describe('ProxyRoutesPage', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: '新增规则' }));
 
-    const domainTrigger = await screen.findByRole('button', {
-      name: /Select Target Domain/,
-    });
-    await user.click(domainTrigger);
-    await user.click(await screen.findByText('*.example.com'));
+    const domainInput = await screen.findByPlaceholderText('输入并搜索目标域名');
+    await user.type(domainInput, 'example');
+    await user.keyboard('{Enter}');
 
     const addressInput = screen.getByPlaceholderText('192.168.1.45');
     await user.click(addressInput);
@@ -265,5 +260,88 @@ describe('ProxyRoutesPage', () => {
     expect(
       await screen.findByText('未发现匹配资产，请手动输入'),
     ).toBeInTheDocument();
+  });
+
+  it('closes managed domain suggestions when clicking outside', async () => {
+    stubMatchMedia();
+
+    vi.stubGlobal(
+      'fetch',
+      buildBaseFetchStub({
+        managedDomains: [
+          {
+            id: 1,
+            domain: '*.example.com',
+            cert_id: 1,
+            enabled: true,
+            remark: '',
+            created_at: '2026-03-20T08:00:00Z',
+            updated_at: '2026-03-20T08:00:00Z',
+          },
+        ],
+      }),
+    );
+
+    renderProxyRoutesPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '新增规则' }));
+    const domainInput = await screen.findByPlaceholderText('输入并搜索目标域名');
+
+    await user.click(domainInput);
+    await user.type(domainInput, 'exam');
+    expect(await screen.findByText('*.example.com')).toBeInTheDocument();
+
+    await user.click(
+      within(await screen.findByRole('dialog', { name: '新增规则' })).getByRole(
+        'heading',
+        { name: 'Protocol' },
+      ),
+    );
+    expect(screen.queryByText('*.example.com')).not.toBeInTheDocument();
+  });
+
+  it('supports arrow key navigation for managed domain suggestions', async () => {
+    stubMatchMedia();
+
+    vi.stubGlobal(
+      'fetch',
+      buildBaseFetchStub({
+        managedDomains: [
+          {
+            id: 1,
+            domain: '*.example.com',
+            cert_id: 1,
+            enabled: true,
+            remark: '',
+            created_at: '2026-03-20T08:00:00Z',
+            updated_at: '2026-03-20T08:00:00Z',
+          },
+          {
+            id: 2,
+            domain: 'app.example.com',
+            cert_id: 1,
+            enabled: true,
+            remark: '',
+            created_at: '2026-03-20T08:00:00Z',
+            updated_at: '2026-03-20T08:00:00Z',
+          },
+        ],
+      }),
+    );
+
+    renderProxyRoutesPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '新增规则' }));
+    const dialog = await screen.findByRole('dialog', { name: '新增规则' });
+    const domainInput = within(dialog).getByPlaceholderText('输入并搜索目标域名');
+
+    await user.type(domainInput, 'example');
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Enter}');
+
+    expect(domainInput).toHaveValue('app.example.com');
+    expect(screen.queryByPlaceholderText('e.g. ai')).not.toBeInTheDocument();
   });
 });
