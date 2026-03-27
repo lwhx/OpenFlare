@@ -516,19 +516,6 @@ function parseUpstreams(rawValue: string) {
   }
 }
 
-function buildCachePolicyLabel(policy: string) {
-  switch (policy) {
-    case 'suffix':
-      return '按后缀';
-    case 'path_prefix':
-      return '按前缀';
-    case 'path_exact':
-      return '按路径';
-    default:
-      return '按 URL';
-  }
-}
-
 function getCacheRulesHint(policy: string) {
   switch (policy) {
     case 'suffix':
@@ -1537,35 +1524,20 @@ export function ProxyRoutesPage() {
                     <th className="px-3 py-3 font-medium">域名</th>
                     <th className="px-3 py-3 font-medium">源站地址</th>
                     <th className="px-3 py-3 font-medium">HTTPS</th>
-                    <th className="px-3 py-3 font-medium">缓存</th>
-                    <th className="px-3 py-3 font-medium">请求头</th>
                     <th className="px-3 py-3 font-medium">状态</th>
                     <th className="px-3 py-3 font-medium">备注</th>
-                    <th className="px-3 py-3 font-medium">更新时间</th>
                     <th className="px-3 py-3 font-medium">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-default)]">
                   {routes.map((route) => {
-                    const headers = parseCustomHeaders(route.custom_headers);
-                    const cacheRules = parseCacheRules(route.cache_rules);
-                    const upstreams = parseUpstreams(route.upstreams);
-
                     return (
                       <tr key={route.id} className="align-top">
                         <td className="px-3 py-4 font-medium text-[var(--foreground-primary)]">
                           {route.domain}
                         </td>
                         <td className="px-3 py-4 text-[var(--foreground-secondary)]">
-                          <div className="space-y-1">
-                            <p>{route.origin_url}</p>
-                            <p className="text-xs text-[var(--foreground-muted)]">
-                              回源主机名: {route.origin_host || '$host'}
-                            </p>
-                            <p className="text-xs text-[var(--foreground-muted)]">
-                              上游数量: {Math.max(upstreams.length, 1)}
-                            </p>
-                          </div>
+                          <p>{route.origin_url}</p>
                         </td>
                         <td className="px-3 py-4">
                           {route.enable_https ? (
@@ -1584,33 +1556,6 @@ export function ProxyRoutesPage() {
                           )}
                         </td>
                         <td className="px-3 py-4">
-                          {route.cache_enabled ? (
-                            <div className="space-y-2">
-                              <StatusBadge
-                                label={buildCachePolicyLabel(
-                                  route.cache_policy,
-                                )}
-                                variant="success"
-                              />
-                              <p className="text-xs text-[var(--foreground-muted)]">
-                                {cacheRules.length > 0
-                                  ? `${cacheRules.length} 条规则`
-                                  : '按 URL 粒度缓存'}
-                              </p>
-                            </div>
-                          ) : (
-                            <StatusBadge label="关闭" variant="warning" />
-                          )}
-                        </td>
-                        <td className="px-3 py-4">
-                          <StatusBadge
-                            label={
-                              headers.length > 0 ? `${headers.length} 条` : '无'
-                            }
-                            variant={headers.length > 0 ? 'success' : 'warning'}
-                          />
-                        </td>
-                        <td className="px-3 py-4">
                           <StatusBadge
                             label={route.enabled ? '启用' : '停用'}
                             variant={route.enabled ? 'success' : 'warning'}
@@ -1618,9 +1563,6 @@ export function ProxyRoutesPage() {
                         </td>
                         <td className="px-3 py-4 text-[var(--foreground-secondary)]">
                           {route.remark || '—'}
-                        </td>
-                        <td className="px-3 py-4 text-[var(--foreground-secondary)]">
-                          {formatDateTime(route.updated_at)}
                         </td>
                         <td className="px-3 py-4">
                           <div className="flex flex-wrap gap-2">
