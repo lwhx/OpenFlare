@@ -35,6 +35,7 @@ type ConfigPreviewResult struct {
 	SupportFiles   []SupportFile `json:"support_files"`
 	Checksum       string        `json:"checksum"`
 	RouteCount     int           `json:"route_count"`
+	WebsiteCount   int           `json:"website_count"`
 }
 
 type ConfigVersionSummary = model.ConfigVersionSummary
@@ -43,12 +44,17 @@ type ConfigVersionDetail = model.ConfigVersion
 
 type ConfigDiffResult struct {
 	ActiveVersion        string                 `json:"active_version,omitempty"`
+	AddedSites           []string               `json:"added_sites"`
+	RemovedSites         []string               `json:"removed_sites"`
+	ModifiedSites        []string               `json:"modified_sites"`
 	AddedDomains         []string               `json:"added_domains"`
 	RemovedDomains       []string               `json:"removed_domains"`
 	ModifiedDomains      []string               `json:"modified_domains"`
 	MainConfigChanged    bool                   `json:"main_config_changed"`
 	ChangedOptionKeys    []string               `json:"changed_option_keys"`
 	ChangedOptionDetails []ConfigOptionDiffItem `json:"changed_option_details"`
+	CurrentWebsiteCount  int                    `json:"current_website_count"`
+	ActiveWebsiteCount   int                    `json:"active_website_count"`
 }
 
 type ConfigOptionDiffItem struct {
@@ -58,27 +64,36 @@ type ConfigOptionDiffItem struct {
 }
 
 type snapshotRoute struct {
-	SiteName      string                        `json:"site_name,omitempty"`
-	Domain        string                        `json:"domain"`
-	Domains       []string                      `json:"domains,omitempty"`
-	OriginURL     string                        `json:"origin_url"`
-	OriginHost    string                        `json:"origin_host,omitempty"`
-	Upstreams     []string                      `json:"upstreams,omitempty"`
-	Enabled       bool                          `json:"enabled"`
-	EnableHTTPS   bool                          `json:"enable_https"`
-	CertID        *uint                         `json:"cert_id,omitempty"`
-	RedirectHTTP  bool                          `json:"redirect_http"`
-	CacheEnabled  bool                          `json:"cache_enabled"`
-	CachePolicy   string                        `json:"cache_policy,omitempty"`
-	CacheRules    []string                      `json:"cache_rules,omitempty"`
-	CustomHeaders []ProxyRouteCustomHeaderInput `json:"custom_headers,omitempty"`
-	Remark        string                        `json:"remark,omitempty"`
+	SiteName           string                        `json:"site_name,omitempty"`
+	Domain             string                        `json:"domain"`
+	Domains            []string                      `json:"domains,omitempty"`
+	OriginURL          string                        `json:"origin_url"`
+	OriginHost         string                        `json:"origin_host,omitempty"`
+	Upstreams          []string                      `json:"upstreams,omitempty"`
+	Enabled            bool                          `json:"enabled"`
+	EnableHTTPS        bool                          `json:"enable_https"`
+	CertID             *uint                         `json:"cert_id,omitempty"`
+	RedirectHTTP       bool                          `json:"redirect_http"`
+	LimitConnPerServer int                           `json:"limit_conn_per_server,omitempty"`
+	LimitConnPerIP     int                           `json:"limit_conn_per_ip,omitempty"`
+	LimitRate          string                        `json:"limit_rate,omitempty"`
+	CacheEnabled       bool                          `json:"cache_enabled"`
+	CachePolicy        string                        `json:"cache_policy,omitempty"`
+	CacheRules         []string                      `json:"cache_rules,omitempty"`
+	CustomHeaders      []ProxyRouteCustomHeaderInput `json:"custom_headers,omitempty"`
+	Remark             string                        `json:"remark,omitempty"`
 }
 
 type routeCacheConfig struct {
 	Enabled bool
 	Policy  string
 	Rules   []string
+}
+
+type routeLimitConfig struct {
+	LimitConnPerServer int
+	LimitConnPerIP     int
+	LimitRate          string
 }
 
 type routeUpstreamConfig struct {
@@ -207,6 +222,7 @@ func PreviewConfigVersion() (*ConfigPreviewResult, error) {
 		SupportFiles:   bundle.SupportFiles,
 		Checksum:       bundle.Checksum,
 		RouteCount:     len(bundle.Routes),
+		WebsiteCount:   len(bundle.SnapshotRoutes),
 	}, nil
 }
 
@@ -216,21 +232,29 @@ func DiffConfigVersion() (*ConfigDiffResult, error) {
 		return nil, err
 	}
 	result := &ConfigDiffResult{
+		AddedSites:           []string{},
+		RemovedSites:         []string{},
+		ModifiedSites:        []string{},
 		AddedDomains:         []string{},
 		RemovedDomains:       []string{},
 		ModifiedDomains:      []string{},
 		ChangedOptionKeys:    []string{},
 		ChangedOptionDetails: []ConfigOptionDiffItem{},
+		CurrentWebsiteCount:  len(bundle.SnapshotRoutes),
 	}
 	activeVersion, err := model.GetActiveConfigVersion()
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			for _, route := range bundle.SnapshotRoutes {
+				result.AddedSites = append(result.AddedSites, route.SiteName)
 				result.AddedDomains = append(result.AddedDomains, route.Domains...)
 			}
 			result.MainConfigChanged = true
 			result.ChangedOptionKeys = openRestyOptionKeys()
 			result.ChangedOptionDetails = buildInitialOpenRestyOptionDiffs(bundle.OpenRestyConfig)
+			sort.Strings(result.AddedSites)
+			sort.Strings(result.AddedDomains)
+			sort.Strings(result.ChangedOptionKeys)
 			return result, nil
 		}
 		return nil, err
@@ -239,6 +263,24 @@ func DiffConfigVersion() (*ConfigDiffResult, error) {
 	activeSnapshot, err := parseSnapshotDocument(activeVersion.SnapshotJSON)
 	if err != nil {
 		return nil, err
+	}
+	result.ActiveWebsiteCount = len(activeSnapshot.Routes)
+	currentSiteMap := flattenSnapshotRoutesBySite(bundle.SnapshotRoutes)
+	activeSiteMap := flattenSnapshotRoutesBySite(activeSnapshot.Routes)
+	for siteName, currentRoute := range currentSiteMap {
+		activeRoute, ok := activeSiteMap[siteName]
+		if !ok {
+			result.AddedSites = append(result.AddedSites, siteName)
+			continue
+		}
+		if !snapshotRouteConfigEqual(activeRoute, currentRoute) {
+			result.ModifiedSites = append(result.ModifiedSites, siteName)
+		}
+	}
+	for siteName := range activeSiteMap {
+		if _, ok := currentSiteMap[siteName]; !ok {
+			result.RemovedSites = append(result.RemovedSites, siteName)
+		}
 	}
 	currentMap := flattenSnapshotRoutesByDomain(bundle.SnapshotRoutes)
 	activeMap := flattenSnapshotRoutesByDomain(activeSnapshot.Routes)
@@ -260,6 +302,9 @@ func DiffConfigVersion() (*ConfigDiffResult, error) {
 	result.MainConfigChanged = activeVersion.MainConfig != bundle.MainConfig
 	result.ChangedOptionDetails = diffOpenRestyOptionDetails(activeSnapshot.OpenRestyConfig, bundle.OpenRestyConfig)
 	result.ChangedOptionKeys = extractOptionDiffKeys(result.ChangedOptionDetails)
+	sort.Strings(result.AddedSites)
+	sort.Strings(result.RemovedSites)
+	sort.Strings(result.ModifiedSites)
 	sort.Strings(result.AddedDomains)
 	sort.Strings(result.RemovedDomains)
 	sort.Strings(result.ModifiedDomains)
@@ -416,21 +461,24 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 			return nil, fmt.Errorf("路由 %s 缓存规则无效", route.Domain)
 		}
 		items = append(items, snapshotRoute{
-			SiteName:      normalizeProxyRouteSiteNameInput(route, route.SiteName, domains[0]),
-			Domain:        domains[0],
-			Domains:       domains,
-			OriginURL:     route.OriginURL,
-			OriginHost:    route.OriginHost,
-			Upstreams:     upstreams,
-			Enabled:       route.Enabled,
-			EnableHTTPS:   route.EnableHTTPS,
-			CertID:        route.CertID,
-			RedirectHTTP:  route.RedirectHTTP,
-			CacheEnabled:  route.CacheEnabled,
-			CachePolicy:   route.CachePolicy,
-			CacheRules:    cacheRules,
-			CustomHeaders: customHeaders,
-			Remark:        route.Remark,
+			SiteName:           normalizeProxyRouteSiteNameInput(route, route.SiteName, domains[0]),
+			Domain:             domains[0],
+			Domains:            domains,
+			OriginURL:          route.OriginURL,
+			OriginHost:         route.OriginHost,
+			Upstreams:          upstreams,
+			Enabled:            route.Enabled,
+			EnableHTTPS:        route.EnableHTTPS,
+			CertID:             route.CertID,
+			RedirectHTTP:       route.RedirectHTTP,
+			LimitConnPerServer: route.LimitConnPerServer,
+			LimitConnPerIP:     route.LimitConnPerIP,
+			LimitRate:          route.LimitRate,
+			CacheEnabled:       route.CacheEnabled,
+			CachePolicy:        route.CachePolicy,
+			CacheRules:         cacheRules,
+			CustomHeaders:      customHeaders,
+			Remark:             route.Remark,
 		})
 	}
 	return items, nil
@@ -488,8 +536,20 @@ func normalizeSnapshotRoutes(routes []snapshotRoute) []snapshotRoute {
 			routes[index].CachePolicy = normalizeCachePolicy(routes[index].CacheEnabled, routes[index].CachePolicy)
 			routes[index].CacheRules = normalizedCacheRules
 		}
+		normalizedLimitRate, err := normalizeProxyRouteLimitRate(routes[index].LimitRate)
+		if err == nil {
+			routes[index].LimitRate = normalizedLimitRate
+		}
 	}
 	return routes
+}
+
+func flattenSnapshotRoutesBySite(routes []snapshotRoute) map[string]snapshotRoute {
+	siteMap := make(map[string]snapshotRoute)
+	for _, route := range normalizeSnapshotRoutes(routes) {
+		siteMap[route.SiteName] = route
+	}
+	return siteMap
 }
 
 func flattenSnapshotRoutesByDomain(routes []snapshotRoute) map[string]snapshotRoute {
@@ -505,7 +565,7 @@ func flattenSnapshotRoutesByDomain(routes []snapshotRoute) map[string]snapshotRo
 }
 
 func snapshotRouteConfigEqual(left snapshotRoute, right snapshotRoute) bool {
-	if left.SiteName != right.SiteName || left.Domain != right.Domain || left.OriginURL != right.OriginURL || left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP || left.CacheEnabled != right.CacheEnabled || left.CachePolicy != right.CachePolicy || !uintPointerEqual(left.CertID, right.CertID) {
+	if left.SiteName != right.SiteName || left.Domain != right.Domain || left.OriginURL != right.OriginURL || left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP || left.LimitConnPerServer != right.LimitConnPerServer || left.LimitConnPerIP != right.LimitConnPerIP || left.LimitRate != right.LimitRate || left.CacheEnabled != right.CacheEnabled || left.CachePolicy != right.CachePolicy || !uintPointerEqual(left.CertID, right.CertID) {
 		return false
 	}
 	if len(left.Domains) != len(right.Domains) {
@@ -719,12 +779,17 @@ func renderRouteConfig(routes []*model.ProxyRoute, cfg openRestyConfigSnapshot) 
 			Policy:  route.CachePolicy,
 			Rules:   cacheRules,
 		}
+		limitConfig := routeLimitConfig{
+			LimitConnPerServer: route.LimitConnPerServer,
+			LimitConnPerIP:     route.LimitConnPerIP,
+			LimitRate:          route.LimitRate,
+		}
 		upstreamConfig := buildRouteUpstreamConfig(route, upstreams)
 		if upstreamConfig.UsesNamedUpstream {
 			builder.WriteString(renderNamedUpstreamBlock(upstreamConfig))
 		}
 		if !route.EnableHTTPS {
-			builder.WriteString(renderHTTPProxyServer(serverNames, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, upstreamConfig, cfg))
+			builder.WriteString(renderHTTPProxyServer(serverNames, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, limitConfig, upstreamConfig, cfg))
 			continue
 		}
 		if route.CertID == nil || *route.CertID == 0 {
@@ -744,9 +809,9 @@ func renderRouteConfig(routes []*model.ProxyRoute, cfg openRestyConfigSnapshot) 
 		if route.RedirectHTTP {
 			builder.WriteString(renderHTTPRedirectServer(serverNames))
 		} else {
-			builder.WriteString(renderHTTPProxyServer(serverNames, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, upstreamConfig, cfg))
+			builder.WriteString(renderHTTPProxyServer(serverNames, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, limitConfig, upstreamConfig, cfg))
 		}
-		builder.WriteString(renderHTTPSServer(serverNames, route.OriginURL, route.OriginHost, certificate.ID, customHeaders, cacheConfig, upstreamConfig, cfg))
+		builder.WriteString(renderHTTPSServer(serverNames, route.OriginURL, route.OriginHost, certificate.ID, customHeaders, cacheConfig, limitConfig, upstreamConfig, cfg))
 	}
 	return builder.String(), dedupeSupportFiles(supportFiles), nil
 }
@@ -819,7 +884,8 @@ func renderTemplateDirective(enabled bool, statement string) string {
 }
 
 func renderOpenRestyCacheTemplateBlock(cfg openRestyConfigSnapshot) string {
-	lines := make([]string, 0, 8)
+	lines := make([]string, 0, 12)
+	lines = append(lines, renderOpenRestyLimitZoneBlock())
 	if !cfg.CacheEnabled {
 		lines = append(lines, renderOpenRestyObservabilityTemplateBlock())
 		return strings.Join(lines, "")
@@ -834,6 +900,14 @@ func renderOpenRestyCacheTemplateBlock(cfg openRestyConfigSnapshot) string {
 	}, "\n"))
 	lines = append(lines, renderOpenRestyObservabilityTemplateBlock())
 	return strings.Join(lines, "")
+}
+
+func renderOpenRestyLimitZoneBlock() string {
+	return strings.Join([]string{
+		"    limit_conn_zone $server_name zone=openflare_conn_per_server:10m;",
+		"    limit_conn_zone $binary_remote_addr zone=openflare_conn_per_ip:10m;",
+		"",
+	}, "\n")
 }
 
 func onOff(value bool) string {
@@ -883,18 +957,18 @@ func nextVersionNumber(now time.Time) (string, error) {
 	return fmt.Sprintf("%s-%03d", prefix, count+1), nil
 }
 
-func renderHTTPProxyServer(serverNames string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, upstreamConfig routeUpstreamConfig, cfg openRestyConfigSnapshot) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    location / {\n%s%s%s    }\n}\n\n", serverNames, renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig))
+func renderHTTPProxyServer(serverNames string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, limitConfig routeLimitConfig, upstreamConfig routeUpstreamConfig, cfg openRestyConfigSnapshot) string {
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    location / {\n%s%s%s%s    }\n}\n\n", serverNames, renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig))
 }
 
 func renderHTTPRedirectServer(serverNames string) string {
 	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    return 301 https://$host$request_uri;\n}\n\n", serverNames)
 }
 
-func renderHTTPSServer(serverNames string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, upstreamConfig routeUpstreamConfig, cfg openRestyConfigSnapshot) string {
+func renderHTTPSServer(serverNames string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, limitConfig routeLimitConfig, upstreamConfig routeUpstreamConfig, cfg openRestyConfigSnapshot) string {
 	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
 	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-	return fmt.Sprintf("server {\n    listen 443 ssl;\n    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s%s%s    }\n}\n\n", serverNames, certPath, keyPath, renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig))
+	return fmt.Sprintf("server {\n    listen 443 ssl;\n    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n\n    location / {\n%s%s%s%s    }\n}\n\n", serverNames, certPath, keyPath, renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig))
 }
 
 func renderServerNames(domains []string) string {
@@ -970,6 +1044,23 @@ func renderRouteCacheBlock(cacheConfig routeCacheConfig, cfg openRestyConfigSnap
 	builder.WriteString("        proxy_cache_methods GET;\n")
 	builder.WriteString("        proxy_cache_bypass $openflare_skip_cache;\n")
 	builder.WriteString("        proxy_no_cache $openflare_skip_cache;\n")
+	return builder.String()
+}
+
+func renderRouteLimitBlock(limitConfig routeLimitConfig) string {
+	if limitConfig.LimitConnPerServer <= 0 && limitConfig.LimitConnPerIP <= 0 && strings.TrimSpace(limitConfig.LimitRate) == "" {
+		return ""
+	}
+	var builder strings.Builder
+	if limitConfig.LimitConnPerServer > 0 {
+		builder.WriteString(fmt.Sprintf("        limit_conn openflare_conn_per_server %d;\n", limitConfig.LimitConnPerServer))
+	}
+	if limitConfig.LimitConnPerIP > 0 {
+		builder.WriteString(fmt.Sprintf("        limit_conn openflare_conn_per_ip %d;\n", limitConfig.LimitConnPerIP))
+	}
+	if strings.TrimSpace(limitConfig.LimitRate) != "" {
+		builder.WriteString(fmt.Sprintf("        limit_rate %s;\n", limitConfig.LimitRate))
+	}
 	return builder.String()
 }
 

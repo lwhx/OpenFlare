@@ -2,10 +2,11 @@ package controller
 
 import (
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"openflare/service"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GetProxyRoutes godoc
@@ -31,6 +32,39 @@ func GetProxyRoutes(c *gin.Context) {
 	})
 }
 
+// GetProxyRoute godoc
+// @Summary Get proxy route detail
+// @Tags ProxyRoutes
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Route ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Router /api/proxy-routes/{id} [get]
+func GetProxyRoute(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "invalid id",
+		})
+		return
+	}
+	route, err := service.GetProxyRoute(uint(id))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    route,
+	})
+}
+
 // CreateProxyRoute godoc
 // @Summary Create proxy route
 // @Tags ProxyRoutes
@@ -46,7 +80,7 @@ func CreateProxyRoute(c *gin.Context) {
 	if err := json.NewDecoder(c.Request.Body).Decode(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效的参数",
+			"message": "invalid payload",
 		})
 		return
 	}
@@ -81,7 +115,7 @@ func UpdateProxyRoute(c *gin.Context) {
 	if err != nil || id == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效的参数",
+			"message": "invalid id",
 		})
 		return
 	}
@@ -89,7 +123,7 @@ func UpdateProxyRoute(c *gin.Context) {
 	if err = json.NewDecoder(c.Request.Body).Decode(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效的参数",
+			"message": "invalid payload",
 		})
 		return
 	}
@@ -122,7 +156,7 @@ func DeleteProxyRoute(c *gin.Context) {
 	if err != nil || id == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效的参数",
+			"message": "invalid id",
 		})
 		return
 	}

@@ -384,6 +384,22 @@ func validateDatabaseSchemaV5(db *gorm.DB, backend string) error {
 	return nil
 }
 
+func validateDatabaseSchemaV6(db *gorm.DB, backend string) error {
+	if err := validateDatabaseSchemaV5(db, backend); err != nil {
+		return err
+	}
+	if !db.Migrator().HasColumn(&ProxyRoute{}, "limit_conn_per_server") {
+		return fmt.Errorf("column proxy_routes.limit_conn_per_server is missing")
+	}
+	if !db.Migrator().HasColumn(&ProxyRoute{}, "limit_conn_per_ip") {
+		return fmt.Errorf("column proxy_routes.limit_conn_per_ip is missing")
+	}
+	if !db.Migrator().HasColumn(&ProxyRoute{}, "limit_rate") {
+		return fmt.Errorf("column proxy_routes.limit_rate is missing")
+	}
+	return nil
+}
+
 func renameLegacyObservabilityShardTables(db *gorm.DB) error {
 	for _, baseTable := range shardedObservabilityBaseTables() {
 		for _, table := range observabilityShardTables(baseTable) {
@@ -738,12 +754,27 @@ func migrateV5(db *gorm.DB, backend string) error {
 	return ensureProxyRouteSiteNameUniqueIndex(db)
 }
 
+// migrateV6 adds structured website-level rate limit fields to proxy_routes.
+func migrateV6(db *gorm.DB, backend string) error {
+	if err := applyCurrentSchema(db, backend); err != nil {
+		return err
+	}
+	if err := backfillOriginsFromProxyRoutes(db); err != nil {
+		return err
+	}
+	if err := backfillProxyRouteSiteFields(db); err != nil {
+		return err
+	}
+	return ensureProxyRouteSiteNameUniqueIndex(db)
+}
+
 func databaseSchemaMigrations() []databaseSchemaMigration {
 	return []databaseSchemaMigration{
 		{fromVersion: 1, toVersion: 2, migrate: migrateV2, validate: validateDatabaseSchemaV2},
 		{fromVersion: 2, toVersion: 3, migrate: migrateV3, validate: validateDatabaseSchemaV3},
 		{fromVersion: 3, toVersion: 4, migrate: migrateV4, validate: validateDatabaseSchemaV4},
 		{fromVersion: 4, toVersion: 5, migrate: migrateV5, validate: validateDatabaseSchemaV5},
+		{fromVersion: 5, toVersion: 6, migrate: migrateV6, validate: validateDatabaseSchemaV6},
 	}
 }
 
@@ -820,7 +851,7 @@ func initializeFreshDatabaseSchema(db *gorm.DB, backend string) error {
 	if err := ensureProxyRouteSiteNameUniqueIndex(db); err != nil {
 		return err
 	}
-	if err := validateDatabaseSchemaV5(db, backend); err != nil {
+	if err := validateDatabaseSchemaV6(db, backend); err != nil {
 		return err
 	}
 	return saveDatabaseSchemaVersion(db, currentDatabaseSchemaVersion)

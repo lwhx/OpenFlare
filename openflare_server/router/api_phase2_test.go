@@ -460,13 +460,16 @@ func TestPhase2CustomHeadersPreviewAndDiffLifecycle(t *testing.T) {
 			{"key": "X-Trace-Id", "value": "$request_id"},
 		},
 	})
-	var createdRoute model.ProxyRoute
+	var createdRoute service.ProxyRouteView
 	decodeResponseData(t, createResp, &createdRoute)
 	if !strings.Contains(createdRoute.CustomHeaders, "X-Trace-Id") {
 		t.Fatalf("expected custom headers to be stored as json, got %s", createdRoute.CustomHeaders)
 	}
 	if createdRoute.OriginHost != "preview-origin.internal" {
 		t.Fatalf("expected origin_host to be stored, got %s", createdRoute.OriginHost)
+	}
+	if createdRoute.SiteName != "preview.example.com" || createdRoute.PrimaryDomain != "preview.example.com" || createdRoute.DomainCount != 1 {
+		t.Fatalf("expected website identity fields in create response, got %+v", createdRoute)
 	}
 
 	performJSONRequest(t, engine, token, http.MethodPost, "/api/config-versions/publish", nil)
@@ -491,6 +494,9 @@ func TestPhase2CustomHeadersPreviewAndDiffLifecycle(t *testing.T) {
 	var preview map[string]any
 	decodeResponseData(t, previewResp, &preview)
 	renderedConfig, _ := preview["rendered_config"].(string)
+	if websiteCount, ok := preview["website_count"].(float64); !ok || int(websiteCount) != 2 {
+		t.Fatalf("expected preview website_count=2, got %#v", preview["website_count"])
+	}
 	if !strings.Contains(renderedConfig, `proxy_set_header X-Release "candidate";`) {
 		t.Fatalf("expected preview endpoint to return custom header, got %s", renderedConfig)
 	}
@@ -514,6 +520,67 @@ func TestPhase2CustomHeadersPreviewAndDiffLifecycle(t *testing.T) {
 	addedDomains, ok := diff["added_domains"].([]any)
 	if !ok || len(addedDomains) != 1 || addedDomains[0].(string) != "new-preview.example.com" {
 		t.Fatalf("unexpected added domains: %#v", diff["added_domains"])
+	}
+	modifiedSites, ok := diff["modified_sites"].([]any)
+	if !ok || len(modifiedSites) != 1 || modifiedSites[0].(string) != "preview.example.com" {
+		t.Fatalf("unexpected modified sites: %#v", diff["modified_sites"])
+	}
+	addedSites, ok := diff["added_sites"].([]any)
+	if !ok || len(addedSites) != 1 || addedSites[0].(string) != "new-preview.example.com" {
+		t.Fatalf("unexpected added sites: %#v", diff["added_sites"])
+	}
+}
+
+func TestPhase2ProxyRouteWebsiteDetailAndLimits(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	common.RedisEnabled = false
+	setupTestDB(t)
+
+	engine := gin.New()
+	engine.Use(sessions.Sessions("session", cookie.NewStore([]byte("test-secret"))))
+	router.SetApiRouter(engine)
+
+	token := prepareRootToken(t)
+
+	createResp := performJSONRequest(t, engine, token, http.MethodPost, "/api/proxy-routes/", map[string]any{
+		"site_name":             "marketing-site",
+		"domains":               []string{"app.example.com", "www.example.com"},
+		"origin_url":            "https://origin.internal",
+		"enabled":               true,
+		"limit_conn_per_server": 120,
+		"limit_conn_per_ip":     12,
+		"limit_rate":            "512K",
+	})
+	var createdRoute service.ProxyRouteView
+	decodeResponseData(t, createResp, &createdRoute)
+	if createdRoute.SiteName != "marketing-site" || createdRoute.PrimaryDomain != "app.example.com" {
+		t.Fatalf("unexpected create payload: %+v", createdRoute)
+	}
+	if createdRoute.DomainCount != 2 || len(createdRoute.Domains) != 2 || createdRoute.Domains[1] != "www.example.com" {
+		t.Fatalf("expected multi-domain website view, got %+v", createdRoute)
+	}
+	if createdRoute.LimitConnPerServer != 120 || createdRoute.LimitConnPerIP != 12 || createdRoute.LimitRate != "512k" {
+		t.Fatalf("expected normalized rate limit fields, got %+v", createdRoute)
+	}
+	if len(createdRoute.UpstreamList) != 1 || createdRoute.UpstreamList[0] != "https://origin.internal" {
+		t.Fatalf("expected structured upstream list, got %+v", createdRoute.UpstreamList)
+	}
+
+	detailResp := performJSONRequest(t, engine, token, http.MethodGet, "/api/proxy-routes/"+toString(createdRoute.ID), nil)
+	var detail service.ProxyRouteView
+	decodeResponseData(t, detailResp, &detail)
+	if detail.ID != createdRoute.ID || detail.SiteName != "marketing-site" || detail.LimitRate != "512k" {
+		t.Fatalf("unexpected detail response: %+v", detail)
+	}
+	if len(detail.Domains) != 2 || detail.Domains[0] != "app.example.com" || detail.Domains[1] != "www.example.com" {
+		t.Fatalf("expected detail response to expose full domain list, got %+v", detail.Domains)
+	}
+
+	listResp := performJSONRequest(t, engine, token, http.MethodGet, "/api/proxy-routes/", nil)
+	var routes []service.ProxyRouteView
+	decodeResponseData(t, listResp, &routes)
+	if len(routes) != 1 || routes[0].SiteName != "marketing-site" || routes[0].LimitConnPerServer != 120 {
+		t.Fatalf("unexpected proxy route list response: %+v", routes)
 	}
 }
 

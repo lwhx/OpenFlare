@@ -55,7 +55,7 @@ func TestPhase1PublishLifecycle(t *testing.T) {
 		"remark":        "primary route",
 	}
 	resp := performJSONRequest(t, engine, token, http.MethodPost, "/api/proxy-routes/", createBody)
-	var createdRoute model.ProxyRoute
+	var createdRoute service.ProxyRouteView
 	decodeResponseData(t, resp, &createdRoute)
 	if createdRoute.Domain != "app.example.com" {
 		t.Fatalf("unexpected created route domain: %s", createdRoute.Domain)
@@ -74,7 +74,7 @@ func TestPhase1PublishLifecycle(t *testing.T) {
 	}
 
 	resp = performJSONRequest(t, engine, token, http.MethodGet, "/api/proxy-routes/", nil)
-	var routes []model.ProxyRoute
+	var routes []service.ProxyRouteView
 	decodeResponseData(t, resp, &routes)
 	if len(routes) != 1 {
 		t.Fatalf("expected 1 route, got %d", len(routes))
@@ -289,7 +289,7 @@ func TestPhase1HTTPSAndCertificateImportLifecycle(t *testing.T) {
 		"redirect_http": true,
 		"remark":        "https route",
 	})
-	var route model.ProxyRoute
+	var route service.ProxyRouteView
 	decodeResponseData(t, resp, &route)
 	if !route.EnableHTTPS || route.CertID == nil || *route.CertID != manualCertificate.ID {
 		t.Fatal("expected route to persist https certificate binding")
@@ -324,7 +324,7 @@ func TestPhase1HTTPSAndCertificateImportLifecycle(t *testing.T) {
 	}
 
 	listResp := performJSONRequest(t, engine, token, http.MethodGet, "/api/proxy-routes/", nil)
-	var routes []model.ProxyRoute
+	var routes []service.ProxyRouteView
 	decodeResponseData(t, listResp, &routes)
 	if len(routes) != 1 || !routes[0].EnableHTTPS || routes[0].CertID == nil || *routes[0].CertID != manualCertificate.ID || !routes[0].RedirectHTTP {
 		t.Fatalf("expected route list to reflect https update, got %+v", routes)

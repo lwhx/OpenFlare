@@ -78,6 +78,7 @@ func SetApiRouter(router *gin.Engine) {
 		proxyRoute.Use(middleware.AdminAuth())
 		{
 			proxyRoute.GET("/", controller.GetProxyRoutes)
+			proxyRoute.GET("/:id", controller.GetProxyRoute)
 			proxyRoute.POST("/", controller.CreateProxyRoute)
 			proxyRoute.POST("/:id/update", controller.UpdateProxyRoute)
 			proxyRoute.POST("/:id/delete", controller.DeleteProxyRoute)

@@ -34,6 +34,32 @@ func (legacyProxyRouteV4) TableName() string {
 	return "proxy_routes"
 }
 
+type legacyProxyRouteV5 struct {
+	ID            uint   `gorm:"primaryKey"`
+	SiteName      string `gorm:"size:255;not null;default:''"`
+	Domain        string `gorm:"uniqueIndex;size:255;not null"`
+	Domains       string `gorm:"type:text;not null;default:'[]'"`
+	OriginID      *uint  `gorm:"index"`
+	OriginURL     string `gorm:"size:2048;not null"`
+	OriginHost    string `gorm:"size:255"`
+	Upstreams     string `gorm:"type:text;not null;default:'[]'"`
+	Enabled       bool   `gorm:"not null;default:true"`
+	EnableHTTPS   bool   `gorm:"column:enable_https;not null;default:false"`
+	CertID        *uint
+	RedirectHTTP  bool   `gorm:"not null;default:false"`
+	CacheEnabled  bool   `gorm:"not null;default:false"`
+	CachePolicy   string `gorm:"size:32;not null;default:''"`
+	CacheRules    string `gorm:"type:text;not null;default:'[]'"`
+	CustomHeaders string `gorm:"type:text;not null;default:'[]'"`
+	Remark        string `gorm:"size:255"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (legacyProxyRouteV5) TableName() string {
+	return "proxy_routes"
+}
+
 func openBareTestSQLiteDB(t *testing.T, name string) *gorm.DB {
 	t.Helper()
 
@@ -557,6 +583,69 @@ func TestEnsureDatabaseSchemaUpToDateBackfillsProxyRouteSiteFields(t *testing.T)
 	}
 	if len(domains) != 1 || domains[0] != "app.example.com" {
 		t.Fatalf("unexpected migrated domains: %#v", domains)
+	}
+}
+
+func TestEnsureDatabaseSchemaUpToDateAddsProxyRouteRateLimitFields(t *testing.T) {
+	db := openBareTestSQLiteDB(t, "legacy-proxy-route-rate-limits.db")
+	if err := registerSharding(db, "sqlite"); err != nil {
+		t.Fatalf("register sharding: %v", err)
+	}
+	if err := autoMigrateSchemaMetadata(db); err != nil {
+		t.Fatalf("auto migrate schema metadata: %v", err)
+	}
+
+	for _, item := range registeredModels() {
+		if _, ok := item.(*ProxyRoute); ok {
+			continue
+		}
+		if err := db.AutoMigrate(item); err != nil {
+			t.Fatalf("auto migrate supporting table: %v", err)
+		}
+	}
+	if err := db.AutoMigrate(&legacyProxyRouteV5{}); err != nil {
+		t.Fatalf("auto migrate legacy proxy_routes v5: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if err := db.Create(&legacyProxyRouteV5{
+		SiteName:      "main-site",
+		Domain:        "app.example.com",
+		Domains:       `["app.example.com","www.example.com"]`,
+		OriginURL:     "https://origin-a.internal:8443",
+		Upstreams:     `["https://origin-a.internal:8443"]`,
+		Enabled:       true,
+		EnableHTTPS:   false,
+		RedirectHTTP:  false,
+		CacheEnabled:  false,
+		CachePolicy:   "",
+		CacheRules:    `[]`,
+		CustomHeaders: `[]`,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}).Error; err != nil {
+		t.Fatalf("seed legacy proxy route v5: %v", err)
+	}
+	if err := saveDatabaseSchemaVersion(db, 5); err != nil {
+		t.Fatalf("save schema version: %v", err)
+	}
+
+	previousDB := DB
+	DB = db
+	t.Cleanup(func() {
+		DB = previousDB
+	})
+
+	if err := ensureDatabaseSchemaUpToDate(db, "sqlite"); err != nil {
+		t.Fatalf("ensureDatabaseSchemaUpToDate: %v", err)
+	}
+
+	var route ProxyRoute
+	if err := db.First(&route).Error; err != nil {
+		t.Fatalf("query migrated proxy route: %v", err)
+	}
+	if route.LimitConnPerServer != 0 || route.LimitConnPerIP != 0 || route.LimitRate != "" {
+		t.Fatalf("expected new rate limit fields to default to disabled values, got %+v", route)
 	}
 }
 

@@ -8,11 +8,13 @@ import (
 	"openflare/model"
 	"regexp"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
 
 var proxyHeaderKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+var proxyRouteLimitRatePattern = regexp.MustCompile(`^\d+(?:[kKmM])?$`)
 
 const (
 	proxyRouteCachePolicyURL        = "url"
@@ -27,47 +29,92 @@ type ProxyRouteCustomHeaderInput struct {
 }
 
 type ProxyRouteInput struct {
-	SiteName      string                        `json:"site_name"`
-	Domain        string                        `json:"domain"`
-	Domains       []string                      `json:"domains"`
-	OriginID      *uint                         `json:"origin_id"`
-	OriginURL     string                        `json:"origin_url"`
-	OriginScheme  string                        `json:"origin_scheme"`
-	OriginAddress string                        `json:"origin_address"`
-	OriginPort    string                        `json:"origin_port"`
-	OriginURI     string                        `json:"origin_uri"`
-	OriginHost    string                        `json:"origin_host"`
-	Upstreams     []string                      `json:"upstreams"`
-	Enabled       bool                          `json:"enabled"`
-	EnableHTTPS   bool                          `json:"enable_https"`
-	CertID        *uint                         `json:"cert_id"`
-	RedirectHTTP  bool                          `json:"redirect_http"`
-	CacheEnabled  bool                          `json:"cache_enabled"`
-	CachePolicy   string                        `json:"cache_policy"`
-	CacheRules    []string                      `json:"cache_rules"`
-	CustomHeaders []ProxyRouteCustomHeaderInput `json:"custom_headers"`
-	Remark        string                        `json:"remark"`
+	SiteName           string                        `json:"site_name"`
+	Domain             string                        `json:"domain"`
+	Domains            []string                      `json:"domains"`
+	OriginID           *uint                         `json:"origin_id"`
+	OriginURL          string                        `json:"origin_url"`
+	OriginScheme       string                        `json:"origin_scheme"`
+	OriginAddress      string                        `json:"origin_address"`
+	OriginPort         string                        `json:"origin_port"`
+	OriginURI          string                        `json:"origin_uri"`
+	OriginHost         string                        `json:"origin_host"`
+	Upstreams          []string                      `json:"upstreams"`
+	Enabled            bool                          `json:"enabled"`
+	EnableHTTPS        bool                          `json:"enable_https"`
+	CertID             *uint                         `json:"cert_id"`
+	RedirectHTTP       bool                          `json:"redirect_http"`
+	LimitConnPerServer int                           `json:"limit_conn_per_server"`
+	LimitConnPerIP     int                           `json:"limit_conn_per_ip"`
+	LimitRate          string                        `json:"limit_rate"`
+	CacheEnabled       bool                          `json:"cache_enabled"`
+	CachePolicy        string                        `json:"cache_policy"`
+	CacheRules         []string                      `json:"cache_rules"`
+	CustomHeaders      []ProxyRouteCustomHeaderInput `json:"custom_headers"`
+	Remark             string                        `json:"remark"`
 }
 
-func ListProxyRoutes() ([]*model.ProxyRoute, error) {
-	return model.ListProxyRoutes()
+type ProxyRouteView struct {
+	ID                 uint                          `json:"id"`
+	SiteName           string                        `json:"site_name"`
+	Domain             string                        `json:"domain"`
+	Domains            []string                      `json:"domains"`
+	PrimaryDomain      string                        `json:"primary_domain"`
+	DomainCount        int                           `json:"domain_count"`
+	OriginID           *uint                         `json:"origin_id"`
+	OriginURL          string                        `json:"origin_url"`
+	OriginHost         string                        `json:"origin_host"`
+	Upstreams          string                        `json:"upstreams"`
+	UpstreamList       []string                      `json:"upstream_list"`
+	Enabled            bool                          `json:"enabled"`
+	EnableHTTPS        bool                          `json:"enable_https"`
+	CertID             *uint                         `json:"cert_id"`
+	RedirectHTTP       bool                          `json:"redirect_http"`
+	LimitConnPerServer int                           `json:"limit_conn_per_server"`
+	LimitConnPerIP     int                           `json:"limit_conn_per_ip"`
+	LimitRate          string                        `json:"limit_rate"`
+	CacheEnabled       bool                          `json:"cache_enabled"`
+	CachePolicy        string                        `json:"cache_policy"`
+	CacheRules         string                        `json:"cache_rules"`
+	CacheRuleList      []string                      `json:"cache_rule_list"`
+	CustomHeaders      string                        `json:"custom_headers"`
+	CustomHeaderList   []ProxyRouteCustomHeaderInput `json:"custom_header_list"`
+	Remark             string                        `json:"remark"`
+	CreatedAt          time.Time                     `json:"created_at"`
+	UpdatedAt          time.Time                     `json:"updated_at"`
 }
 
-func CreateProxyRoute(input ProxyRouteInput) (*model.ProxyRoute, error) {
+func ListProxyRoutes() ([]*ProxyRouteView, error) {
+	routes, err := model.ListProxyRoutes()
+	if err != nil {
+		return nil, err
+	}
+	return buildProxyRouteViews(routes)
+}
+
+func GetProxyRoute(id uint) (*ProxyRouteView, error) {
+	route, err := model.GetProxyRouteByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return buildProxyRouteView(route)
+}
+
+func CreateProxyRoute(input ProxyRouteInput) (*ProxyRouteView, error) {
 	route, err := buildProxyRoute(nil, input)
 	if err != nil {
 		return nil, err
 	}
 	if err = route.Insert(); err != nil {
 		if isUniqueConstraintError(err) {
-			return nil, errors.New("域名已存在")
+			return nil, errors.New("proxy route identity already exists")
 		}
 		return nil, err
 	}
-	return route, nil
+	return buildProxyRouteView(route)
 }
 
-func UpdateProxyRoute(id uint, input ProxyRouteInput) (*model.ProxyRoute, error) {
+func UpdateProxyRoute(id uint, input ProxyRouteInput) (*ProxyRouteView, error) {
 	route, err := model.GetProxyRouteByID(id)
 	if err != nil {
 		return nil, err
@@ -78,11 +125,11 @@ func UpdateProxyRoute(id uint, input ProxyRouteInput) (*model.ProxyRoute, error)
 	}
 	if err = route.Update(); err != nil {
 		if isUniqueConstraintError(err) {
-			return nil, errors.New("域名已存在")
+			return nil, errors.New("proxy route identity already exists")
 		}
 		return nil, err
 	}
-	return route, nil
+	return buildProxyRouteView(route)
 }
 
 func DeleteProxyRoute(id uint) error {
@@ -120,6 +167,19 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	if err != nil {
 		return nil, err
 	}
+	limitConnPerServer, err := normalizeProxyRouteLimitConnValue(input.LimitConnPerServer, "limit_conn_per_server")
+	if err != nil {
+		return nil, err
+	}
+	limitConnPerIP, err := normalizeProxyRouteLimitConnValue(input.LimitConnPerIP, "limit_conn_per_ip")
+	if err != nil {
+		return nil, err
+	}
+	limitRate, err := normalizeProxyRouteLimitRate(input.LimitRate)
+	if err != nil {
+		return nil, err
+	}
+
 	cacheRulesJSON, err := json.Marshal(cacheRules)
 	if err != nil {
 		return nil, err
@@ -152,14 +212,14 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	}
 	if input.EnableHTTPS {
 		if input.CertID == nil || *input.CertID == 0 {
-			return nil, errors.New("启用 HTTPS 时必须选择证书")
+			return nil, errors.New("must select a certificate when HTTPS is enabled")
 		}
 		if _, err := model.GetTLSCertificateByID(*input.CertID); err != nil {
-			return nil, errors.New("所选证书不存在")
+			return nil, errors.New("selected certificate does not exist")
 		}
 	}
 	if input.RedirectHTTP && !input.EnableHTTPS {
-		return nil, errors.New("仅启用 HTTPS 后才能开启 HTTP 重定向")
+		return nil, errors.New("redirect_http requires enable_https")
 	}
 
 	if route == nil {
@@ -176,12 +236,79 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	route.EnableHTTPS = input.EnableHTTPS
 	route.CertID = input.CertID
 	route.RedirectHTTP = input.RedirectHTTP
+	route.LimitConnPerServer = limitConnPerServer
+	route.LimitConnPerIP = limitConnPerIP
+	route.LimitRate = limitRate
 	route.CacheEnabled = input.CacheEnabled
 	route.CachePolicy = normalizeCachePolicy(input.CacheEnabled, cachePolicy)
 	route.CacheRules = string(cacheRulesJSON)
 	route.CustomHeaders = string(customHeadersJSON)
 	route.Remark = remark
 	return route, nil
+}
+
+func buildProxyRouteViews(routes []*model.ProxyRoute) ([]*ProxyRouteView, error) {
+	views := make([]*ProxyRouteView, 0, len(routes))
+	for _, route := range routes {
+		view, err := buildProxyRouteView(route)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
+func buildProxyRouteView(route *model.ProxyRoute) (*ProxyRouteView, error) {
+	if route == nil {
+		return nil, errors.New("proxy route is nil")
+	}
+	domains, err := decodeStoredDomains(route.Domains, route.Domain)
+	if err != nil {
+		return nil, err
+	}
+	upstreams, err := decodeStoredUpstreams(route.Upstreams, route.OriginURL)
+	if err != nil {
+		return nil, err
+	}
+	cacheRules, err := decodeStoredCacheRules(route.CacheRules)
+	if err != nil {
+		return nil, err
+	}
+	customHeaders, err := decodeStoredCustomHeaders(route.CustomHeaders)
+	if err != nil {
+		return nil, err
+	}
+	primaryDomain := domains[0]
+	return &ProxyRouteView{
+		ID:                 route.ID,
+		SiteName:           normalizeProxyRouteSiteNameInput(route, route.SiteName, primaryDomain),
+		Domain:             primaryDomain,
+		Domains:            domains,
+		PrimaryDomain:      primaryDomain,
+		DomainCount:        len(domains),
+		OriginID:           route.OriginID,
+		OriginURL:          route.OriginURL,
+		OriginHost:         route.OriginHost,
+		Upstreams:          route.Upstreams,
+		UpstreamList:       upstreams,
+		Enabled:            route.Enabled,
+		EnableHTTPS:        route.EnableHTTPS,
+		CertID:             route.CertID,
+		RedirectHTTP:       route.RedirectHTTP,
+		LimitConnPerServer: route.LimitConnPerServer,
+		LimitConnPerIP:     route.LimitConnPerIP,
+		LimitRate:          route.LimitRate,
+		CacheEnabled:       route.CacheEnabled,
+		CachePolicy:        route.CachePolicy,
+		CacheRules:         route.CacheRules,
+		CacheRuleList:      cacheRules,
+		CustomHeaders:      route.CustomHeaders,
+		CustomHeaderList:   customHeaders,
+		Remark:             route.Remark,
+		CreatedAt:          route.CreatedAt,
+		UpdatedAt:          route.UpdatedAt,
+	}, nil
 }
 
 func normalizeProxyRouteSiteNameInput(route *model.ProxyRoute, raw string, primaryDomain string) string {
@@ -234,7 +361,7 @@ func normalizeProxyRouteDomains(rawDomains []string) ([]string, error) {
 			continue
 		}
 		if strings.Contains(domain, "://") || strings.Contains(domain, "/") {
-			return nil, errors.New("域名格式不合法")
+			return nil, errors.New("domain format is invalid")
 		}
 		if _, ok := seen[domain]; ok {
 			continue
@@ -243,14 +370,14 @@ func normalizeProxyRouteDomains(rawDomains []string) ([]string, error) {
 		normalized = append(normalized, domain)
 	}
 	if len(normalized) == 0 {
-		return nil, errors.New("至少填写一个域名")
+		return nil, errors.New("at least one domain is required")
 	}
 	return normalized, nil
 }
 
 func validateProxyRouteSiteName(siteName string) error {
 	if strings.TrimSpace(siteName) == "" {
-		return errors.New("站点标识不能为空")
+		return errors.New("site_name cannot be empty")
 	}
 	return nil
 }
@@ -272,7 +399,7 @@ func validateProxyRouteIdentityUniqueness(route *model.ProxyRoute, siteName stri
 		}
 		existingSiteName := normalizeProxyRouteSiteNameInput(item, item.SiteName, item.Domain)
 		if existingSiteName == siteName {
-			return errors.New("站点标识已存在")
+			return errors.New("site_name already exists")
 		}
 
 		existingDomains, err := decodeStoredDomains(item.Domains, item.Domain)
@@ -285,12 +412,33 @@ func validateProxyRouteIdentityUniqueness(route *model.ProxyRoute, siteName stri
 		}
 		for _, domain := range domains {
 			if _, ok := existingSet[domain]; ok {
-				return fmt.Errorf("域名 %s 已存在", domain)
+				return fmt.Errorf("domain %s already exists", domain)
 			}
 		}
 	}
 
 	return nil
+}
+
+func normalizeProxyRouteLimitConnValue(value int, field string) (int, error) {
+	if value < 0 {
+		return 0, fmt.Errorf("%s must be greater than or equal to 0", field)
+	}
+	return value, nil
+}
+
+func normalizeProxyRouteLimitRate(raw string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	if normalized == "" || normalized == "0" {
+		return "", nil
+	}
+	if !proxyRouteLimitRatePattern.MatchString(normalized) {
+		return "", errors.New("limit_rate must be a number or use the 512k / 1m format")
+	}
+	if strings.TrimRight(normalized, "km") == "" {
+		return "", nil
+	}
+	return normalized, nil
 }
 
 func resolveProxyRoutePrimaryOrigin(input ProxyRouteInput) (string, *uint, error) {
@@ -310,7 +458,7 @@ func resolveProxyRoutePrimaryOrigin(input ProxyRouteInput) (string, *uint, error
 		if input.OriginID != nil && *input.OriginID != 0 {
 			origin, err := model.GetOriginByID(*input.OriginID)
 			if err != nil {
-				return "", nil, errors.New("所选源站不存在")
+				return "", nil, errors.New("selected origin does not exist")
 			}
 			originURL, err := buildOriginURLFromParts(
 				scheme,
@@ -341,7 +489,7 @@ func resolveProxyRoutePrimaryOrigin(input ProxyRouteInput) (string, *uint, error
 
 	originURL := strings.TrimSpace(input.OriginURL)
 	if originURL == "" {
-		return "", nil, errors.New("源站地址不能为空")
+		return "", nil, errors.New("origin_url cannot be empty")
 	}
 	address, err := extractOriginAddress(originURL)
 	if err != nil {
@@ -377,13 +525,13 @@ func normalizeCustomHeaders(headers []ProxyRouteCustomHeaderInput) ([]ProxyRoute
 			continue
 		}
 		if key == "" {
-			return nil, errors.New("自定义请求头名称不能为空")
+			return nil, errors.New("custom header key cannot be empty")
 		}
 		if !proxyHeaderKeyPattern.MatchString(key) {
-			return nil, errors.New("自定义请求头名称格式不合法")
+			return nil, errors.New("custom header key format is invalid")
 		}
 		if strings.ContainsAny(key, "\r\n") || strings.ContainsAny(value, "\r\n") {
-			return nil, errors.New("自定义请求头不能包含换行")
+			return nil, errors.New("custom headers cannot contain newlines")
 		}
 		normalized = append(normalized, ProxyRouteCustomHeaderInput{
 			Key:   key,
@@ -425,23 +573,23 @@ func normalizeUpstreams(originURL string, upstreams []string) ([]string, error) 
 		}
 		parsed, err := url.ParseRequestURI(item)
 		if err != nil {
-			return nil, errors.New("源站地址格式不合法")
+			return nil, errors.New("origin URL format is invalid")
 		}
 		if multiUpstream && parsed.Path != "" && parsed.Path != "/" {
-			return nil, errors.New("多上游模式暂不支持带路径的源站地址")
+			return nil, errors.New("multi-upstream mode does not support origin paths")
 		}
 		if multiUpstream && parsed.RawQuery != "" {
-			return nil, errors.New("多上游模式暂不支持带查询参数的源站地址")
+			return nil, errors.New("multi-upstream mode does not support origin query strings")
 		}
 		if scheme == "" {
 			scheme = parsed.Scheme
 		} else if scheme != parsed.Scheme {
-			return nil, errors.New("同一规则的多个上游必须使用相同协议")
+			return nil, errors.New("all upstreams must use the same scheme")
 		}
 		normalized = append(normalized, item)
 	}
 	if len(normalized) == 0 {
-		return nil, errors.New("至少填写一个上游地址")
+		return nil, errors.New("at least one upstream is required")
 	}
 	return normalized, nil
 }
@@ -453,7 +601,7 @@ func decodeStoredCustomHeaders(raw string) ([]ProxyRouteCustomHeaderInput, error
 	}
 	var headers []ProxyRouteCustomHeaderInput
 	if err := json.Unmarshal([]byte(text), &headers); err != nil {
-		return nil, errors.New("自定义请求头配置格式不合法")
+		return nil, errors.New("custom_headers payload is invalid")
 	}
 	return normalizeCustomHeaders(headers)
 }
@@ -484,7 +632,7 @@ func normalizeCacheRules(enabled bool, rawPolicy string, rules []string) ([]stri
 	case proxyRouteCachePolicyPathExact:
 		return normalizeCachePathRules(rules, false)
 	default:
-		return nil, errors.New("缓存策略不支持")
+		return nil, errors.New("cache policy is not supported")
 	}
 }
 
@@ -497,7 +645,7 @@ func normalizeCacheSuffixRules(rules []string) ([]string, error) {
 			continue
 		}
 		if strings.ContainsAny(item, "/\\ \t\r\n") {
-			return nil, errors.New("缓存后缀格式不合法")
+			return nil, errors.New("cache suffix format is invalid")
 		}
 		if _, ok := seen[item]; ok {
 			continue
@@ -506,7 +654,7 @@ func normalizeCacheSuffixRules(rules []string) ([]string, error) {
 		normalized = append(normalized, item)
 	}
 	if len(normalized) == 0 {
-		return nil, errors.New("按后缀缓存时至少填写一个后缀")
+		return nil, errors.New("at least one suffix is required")
 	}
 	return normalized, nil
 }
@@ -520,7 +668,7 @@ func normalizeCachePathRules(rules []string, allowPrefix bool) ([]string, error)
 			continue
 		}
 		if !strings.HasPrefix(item, "/") || strings.Contains(item, "://") || strings.ContainsAny(item, " \t\r\n") {
-			return nil, errors.New("缓存路径规则格式不合法")
+			return nil, errors.New("cache path rule format is invalid")
 		}
 		if !allowPrefix && strings.HasSuffix(item, "/") && len(item) > 1 {
 			item = strings.TrimRight(item, "/")
@@ -533,9 +681,9 @@ func normalizeCachePathRules(rules []string, allowPrefix bool) ([]string, error)
 	}
 	if len(normalized) == 0 {
 		if allowPrefix {
-			return nil, errors.New("按路径前缀缓存时至少填写一个路径")
+			return nil, errors.New("at least one path prefix is required")
 		}
-		return nil, errors.New("按精确路径缓存时至少填写一个路径")
+		return nil, errors.New("at least one exact path is required")
 	}
 	return normalized, nil
 }
@@ -547,7 +695,7 @@ func decodeStoredCacheRules(raw string) ([]string, error) {
 	}
 	var rules []string
 	if err := json.Unmarshal([]byte(text), &rules); err != nil {
-		return nil, errors.New("缓存规则格式不合法")
+		return nil, errors.New("cache_rules payload is invalid")
 	}
 	normalized := make([]string, 0, len(rules))
 	for _, rule := range rules {
@@ -567,7 +715,7 @@ func decodeStoredUpstreams(raw string, fallbackOriginURL string) ([]string, erro
 	}
 	var upstreams []string
 	if err := json.Unmarshal([]byte(text), &upstreams); err != nil {
-		return nil, errors.New("上游配置格式不合法")
+		return nil, errors.New("upstreams payload is invalid")
 	}
 	return normalizeUpstreams(fallbackOriginURL, upstreams)
 }
@@ -579,24 +727,24 @@ func decodeStoredDomains(raw string, fallbackDomain string) ([]string, error) {
 	}
 	var domains []string
 	if err := json.Unmarshal([]byte(text), &domains); err != nil {
-		return nil, errors.New("域名配置格式不合法")
+		return nil, errors.New("domains payload is invalid")
 	}
 	return normalizeProxyRouteDomains(domains)
 }
 
 func validateOriginURL(raw string) error {
 	if raw == "" {
-		return errors.New("源站地址不能为空")
+		return errors.New("origin URL cannot be empty")
 	}
 	parsed, err := url.ParseRequestURI(raw)
 	if err != nil {
-		return errors.New("源站地址格式不合法")
+		return errors.New("origin URL format is invalid")
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return errors.New("源站地址必须以 http:// 或 https:// 开头")
+		return errors.New("origin URL must start with http:// or https://")
 	}
 	if parsed.Host == "" {
-		return errors.New("源站地址格式不合法")
+		return errors.New("origin URL format is invalid")
 	}
 	return nil
 }
@@ -606,14 +754,14 @@ func validateOriginHost(raw string) error {
 		return nil
 	}
 	if strings.ContainsAny(raw, "/\\ \t\r\n") || strings.Contains(raw, "://") {
-		return errors.New("回源主机名格式不合法")
+		return errors.New("origin_host format is invalid")
 	}
 	parsed, err := url.Parse("//" + raw)
 	if err != nil || parsed.Host == "" || parsed.Host != raw {
-		return errors.New("回源主机名格式不合法")
+		return errors.New("origin_host format is invalid")
 	}
 	if parsed.Hostname() == "" {
-		return errors.New("回源主机名格式不合法")
+		return errors.New("origin_host format is invalid")
 	}
 	return nil
 }

@@ -110,7 +110,7 @@ func TestCreateProxyRouteRejectsHTTPSWithoutCertificate(t *testing.T) {
 		Enabled:     true,
 		EnableHTTPS: true,
 	})
-	if err == nil || !strings.Contains(err.Error(), "必须选择证书") {
+	if err == nil || !strings.Contains(err.Error(), "must select a certificate") {
 		t.Fatalf("expected certificate validation error, got %v", err)
 	}
 }
@@ -133,8 +133,8 @@ func TestCreateProxyRouteSupportsWebsiteDomains(t *testing.T) {
 	if route.Domain != "app.example.com" {
 		t.Fatalf("expected primary domain mirror, got %s", route.Domain)
 	}
-	if !strings.Contains(route.Domains, "www.example.com") {
-		t.Fatalf("expected domains payload to contain alias, got %s", route.Domains)
+	if len(route.Domains) != 2 || route.Domains[1] != "www.example.com" {
+		t.Fatalf("expected domains payload to contain alias, got %#v", route.Domains)
 	}
 }
 
@@ -203,7 +203,7 @@ func TestCreateProxyRouteRejectsCachePolicyWithoutRules(t *testing.T) {
 		CacheEnabled: true,
 		CachePolicy:  proxyRouteCachePolicySuffix,
 	})
-	if err == nil || !strings.Contains(err.Error(), "至少填写一个后缀") {
+	if err == nil || !strings.Contains(err.Error(), "at least one suffix") {
 		t.Fatalf("expected cache rule validation error, got %v", err)
 	}
 }
@@ -408,6 +408,73 @@ func TestDiffConfigVersionTracksAddedDomainWithinWebsite(t *testing.T) {
 	}
 	if len(diff.ModifiedDomains) != 1 || diff.ModifiedDomains[0] != "app.example.com" {
 		t.Fatalf("unexpected modified domains: %#v", diff.ModifiedDomains)
+	}
+	if len(diff.ModifiedSites) != 1 || diff.ModifiedSites[0] != "main-site" {
+		t.Fatalf("unexpected modified sites: %#v", diff.ModifiedSites)
+	}
+}
+
+func TestCreateProxyRouteRejectsInvalidRateLimitFields(t *testing.T) {
+	setupServiceTestDB(t)
+
+	_, err := CreateProxyRoute(ProxyRouteInput{
+		Domain:             "limit.example.com",
+		OriginURL:          "https://origin.internal",
+		Enabled:            true,
+		LimitConnPerServer: -1,
+	})
+	if err == nil || !strings.Contains(err.Error(), "limit_conn_per_server") {
+		t.Fatalf("expected limit_conn_per_server validation error, got %v", err)
+	}
+
+	_, err = CreateProxyRoute(ProxyRouteInput{
+		Domain:    "limit.example.com",
+		OriginURL: "https://origin.internal",
+		Enabled:   true,
+		LimitRate: "12x",
+	})
+	if err == nil || !strings.Contains(err.Error(), "limit_rate") {
+		t.Fatalf("expected limit_rate validation error, got %v", err)
+	}
+}
+
+func TestPublishConfigVersionRendersRouteRateLimits(t *testing.T) {
+	setupServiceTestDB(t)
+
+	_, err := CreateProxyRoute(ProxyRouteInput{
+		SiteName:           "limited-site",
+		Domains:            []string{"limit.example.com", "www.limit.example.com"},
+		OriginURL:          "https://origin.internal",
+		Enabled:            true,
+		LimitConnPerServer: 120,
+		LimitConnPerIP:     12,
+		LimitRate:          "512K",
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyRoute failed: %v", err)
+	}
+
+	result, err := PublishConfigVersion("root")
+	if err != nil {
+		t.Fatalf("PublishConfigVersion failed: %v", err)
+	}
+	if !strings.Contains(result.Version.MainConfig, "limit_conn_zone $server_name zone=openflare_conn_per_server:10m;") {
+		t.Fatal("expected main config to include server limit_conn_zone")
+	}
+	if !strings.Contains(result.Version.MainConfig, "limit_conn_zone $binary_remote_addr zone=openflare_conn_per_ip:10m;") {
+		t.Fatal("expected main config to include ip limit_conn_zone")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "limit_conn openflare_conn_per_server 120;") {
+		t.Fatal("expected rendered config to include per-server limit_conn")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "limit_conn openflare_conn_per_ip 12;") {
+		t.Fatal("expected rendered config to include per-ip limit_conn")
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "limit_rate 512k;") {
+		t.Fatal("expected rendered config to include normalized limit_rate")
+	}
+	if !strings.Contains(result.Version.SnapshotJSON, `"limit_rate":"512k"`) {
+		t.Fatal("expected snapshot to include normalized limit_rate")
 	}
 }
 

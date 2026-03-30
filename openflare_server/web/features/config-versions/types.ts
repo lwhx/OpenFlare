@@ -27,16 +27,22 @@ export interface ConfigPreviewResult {
   support_files: SupportFile[];
   checksum: string;
   route_count: number;
+  website_count: number;
 }
 
 export interface ConfigDiffResult {
   active_version?: string;
+  added_sites: string[];
+  removed_sites: string[];
+  modified_sites: string[];
   added_domains: string[];
   removed_domains: string[];
   modified_domains: string[];
   main_config_changed: boolean;
   changed_option_keys: string[];
   changed_option_details: ConfigOptionDiffItem[];
+  current_website_count: number;
+  active_website_count: number;
 }
 
 export interface ConfigOptionDiffItem {

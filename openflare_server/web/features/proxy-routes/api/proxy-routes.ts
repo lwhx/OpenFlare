@@ -11,6 +11,10 @@ export function getProxyRoutes() {
   return apiRequest<ProxyRouteItem[]>('/proxy-routes/');
 }
 
+export function getProxyRoute(id: number) {
+  return apiRequest<ProxyRouteItem>(`/proxy-routes/${id}`);
+}
+
 export function createProxyRoute(payload: ProxyRouteMutationPayload) {
   return apiRequest<ProxyRouteItem>('/proxy-routes/', {
     method: 'POST',

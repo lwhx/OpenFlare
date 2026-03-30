@@ -5,26 +5,38 @@ export interface ProxyRouteCustomHeader {
 
 export interface ProxyRouteItem {
   id: number;
+  site_name: string;
   domain: string;
+  domains: string[];
+  primary_domain: string;
+  domain_count: number;
   origin_id: number | null;
   origin_url: string;
   origin_host: string;
   upstreams: string;
+  upstream_list: string[];
   enabled: boolean;
   enable_https: boolean;
   cert_id: number | null;
   redirect_http: boolean;
+  limit_conn_per_server: number;
+  limit_conn_per_ip: number;
+  limit_rate: string;
   cache_enabled: boolean;
   cache_policy: string;
   cache_rules: string;
+  cache_rule_list: string[];
   custom_headers: string;
+  custom_header_list: ProxyRouteCustomHeader[];
   remark: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface ProxyRouteMutationPayload {
+  site_name?: string;
   domain: string;
+  domains?: string[];
   origin_id: number | null;
   origin_url: string;
   origin_scheme: 'http' | 'https';
@@ -37,6 +49,9 @@ export interface ProxyRouteMutationPayload {
   enable_https: boolean;
   cert_id: number | null;
   redirect_http: boolean;
+  limit_conn_per_server?: number;
+  limit_conn_per_ip?: number;
+  limit_rate?: string;
   cache_enabled: boolean;
   cache_policy: string;
   cache_rules: string[];
