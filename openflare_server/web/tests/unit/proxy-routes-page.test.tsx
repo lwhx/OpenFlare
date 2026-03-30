@@ -1,441 +1,368 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ThemeProvider } from '@/components/providers/theme-provider';
+import { ProxyRouteConfigPage } from '@/features/proxy-routes/components/proxy-route-config-page';
 import { ProxyRoutesPage } from '@/features/proxy-routes/components/proxy-routes-page';
 
-describe('ProxyRoutesPage', () => {
+const pushMock = vi.fn();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: pushMock,
+  }),
+}));
+
+function stubMatchMedia() {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation(() => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
+
+function buildRoute(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 9,
+    site_name: 'marketing-site',
+    domain: 'app.example.com',
+    domains: ['app.example.com', 'www.example.com'],
+    primary_domain: 'app.example.com',
+    domain_count: 2,
+    origin_id: null,
+    origin_url: 'https://origin-a.internal:443',
+    origin_host: '',
+    upstreams: JSON.stringify([
+      'https://origin-a.internal:443',
+      'https://origin-b.internal:443',
+    ]),
+    upstream_list: [
+      'https://origin-a.internal:443',
+      'https://origin-b.internal:443',
+    ],
+    enabled: true,
+    enable_https: true,
+    cert_id: 1,
+    redirect_http: true,
+    limit_conn_per_server: 120,
+    limit_conn_per_ip: 12,
+    limit_rate: '512k',
+    cache_enabled: true,
+    cache_policy: 'path_prefix',
+    cache_rules: JSON.stringify(['/assets']),
+    cache_rule_list: ['/assets'],
+    custom_headers: JSON.stringify([{ key: 'X-Site', value: 'marketing' }]),
+    custom_header_list: [{ key: 'X-Site', value: 'marketing' }],
+    remark: 'Marketing website',
+    created_at: '2026-03-20T08:00:00Z',
+    updated_at: '2026-03-21T08:00:00Z',
+    ...overrides,
+  };
+}
+
+function buildDiff(overrides: Record<string, unknown> = {}) {
+  return {
+    active_version: '20260330-001',
+    added_sites: [],
+    removed_sites: [],
+    modified_sites: [],
+    added_domains: [],
+    removed_domains: [],
+    modified_domains: [],
+    main_config_changed: false,
+    changed_option_keys: [],
+    changed_option_details: [],
+    current_website_count: 1,
+    active_website_count: 1,
+    ...overrides,
+  };
+}
+
+function renderWithProviders(ui: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+  });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>{ui}</ThemeProvider>
+    </QueryClientProvider>,
+  );
+}
+
+describe('Proxy route website pages', () => {
+  beforeEach(() => {
+    pushMock.mockReset();
+    stubMatchMedia();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  function stubMatchMedia() {
-    vi.stubGlobal(
-      'matchMedia',
-      vi.fn().mockImplementation(() => ({
-        matches: false,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    );
-  }
-
-  function renderProxyRoutesPage() {
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: {
-          retry: false,
-        },
-      },
-    });
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <ProxyRoutesPage />
-        </ThemeProvider>
-      </QueryClientProvider>,
-    );
-  }
-
-  function buildBaseFetchStub({
-    proxyRoutes = [],
-    managedDomains,
-    origins = [],
-    certificates = [{ id: 1, name: 'example-cert', not_after: null }],
-    matchResult,
-  }: {
-    proxyRoutes?: Array<Record<string, unknown>>;
-    managedDomains: Array<Record<string, unknown>>;
-    origins?: Array<Record<string, unknown>>;
-    certificates?: Array<Record<string, unknown>>;
-    matchResult?: Record<string, unknown>;
-  }) {
-    return vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
-
-      if (url.includes('/proxy-routes/')) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              success: true,
-              message: '',
-              data: proxyRoutes,
-            }),
-          ),
-        );
-      }
-
-      if (url.includes('/managed-domains/match?')) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              success: true,
-              message: '',
-              data:
-                matchResult ??
-                {
-                  domain: 'a.example.com',
-                  matched: true,
-                  candidate: {
-                    managed_domain_id: 2,
-                    domain: 'a.example.com',
-                    match_type: 'exact',
-                    certificate_id: 1,
-                    certificate_name: 'example-cert',
-                  },
-                  candidates: [],
-                },
-            }),
-          ),
-        );
-      }
-
-      if (url.includes('/managed-domains/')) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              success: true,
-              message: '',
-              data: managedDomains,
-            }),
-          ),
-        );
-      }
-
-      if (url.includes('/origins/')) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              success: true,
-              message: '',
-              data: origins,
-            }),
-          ),
-        );
-      }
-
-      if (url.includes('/tls-certificates/')) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              success: true,
-              message: '',
-              data: certificates,
-            }),
-          ),
-        );
-      }
-
-      return Promise.reject(new Error(`Unhandled fetch: ${url}`));
-    });
-  }
-
-  it('shows wildcard subdomain input after selecting a wildcard website', async () => {
-    stubMatchMedia();
-
+  it('renders website list summary with config entry', async () => {
     vi.stubGlobal(
       'fetch',
-      buildBaseFetchStub({
-        managedDomains: [
-          {
-            id: 1,
-            domain: '*.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-          {
-            id: 2,
-            domain: 'a.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url.includes('/proxy-routes/')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: [buildRoute()],
+              }),
+            ),
+          );
+        }
+
+        if (url.includes('/config-versions/diff')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: buildDiff({
+                  modified_sites: ['marketing-site'],
+                }),
+              }),
+            ),
+          );
+        }
+
+        return Promise.reject(new Error(`Unhandled fetch: ${url}`));
       }),
     );
 
-    renderProxyRoutesPage();
+    renderWithProviders(<ProxyRoutesPage />);
 
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: '新增规则' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增规则' });
-
-    const domainInput = within(dialog).getByPlaceholderText('输入并搜索目标域名');
-    await user.type(domainInput, 'example');
-    await user.keyboard('{Enter}');
-
-    expect(await screen.findByPlaceholderText('e.g. ai')).toBeInTheDocument();
-    expect(domainInput).toHaveValue('*.example.com');
-
-    await user.type(screen.getByPlaceholderText('e.g. ai'), 'ai');
-    expect(screen.getByPlaceholderText('e.g. ai')).toHaveValue('ai');
+    expect(await screen.findByText('marketing-site')).toBeInTheDocument();
+    expect(screen.getAllByText(/app\.example\.com/).length).toBeGreaterThan(0);
+    expect(screen.getByRole('link')).toHaveAttribute(
+      'href',
+      '/proxy-route/detail?id=9&section=domains',
+    );
   });
 
-  it('uses exact website directly without showing subdomain input', async () => {
-    stubMatchMedia();
+  it('creates a website and navigates to config page', async () => {
+    const routes: Array<Record<string, unknown>> = [];
 
     vi.stubGlobal(
       'fetch',
-      buildBaseFetchStub({
-        managedDomains: [
-          {
-            id: 2,
-            domain: 'a.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
-      }),
-    );
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method?.toUpperCase() ?? 'GET';
 
-    renderProxyRoutesPage();
-
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: '新增规则' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增规则' });
-
-    const domainInput = within(dialog).getByPlaceholderText('输入并搜索目标域名');
-    await user.type(domainInput, 'a.example');
-    await user.keyboard('{Enter}');
-
-    expect(screen.queryByPlaceholderText('e.g. ai')).not.toBeInTheDocument();
-    expect(domainInput).toHaveValue('a.example.com');
-    expect(await screen.findByText('Select Certificate')).toBeInTheDocument();
-  });
-
-  it('shows origin autocomplete suggestions and empty state', async () => {
-    stubMatchMedia();
-
-    vi.stubGlobal(
-      'fetch',
-      buildBaseFetchStub({
-        managedDomains: [
-          {
-            id: 1,
-            domain: '*.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
-        origins: [
-          {
-            id: 1,
-            name: 'Main Backend',
-            address: '192.168.1.45',
-            remark: '',
-            route_count: 1,
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
-      }),
-    );
-
-    renderProxyRoutesPage();
-
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: '新增规则' }));
-
-    const domainInput = await screen.findByPlaceholderText('输入并搜索目标域名');
-    await user.type(domainInput, 'example');
-    await user.keyboard('{Enter}');
-
-    const addressInput = screen.getByPlaceholderText('192.168.1.45');
-    await user.click(addressInput);
-    await user.type(addressInput, '192.');
-
-    expect(await screen.findByText('192.168.1.45')).toBeInTheDocument();
-    expect(await screen.findByText('(Main Backend)')).toBeInTheDocument();
-    expect(await screen.findByText('Local')).toBeInTheDocument();
-
-    await user.clear(addressInput);
-    await user.type(addressInput, '10.10.');
-
-    expect(
-      await screen.findByText('未发现匹配资产，请手动输入'),
-    ).toBeInTheDocument();
-  });
-
-  it('opens create drawer with advanced section expanded and http selected by default', async () => {
-    stubMatchMedia();
-
-    vi.stubGlobal(
-      'fetch',
-      buildBaseFetchStub({
-        managedDomains: [
-          {
-            id: 1,
-            domain: '*.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
-      }),
-    );
-
-    renderProxyRoutesPage();
-
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: '新增规则' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增规则' });
-
-    expect(within(dialog).getByRole('heading', { name: 'Advanced' })).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('协议 1')).toHaveTextContent('HTTP');
-  });
-
-  it('closes managed domain suggestions when clicking outside', async () => {
-    stubMatchMedia();
-
-    vi.stubGlobal(
-      'fetch',
-      buildBaseFetchStub({
-        managedDomains: [
-          {
-            id: 1,
-            domain: '*.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
-      }),
-    );
-
-    renderProxyRoutesPage();
-
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: '新增规则' }));
-    const domainInput = await screen.findByPlaceholderText('输入并搜索目标域名');
-
-    await user.click(domainInput);
-    await user.type(domainInput, 'exam');
-    expect(await screen.findByText('*.example.com')).toBeInTheDocument();
-
-    await user.click(
-      within(await screen.findByRole('dialog', { name: '新增规则' })).getByRole(
-        'heading',
-        { name: 'Protocol' },
-      ),
-    );
-    expect(screen.queryByText('*.example.com')).not.toBeInTheDocument();
-  });
-
-  it('supports arrow key navigation for managed domain suggestions', async () => {
-    stubMatchMedia();
-
-    vi.stubGlobal(
-      'fetch',
-      buildBaseFetchStub({
-        managedDomains: [
-          {
-            id: 1,
-            domain: '*.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-          {
-            id: 2,
-            domain: 'app.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
-      }),
-    );
-
-    renderProxyRoutesPage();
-
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: '新增规则' }));
-    const dialog = await screen.findByRole('dialog', { name: '新增规则' });
-    const domainInput = within(dialog).getByPlaceholderText('输入并搜索目标域名');
-
-    await user.type(domainInput, 'example');
-    await user.keyboard('{ArrowDown}');
-    await user.keyboard('{Enter}');
-
-    expect(domainInput).toHaveValue('app.example.com');
-    expect(screen.queryByPlaceholderText('e.g. ai')).not.toBeInTheDocument();
-  });
-
-  it('prefills managed domain and origin rows correctly when editing an existing rule', async () => {
-    stubMatchMedia();
-
-    vi.stubGlobal(
-      'fetch',
-      buildBaseFetchStub({
-        proxyRoutes: [
-          {
-            id: 3,
-            domain: 'ai.example.com',
-            origin_id: 1,
-            origin_url: 'https://c2.internal:443',
-            origin_host: '',
-            upstreams: JSON.stringify(['https://c2.internal:443']),
-            enabled: true,
-            enable_https: true,
-            cert_id: 1,
+        if (url.includes('/proxy-routes/') && method === 'POST') {
+          const payload = JSON.parse(String(init?.body));
+          const created = buildRoute({
+            id: 21,
+            site_name: payload.site_name,
+            domain: payload.domain,
+            domains: payload.domains,
+            primary_domain: payload.domain,
+            domain_count: payload.domains.length,
+            origin_url: payload.origin_url,
+            upstreams: JSON.stringify([payload.origin_url, ...payload.upstreams]),
+            upstream_list: [payload.origin_url, ...payload.upstreams],
+            enabled: payload.enabled,
+            enable_https: false,
+            cert_id: null,
             redirect_http: false,
+            limit_conn_per_server: 0,
+            limit_conn_per_ip: 0,
+            limit_rate: '',
             cache_enabled: false,
             cache_policy: 'url',
             cache_rules: '[]',
+            cache_rule_list: [],
             custom_headers: '[]',
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
-        managedDomains: [
-          {
-            id: 3,
-            domain: '*.example.com',
-            cert_id: 1,
-            enabled: true,
-            remark: '',
-            created_at: '2026-03-20T08:00:00Z',
-            updated_at: '2026-03-20T08:00:00Z',
-          },
-        ],
+            custom_header_list: [],
+            remark: payload.remark,
+          });
+          routes.splice(0, routes.length, created);
+
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: created,
+              }),
+            ),
+          );
+        }
+
+        if (url.includes('/proxy-routes/')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: routes,
+              }),
+            ),
+          );
+        }
+
+        if (url.includes('/config-versions/diff')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: buildDiff(),
+              }),
+            ),
+          );
+        }
+
+        return Promise.reject(new Error(`Unhandled fetch: ${url}`));
       }),
     );
 
-    renderProxyRoutesPage();
+    renderWithProviders(<ProxyRoutesPage />);
 
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: '编辑' }));
-    const dialog = await screen.findByRole('dialog', { name: '编辑规则' });
+    const pageButtons = await screen.findAllByRole('button');
+    await user.click(pageButtons[1]);
 
-    const domainInput = within(dialog).getByPlaceholderText('输入并搜索目标域名');
-    expect(domainInput).toHaveValue('*.example.com');
-    expect(within(dialog).getByPlaceholderText('e.g. ai')).toHaveValue('ai');
-    expect(within(dialog).getAllByPlaceholderText('192.168.1.45')).toHaveLength(1);
-    expect(within(dialog).getByPlaceholderText('192.168.1.45')).toHaveValue(
-      'c2.internal',
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    const dialogTextboxes = within(dialog).getAllByRole('textbox');
+    await user.type(dialogTextboxes[0], 'launch-site');
+    await user.type(
+      dialogTextboxes[1],
+      'app.example.com{enter}www.example.com',
     );
+    await user.type(
+      dialogTextboxes[2],
+      'https://origin-a.internal:443{enter}https://origin-b.internal:443',
+    );
+
+    const submitButton = document.querySelector(
+      'button[form="create-website-form"]',
+    ) as HTMLButtonElement | null;
+    expect(submitButton).not.toBeNull();
+    await user.click(submitButton!);
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith(
+        '/proxy-route/detail?id=21&section=domains',
+      );
+    });
+  });
+
+  it('saves domain settings from config page by section', async () => {
+    const updateRequests: Array<Record<string, unknown>> = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method?.toUpperCase() ?? 'GET';
+
+        if (url.includes('/proxy-routes/9/update') && method === 'POST') {
+          const payload = JSON.parse(String(init?.body)) as Record<
+            string,
+            unknown
+          >;
+          updateRequests.push(payload);
+
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: buildRoute({
+                  site_name: payload.site_name,
+                  domain: (payload.domains as string[])[0],
+                  domains: payload.domains,
+                  primary_domain: (payload.domains as string[])[0],
+                  domain_count: (payload.domains as string[]).length,
+                  enabled: payload.enabled,
+                }),
+              }),
+            ),
+          );
+        }
+
+        if (url.includes('/proxy-routes/9')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: buildRoute(),
+              }),
+            ),
+          );
+        }
+
+        if (url.includes('/tls-certificates/')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: [{ id: 1, name: 'example-cert', not_after: null }],
+              }),
+            ),
+          );
+        }
+
+        return Promise.reject(new Error(`Unhandled fetch: ${url}`));
+      }),
+    );
+
+    renderWithProviders(
+      <ProxyRouteConfigPage routeId="9" initialSection="domains" />,
+    );
+
+    const user = userEvent.setup();
+    expect(await screen.findByText('marketing-site')).toBeInTheDocument();
+
+    const [siteNameInput, domainsText] = screen.getAllByRole('textbox');
+    await user.clear(siteNameInput);
+    await user.type(siteNameInput, 'brand-site');
+
+    await user.clear(domainsText);
+    await user.type(
+      domainsText,
+      'brand.example.com{enter}www.brand.example.com',
+    );
+
+    const saveButton = document.querySelector(
+      'button[form="proxy-route-domains-form"]',
+    ) as HTMLButtonElement | null;
+    expect(saveButton).not.toBeNull();
+    await user.click(saveButton!);
+
+    await waitFor(() => {
+      expect(updateRequests).toHaveLength(1);
+    });
+
+    expect(updateRequests[0]).toMatchObject({
+      site_name: 'brand-site',
+      domain: 'brand.example.com',
+      domains: ['brand.example.com', 'www.brand.example.com'],
+      enabled: true,
+    });
   });
 });
