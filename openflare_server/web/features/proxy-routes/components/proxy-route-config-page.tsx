@@ -221,7 +221,7 @@ function ConfigSectionShell({
       description={description}
       action={
         <PrimaryButton type="submit" form={formId} disabled={saving}>
-          {saving ? '保存中...' : '保存当前分区'}
+          {saving ? '保存中...' : '保存'}
         </PrimaryButton>
       }
     >
@@ -259,7 +259,7 @@ function DomainSettingsSection({
   return (
     <ConfigSectionShell
       title="域名设置"
-      description="站点标识在这里维护；域名列表第一行永远视为主域名。"
+      description="配置站点。"
       formId="proxy-route-domains-form"
       saving={saving}
     >
@@ -282,6 +282,14 @@ function DomainSettingsSection({
           );
         })}
       >
+        <ToggleField
+              label="启用站点"
+              description="关闭后站点会保留配置，但不会被纳入发布渲染。"
+              checked={form.watch('enabled')}
+              onChange={(checked) =>
+                  form.setValue('enabled', checked, { shouldDirty: true })
+              }
+        />
         <ResourceField
           label="站点标识"
           hint="建议使用稳定、可读的业务标识，不必与域名完全一致。"
@@ -305,14 +313,6 @@ function DomainSettingsSection({
           />
         </ResourceField>
 
-        <ToggleField
-          label="启用站点"
-          description="关闭后站点会保留配置，但不会被纳入发布渲染。"
-          checked={form.watch('enabled')}
-          onChange={(checked) =>
-            form.setValue('enabled', checked, { shouldDirty: true })
-          }
-        />
       </form>
     </ConfigSectionShell>
   );
@@ -355,7 +355,7 @@ function RateLimitSection({
   return (
     <ConfigSectionShell
       title="流量限制"
-      description="使用结构化字段生成 OpenResty 限制指令，空值或 0 表示关闭。"
+      description="网站限流, 空值或 0 表示关闭。"
       formId="proxy-route-limits-form"
       saving={saving}
     >
@@ -376,8 +376,8 @@ function RateLimitSection({
         })}
       >
         <ResourceField
-          label="每站点最大连接数"
-          hint="例如 120。0 表示关闭。"
+          label="并发限制"
+          hint="限制当前站点最大并发数"
           error={form.formState.errors.limit_conn_per_server?.message}
         >
           <ResourceInput
@@ -387,8 +387,8 @@ function RateLimitSection({
         </ResourceField>
 
         <ResourceField
-          label="每 IP 最大连接数"
-          hint="例如 12。0 表示关闭。"
+          label="单IP限制"
+          hint="限制单个IP访问最大并发数"
           error={form.formState.errors.limit_conn_per_ip?.message}
         >
           <ResourceInput
@@ -398,12 +398,12 @@ function RateLimitSection({
         </ResourceField>
 
         <ResourceField
-          label="下载限速"
-          hint="支持 512k、1m 或纯数字字节速率。留空表示关闭。"
+          label="流量限制"
+          hint="限制每个请求的流量上限。"
           error={form.formState.errors.limit_rate?.message}
           className="md:col-span-2"
         >
-          <ResourceInput placeholder="512k" {...form.register('limit_rate')} />
+          <ResourceInput placeholder="512k/1m" {...form.register('limit_rate')} />
         </ResourceField>
       </form>
     </ConfigSectionShell>
@@ -854,7 +854,7 @@ export function ProxyRouteConfigPage({
 
       <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <AppCard title="配置分区" description="每个分区独立保存，切换时不会自动提交。">
+          <AppCard title="配置分区" >
             <div className="space-y-2">
               {websiteConfigSections.map((section) => {
                 const active = section.key === currentSection;
@@ -879,35 +879,6 @@ export function ProxyRouteConfigPage({
                 );
               })}
             </div>
-          </AppCard>
-
-          <AppCard title="站点摘要">
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {getWebsiteStatusBadges(route).map((badge) => (
-                  <StatusBadge
-                    key={badge.label}
-                    label={badge.label}
-                    variant={badge.variant}
-                  />
-                ))}
-              </div>
-              <div className="space-y-2 text-sm text-[var(--foreground-secondary)]">
-                <p>站点标识：{route.site_name}</p>
-                <p>主域名：{route.primary_domain}</p>
-                <p>上游数量：{route.upstream_list.length}</p>
-                <p>最近更新：{formatDateTime(route.updated_at)}</p>
-              </div>
-            </div>
-          </AppCard>
-
-          <AppCard title="当前分区">
-            <p className="text-sm font-medium text-[var(--foreground-primary)]">
-              {currentSectionMeta.label}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[var(--foreground-secondary)]">
-              {currentSectionMeta.description}
-            </p>
           </AppCard>
         </aside>
 

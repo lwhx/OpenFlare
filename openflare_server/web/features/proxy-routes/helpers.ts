@@ -8,27 +8,27 @@ export const websiteConfigSections = [
   {
     key: 'domains',
     label: '域名设置',
-    description: '维护站点标识、主域名顺序和启用状态。',
+    description: '维护站点标识。',
   },
   {
     key: 'limits',
     label: '流量限制',
-    description: '设置连接数和限速，0 或空值表示关闭。',
+    description: '设置连接数和限速。',
   },
   {
     key: 'proxy',
     label: '反向代理',
-    description: '配置主回源、多上游、Host 头和自定义请求头。',
+    description: '配置主回源、上游。',
   },
   {
     key: 'https',
     label: 'HTTPS',
-    description: '选择证书并控制 HTTP 到 HTTPS 的跳转策略。',
+    description: '证书设置。',
   },
   {
     key: 'cache',
     label: '缓存',
-    description: '按 URL、后缀或路径规则启用站点级缓存。',
+    description: '页面缓存。',
   },
 ] as const;
 

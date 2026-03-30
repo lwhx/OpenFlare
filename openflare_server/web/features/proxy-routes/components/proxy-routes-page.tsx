@@ -189,7 +189,6 @@ export function ProxyRoutesPage() {
       <div className="space-y-6">
         <PageHeader
           title="网站配置"
-          description="以站点为单位维护域名、回源、HTTPS、缓存和限流，并直接发布当前草稿。"
           action={
             <div className="flex flex-wrap gap-3">
               <SecondaryButton
@@ -268,7 +267,6 @@ export function ProxyRoutesPage() {
 
         <AppCard
           title="网站列表"
-          description="点击“配置”进入独立子页面，按分区维护当前站点设置。"
         >
           <div className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -276,7 +274,7 @@ export function ProxyRoutesPage() {
                 <ResourceInput
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="搜索站点标识、域名、上游或备注"
+                  placeholder="搜索站点"
                 />
               </div>
               {diff && hasConfigChanges(diff) ? (
@@ -335,9 +333,6 @@ export function ProxyRoutesPage() {
                                 />
                               ))}
                             </div>
-                            <p className="text-sm text-[var(--foreground-secondary)]">
-                              主域名 {route.primary_domain}，共 {route.domain_count} 个域名
-                            </p>
                           </div>
                         </div>
 
@@ -374,28 +369,6 @@ export function ProxyRoutesPage() {
                           </p>
                           <p className="mt-2 text-sm text-[var(--foreground-primary)]">
                             {getUpstreamSummary(route)}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-panel)] px-4 py-3">
-                          <p className="text-xs uppercase tracking-[0.18em] text-[var(--foreground-muted)]">
-                            HTTPS / 证书
-                          </p>
-                          <p className="mt-2 text-sm text-[var(--foreground-primary)]">
-                            {route.enable_https
-                              ? route.redirect_http
-                                ? 'HTTPS 开启，HTTP 自动跳转'
-                                : 'HTTPS 开启'
-                              : '仅 HTTP'}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-panel)] px-4 py-3">
-                          <p className="text-xs uppercase tracking-[0.18em] text-[var(--foreground-muted)]">
-                            最近更新
-                          </p>
-                          <p className="mt-2 text-sm text-[var(--foreground-primary)]">
-                            {formatDateTime(route.updated_at)}
                           </p>
                         </div>
                       </div>
