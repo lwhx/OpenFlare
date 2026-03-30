@@ -10,6 +10,7 @@ import (
 	"openflare/common"
 	"openflare/model"
 	"openflare/utils/geoip"
+	"openflare/utils/geoip/iputil"
 	"strings"
 	"time"
 )
@@ -332,6 +333,29 @@ func cloneCoordinate(value *float64) *float64 {
 	return &cloned
 }
 
+func ResolveReportedNodeIP(reportedIP string, remoteAddr string) string {
+	reported := iputil.NormalizeIP(reportedIP)
+	remote := iputil.NormalizeRemoteAddr(remoteAddr)
+	if reported == "" {
+		return remote
+	}
+	if !shouldPreferRemoteNodeIP(reported) {
+		return reported
+	}
+	if isPublicNodeIP(remote) {
+		return remote
+	}
+	return reported
+}
+
+func shouldPreferRemoteNodeIP(ip string) bool {
+	return !isPublicNodeIP(ip)
+}
+
+func isPublicNodeIP(raw string) bool {
+	return iputil.IsPublicString(raw)
+}
+
 func buildNodeAgentReleaseView(node *model.Node, release *githubReleaseResponse, channel ReleaseChannel) *NodeAgentReleaseInfo {
 	currentVersion := strings.TrimSpace(node.AgentVersion)
 	view := &NodeAgentReleaseInfo{
@@ -427,6 +451,9 @@ func normalizeAgentNodePayload(payload AgentNodePayload) AgentNodePayload {
 func validateAgentNodePayload(payload AgentNodePayload) error {
 	if payload.IP == "" {
 		return errors.New("ip 不能为空")
+	}
+	if net.ParseIP(payload.IP) == nil {
+		return errors.New("ip 格式无效")
 	}
 	if payload.AgentVersion == "" {
 		return errors.New("agent_version 不能为空")

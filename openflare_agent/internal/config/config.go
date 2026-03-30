@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"openflare/utils/geoip/iputil"
 	"os"
 	pathpkg "path"
 	"path/filepath"
@@ -331,6 +332,8 @@ func detectNodeIP() string {
 	if err != nil {
 		return ""
 	}
+	bestIP := ""
+	bestPriority := -1
 	for _, iface := range interfaces {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
@@ -344,11 +347,27 @@ func detectNodeIP() string {
 			if !ok || ipNet.IP == nil || ipNet.IP.IsLoopback() {
 				continue
 			}
-			ipv4 := ipNet.IP.To4()
-			if ipv4 != nil {
-				return ipv4.String()
+			ipv4 := normalizeIPv4(ipNet.IP)
+			priority := nodeIPPriority(ipv4)
+			if priority > bestPriority {
+				bestIP = ipv4.String()
+				bestPriority = priority
+			}
+			if bestPriority == 2 {
+				return bestIP
 			}
 		}
 	}
-	return ""
+	return bestIP
+}
+
+func normalizeIPv4(ip net.IP) net.IP {
+	if ip == nil {
+		return nil
+	}
+	return ip.To4()
+}
+
+func nodeIPPriority(ip net.IP) int {
+	return iputil.Score(ip)
 }

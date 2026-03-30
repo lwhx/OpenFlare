@@ -12,7 +12,7 @@
 
 ### 1.2 Agent
 
-* Go 1.23+
+* Go 1.24+
 * 对 Agent 数据目录有写权限
 * 本机模式下可执行 `openresty -t` 与 `openresty -s reload`
 * Docker 模式下具备 Docker 执行权限

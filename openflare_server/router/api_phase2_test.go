@@ -212,10 +212,10 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 		"current_version":   "",
 		"last_error":        "",
 	}
-	resp := performAgentJSONRequestWithToken(t, engine, createdNode.AgentToken, http.MethodPost, "/api/agent/nodes/heartbeat", heartbeatPayload)
+	resp := performAgentJSONRequestWithTokenAndRemote(t, engine, createdNode.AgentToken, http.MethodPost, "/api/agent/nodes/heartbeat", heartbeatPayload, "198.51.100.10:1234")
 	var registeredNode model.Node
 	decodeResponseData(t, resp, &registeredNode)
-	if registeredNode.IP != "10.0.0.9" || registeredNode.AgentVersion != "0.1.1" || registeredNode.NodeID != createdNode.NodeID {
+	if registeredNode.IP != "198.51.100.10" || registeredNode.AgentVersion != "0.1.1" || registeredNode.NodeID != createdNode.NodeID {
 		t.Fatal("expected heartbeat to update node metadata")
 	}
 	if registeredNode.OpenrestyStatus != service.OpenrestyStatusUnhealthy {
@@ -330,6 +330,7 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 	restartHeartbeatReq := httptest.NewRequest(http.MethodPost, "/api/agent/nodes/heartbeat", bytes.NewReader(rawHeartbeatPayload))
 	restartHeartbeatReq.Header.Set("Content-Type", "application/json")
 	restartHeartbeatReq.Header.Set("X-Agent-Token", createdNode.AgentToken)
+	restartHeartbeatReq.RemoteAddr = "198.51.100.10:1234"
 	restartHeartbeatRecorder := httptest.NewRecorder()
 	engine.ServeHTTP(restartHeartbeatRecorder, restartHeartbeatReq)
 	if restartHeartbeatRecorder.Code != http.StatusOK {
@@ -533,7 +534,7 @@ func TestPhase2GlobalDiscoveryRegistration(t *testing.T) {
 		t.Fatal("expected global discovery token to be available")
 	}
 
-	resp := performAgentJSONRequestWithToken(t, engine, bootstrap.DiscoveryToken, http.MethodPost, "/api/agent/nodes/register", map[string]any{
+	resp := performAgentJSONRequestWithTokenAndRemote(t, engine, bootstrap.DiscoveryToken, http.MethodPost, "/api/agent/nodes/register", map[string]any{
 		"node_id":         "local-node-id",
 		"name":            "bulk-edge-1",
 		"ip":              "10.0.0.18",
@@ -541,7 +542,7 @@ func TestPhase2GlobalDiscoveryRegistration(t *testing.T) {
 		"nginx_version":   "1.25.5",
 		"current_version": "",
 		"last_error":      "",
-	})
+	}, "203.0.113.18:4321")
 	var registration service.AgentRegistrationResponse
 	decodeResponseData(t, resp, &registration)
 	if registration.AgentToken == "" || registration.NodeID == "" {
@@ -557,9 +558,16 @@ func TestPhase2GlobalDiscoveryRegistration(t *testing.T) {
 	if nodes[0].Name != "bulk-edge-1" || nodes[0].AgentToken != registration.AgentToken || nodes[0].Status != service.NodeStatusOnline {
 		t.Fatal("expected discovered node to be created online with issued agent token")
 	}
+	if nodes[0].IP != "203.0.113.18" {
+		t.Fatalf("expected discovered node to keep public source ip, got %s", nodes[0].IP)
+	}
 }
 
 func performAgentJSONRequestWithToken(t *testing.T, engine http.Handler, token string, method string, path string, body any) apiResponse {
+	return performAgentJSONRequestWithTokenAndRemote(t, engine, token, method, path, body, "")
+}
+
+func performAgentJSONRequestWithTokenAndRemote(t *testing.T, engine http.Handler, token string, method string, path string, body any, remoteAddr string) apiResponse {
 	t.Helper()
 	var payload []byte
 	var err error
@@ -572,6 +580,9 @@ func performAgentJSONRequestWithToken(t *testing.T, engine http.Handler, token s
 	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if remoteAddr != "" {
+		req.RemoteAddr = remoteAddr
 	}
 	req.Header.Set("X-Agent-Token", token)
 	recorder := httptest.NewRecorder()

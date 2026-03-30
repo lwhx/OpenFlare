@@ -20,7 +20,7 @@
 
 `openflare_agent` 继续作为 Go 单体程序：
 
-* Go 1.23+
+* Go 1.24+
 * 单二进制
 * 节点本地执行
 * `openresty_path` 优先

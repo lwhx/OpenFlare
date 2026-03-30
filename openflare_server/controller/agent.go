@@ -24,6 +24,7 @@ func AgentRegister(c *gin.Context) {
 		respondBadRequest(c, "")
 		return
 	}
+	payload.IP = service.ResolveReportedNodeIP(payload.IP, c.Request.RemoteAddr)
 
 	var (
 		result *service.AgentRegistrationResponse
@@ -57,6 +58,7 @@ func AgentHeartbeat(c *gin.Context) {
 		respondBadRequest(c, "")
 		return
 	}
+	payload.IP = service.ResolveReportedNodeIP(payload.IP, c.Request.RemoteAddr)
 
 	authNode, ok := c.Get("agent_node")
 	if !ok {

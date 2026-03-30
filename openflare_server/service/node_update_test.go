@@ -328,6 +328,27 @@ func TestUpdateNodeCanChangeIPAndAutoResolveGeo(t *testing.T) {
 	}
 }
 
+func TestResolveReportedNodeIPPrefersPublicRemoteAddr(t *testing.T) {
+	resolved := ResolveReportedNodeIP("10.0.0.8", "198.51.100.20:9000")
+	if resolved != "198.51.100.20" {
+		t.Fatalf("expected public remote ip to override private reported ip, got %q", resolved)
+	}
+}
+
+func TestResolveReportedNodeIPKeepsPublicReportedAddr(t *testing.T) {
+	resolved := ResolveReportedNodeIP("8.8.8.8", "198.51.100.20:9000")
+	if resolved != "8.8.8.8" {
+		t.Fatalf("expected reported public ip to be preserved, got %q", resolved)
+	}
+}
+
+func TestResolveReportedNodeIPKeepsPrivateReportedAddrWhenRemoteIsPrivate(t *testing.T) {
+	resolved := ResolveReportedNodeIP("10.0.0.8", "172.16.1.10:9000")
+	if resolved != "10.0.0.8" {
+		t.Fatalf("expected private reported ip to be preserved when remote is also private, got %q", resolved)
+	}
+}
+
 func TestHeartbeatNodeResolvesGeoMetadataFromIPWhenNotManuallyOverridden(t *testing.T) {
 	setupServiceTestDB(t)
 	withFakeGeoIPProvider(t, &geoip.GeoInfo{

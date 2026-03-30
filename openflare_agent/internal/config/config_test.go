@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -322,6 +323,52 @@ func TestInitialAuthToken(t *testing.T) {
 			}
 			if token := cfg.InitialAuthToken(); token != tt.expected {
 				t.Fatalf("unexpected initial auth token: %q", token)
+			}
+		})
+	}
+}
+
+func TestNodeIPPriority(t *testing.T) {
+	tests := []struct {
+		name     string
+		ip       string
+		expected int
+	}{
+		{
+			name:     "public ipv4 preferred",
+			ip:       "8.8.8.8",
+			expected: 2,
+		},
+		{
+			name:     "private ipv4 fallback",
+			ip:       "10.0.0.8",
+			expected: 1,
+		},
+		{
+			name:     "link local ignored",
+			ip:       "169.254.1.10",
+			expected: -1,
+		},
+		{
+			name:     "loopback ignored",
+			ip:       "127.0.0.1",
+			expected: -1,
+		},
+		{
+			name:     "nil ignored",
+			ip:       "",
+			expected: -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var parsed net.IP
+			if tt.ip != "" {
+				parsed = net.ParseIP(tt.ip)
+			}
+			if got := nodeIPPriority(parsed); got != tt.expected {
+				t.Fatalf("unexpected priority for %q: got %d want %d", tt.ip, got, tt.expected)
 			}
 		})
 	}

@@ -131,7 +131,7 @@ Agent 当前支持：
 | `agent_token` | 节点专属认证 Token | 与 `discovery_token` 二选一 | 空 |
 | `discovery_token` | 首次自动注册使用的全局 Token | 与 `agent_token` 二选一 | 空 |
 | `node_name` | 节点名称 | 否 | 自动使用主机名 |
-| `node_ip` | 节点 IP | 否 | 自动探测 |
+| `node_ip` | 节点 IP | 否 | 自动探测，优先选择公网 IPv4；仅无公网地址时退回可用内网地址 |
 | `openresty_path` | 本机 OpenResty 路径 | 否 | 空，未设置时走 Docker 模式 |
 | `openresty_container_name` | Docker 模式下的容器名 | 否 | `openflare-openresty` |
 | `openresty_docker_image` | Docker 模式下的镜像 | 否 | `openresty/openresty:alpine` |
@@ -155,6 +155,7 @@ Agent 当前支持：
 * `agent_token` 与 `discovery_token` 不能同时为空
 * `heartbeat_interval` 与 `request_timeout` 支持毫秒整数或 Go duration 字符串
 * 未配置 `openresty_path` 时默认使用 Docker OpenResty 模式
+* Agent 自动探测到私网 `node_ip` 时，Server 会在注册/心跳阶段优先保留 Agent 直连来源的公网地址，避免 NAT/多网卡场景误登记内网网卡地址
 
 ## 3. 维护要求
 
