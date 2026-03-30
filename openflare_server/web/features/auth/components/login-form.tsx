@@ -21,9 +21,24 @@ import {
 } from '@/features/auth/components/auth-form-primitives';
 import { PublicAuthGuard } from '@/features/auth/components/public-auth-guard';
 
+const TEXT = {
+  usernameRequired: '\u8bf7\u8f93\u5165\u7528\u6237\u540d',
+  passwordRequired: '\u8bf7\u8f93\u5165\u5bc6\u7801',
+  loginFailed: '\u767b\u5f55\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002',
+  githubUnavailable: 'GitHub \u767b\u5f55\u5f53\u524d\u4e0d\u53ef\u7528\u3002',
+  title: '\u7528\u6237\u767b\u5f55',
+  username: '\u7528\u6237\u540d',
+  password: '\u5bc6\u7801',
+  loginPending: '\u767b\u5f55\u4e2d...',
+  login: '\u767b\u5f55',
+  githubLogin: 'GitHub \u767b\u5f55',
+  forgotPassword: '\u5fd8\u8bb0\u5bc6\u7801\uff1f',
+  register: '\u6ce8\u518c',
+};
+
 const loginSchema = z.object({
-  username: z.string().min(1, '请输入用户名'),
-  password: z.string().min(1, '请输入密码'),
+  username: z.string().min(1, TEXT.usernameRequired),
+  password: z.string().min(1, TEXT.passwordRequired),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -48,6 +63,10 @@ export function LoginForm() {
     queryFn: getPublicStatus,
   });
 
+  const canUsePasswordRegister =
+    (statusQuery.data?.register_enabled ?? false) &&
+    (statusQuery.data?.password_register_enabled ?? false);
+
   const loginMutation = useMutation({
     mutationFn: login,
     onSuccess: (user) => {
@@ -55,7 +74,7 @@ export function LoginForm() {
       router.replace(redirect);
     },
     onError: (error: Error) => {
-      setErrorMessage(error.message || '登录失败，请稍后重试。');
+      setErrorMessage(error.message || TEXT.loginFailed);
     },
   });
 
@@ -67,7 +86,7 @@ export function LoginForm() {
   const handleGitHubLogin = () => {
     const clientId = statusQuery.data?.github_client_id;
     if (!clientId) {
-      setErrorMessage('GitHub 登录当前不可用。');
+      setErrorMessage(TEXT.githubUnavailable);
       return;
     }
 
@@ -79,10 +98,13 @@ export function LoginForm() {
 
   return (
     <PublicAuthGuard>
-      <AppCard title='用户登录'>
+      <AppCard title={TEXT.title}>
         <form className='space-y-4' onSubmit={handleSubmit}>
-          <AuthFormField label='用户名'>
-            <AuthInput placeholder='请输入用户名' {...form.register('username')} />
+          <AuthFormField label={TEXT.username}>
+            <AuthInput
+              placeholder={TEXT.username}
+              {...form.register('username')}
+            />
             {form.formState.errors.username ? (
               <span className='text-xs text-[var(--status-danger-foreground)]'>
                 {form.formState.errors.username.message}
@@ -90,8 +112,12 @@ export function LoginForm() {
             ) : null}
           </AuthFormField>
 
-          <AuthFormField label='密码'>
-            <AuthInput type='password' placeholder='请输入密码' {...form.register('password')} />
+          <AuthFormField label={TEXT.password}>
+            <AuthInput
+              type='password'
+              placeholder={TEXT.password}
+              {...form.register('password')}
+            />
             {form.formState.errors.password ? (
               <span className='text-xs text-[var(--status-danger-foreground)]'>
                 {form.formState.errors.password.message}
@@ -99,28 +125,44 @@ export function LoginForm() {
             ) : null}
           </AuthFormField>
 
-          {errorMessage ? <InlineMessage tone='danger' message={errorMessage} /> : null}
+          {errorMessage ? (
+            <InlineMessage tone='danger' message={errorMessage} />
+          ) : null}
 
           <div className='flex flex-col gap-3 sm:flex-row'>
             <AuthButton type='submit' disabled={loginMutation.isPending}>
-              {loginMutation.isPending ? '登录中...' : '登录'}
+              {loginMutation.isPending ? TEXT.loginPending : TEXT.login}
             </AuthButton>
             {statusQuery.data?.github_oauth ? (
-              <SecondaryButton type='button' onClick={handleGitHubLogin} className='w-full sm:w-auto'>
-                GitHub 登录
+              <SecondaryButton
+                type='button'
+                onClick={handleGitHubLogin}
+                className='w-full sm:w-auto'
+              >
+                {TEXT.githubLogin}
               </SecondaryButton>
             ) : null}
           </div>
         </form>
 
         <div className='mt-6 flex flex-wrap gap-3 text-sm text-[var(--foreground-secondary)]'>
-          <Link href='/reset' className='text-[var(--brand-primary)] transition hover:opacity-80'>
-            忘记密码？
+          <Link
+            href='/reset'
+            className='text-[var(--brand-primary)] transition hover:opacity-80'
+          >
+            {TEXT.forgotPassword}
           </Link>
-          <span>·</span>
-          <Link href='/register' className='text-[var(--brand-primary)] transition hover:opacity-80'>
-            注册
-          </Link>
+          {canUsePasswordRegister ? (
+            <>
+              <span>|</span>
+              <Link
+                href='/register'
+                className='text-[var(--brand-primary)] transition hover:opacity-80'
+              >
+                {TEXT.register}
+              </Link>
+            </>
+          ) : null}
         </div>
       </AppCard>
     </PublicAuthGuard>
