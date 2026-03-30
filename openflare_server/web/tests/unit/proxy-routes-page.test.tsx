@@ -270,6 +270,36 @@ describe('ProxyRoutesPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('opens create drawer with advanced section expanded and http selected by default', async () => {
+    stubMatchMedia();
+
+    vi.stubGlobal(
+      'fetch',
+      buildBaseFetchStub({
+        managedDomains: [
+          {
+            id: 1,
+            domain: '*.example.com',
+            cert_id: 1,
+            enabled: true,
+            remark: '',
+            created_at: '2026-03-20T08:00:00Z',
+            updated_at: '2026-03-20T08:00:00Z',
+          },
+        ],
+      }),
+    );
+
+    renderProxyRoutesPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '新增规则' }));
+    const dialog = await screen.findByRole('dialog', { name: '新增规则' });
+
+    expect(within(dialog).getByRole('heading', { name: 'Advanced' })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('协议 1')).toHaveTextContent('HTTP');
+  });
+
   it('closes managed domain suggestions when clicking outside', async () => {
     stubMatchMedia();
 

@@ -14,9 +14,9 @@ import { InlineMessage } from '@/components/feedback/inline-message';
 import { LoadingState } from '@/components/feedback/loading-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { AppCard } from '@/components/ui/app-card';
+import { Drawer } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AppModal } from '@/components/ui/app-modal';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -293,7 +293,7 @@ const HERO_SELECT_LISTBOX_CLASS_NAME = 'p-1';
 const defaultValues: ProxyRouteFormValues = {
   managed_domain_id: '',
   subdomain_label: '',
-  origin_rows: [{ scheme: 'https', address: '', port: '443' }],
+  origin_rows: [{ scheme: 'http', address: '', port: '80' }],
   origin_uri: '',
   origin_host: '',
   enabled: true,
@@ -1077,18 +1077,21 @@ function HeroTextArea(
 function HeroSelectField({
   ariaLabel,
   value,
+  displayValue,
   disabled,
   onChange,
   children,
 }: {
   ariaLabel: string;
   value: string;
+  displayValue?: string;
   disabled?: boolean;
   onChange: (value: string) => void;
   children: React.ReactNode;
 }) {
   return (
     <Select
+      key={`${ariaLabel}-${value || 'empty'}`}
       aria-label={ariaLabel}
       variant="primary"
       selectedKey={value || null}
@@ -1102,7 +1105,11 @@ function HeroSelectField({
       }}
     >
       <Select.Trigger className={HERO_SELECT_TRIGGER_CLASS_NAME}>
-        <Select.Value className={HERO_SELECT_VALUE_CLASS_NAME} />
+        {displayValue ? (
+          <span className={HERO_SELECT_VALUE_CLASS_NAME}>{displayValue}</span>
+        ) : (
+          <Select.Value className={HERO_SELECT_VALUE_CLASS_NAME} />
+        )}
         <Select.Indicator />
       </Select.Trigger>
       <Select.Popover className={HERO_SELECT_POPOVER_CLASS_NAME}>
@@ -1263,6 +1270,16 @@ export function ProxyRoutesPage() {
 
   const primaryOriginRow =
     watchedOriginRows?.[0] ?? defaultValues.origin_rows[0];
+  const primaryOriginPreview = buildOriginUrl(
+    primaryOriginRow.scheme,
+    primaryOriginRow.address,
+    primaryOriginRow.port,
+    '',
+  );
+  const certificatePreview =
+    certificates.find((item) => String(item.id) === watchedCertId)?.name ??
+    matchResult?.candidate?.certificate_name ??
+    (watchedEnableHttps ? '待选择' : '未启用');
   const saveMutation = useMutation({
     mutationFn: async (values: ProxyRouteFormValues) => {
       const payload = toPayload(values, origins);
@@ -1278,7 +1295,7 @@ export function ProxyRoutesPage() {
       setEditingRouteId(null);
       setIsEditorOpen(false);
       setMatchResult(null);
-      setIsAdvancedOpen(false);
+      setIsAdvancedOpen(true);
       form.reset(defaultValues);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: routesQueryKey }),
@@ -1387,7 +1404,7 @@ export function ProxyRoutesPage() {
     setEditingRouteId(null);
     setIsEditorOpen(false);
     setMatchResult(null);
-    setIsAdvancedOpen(false);
+    setIsAdvancedOpen(true);
     form.reset(defaultValues);
   };
 
@@ -1395,7 +1412,7 @@ export function ProxyRoutesPage() {
     setFeedback(null);
     setEditingRouteId(null);
     setMatchResult(null);
-    setIsAdvancedOpen(false);
+    setIsAdvancedOpen(true);
     form.reset(defaultValues);
     setIsEditorOpen(true);
   };
@@ -1411,7 +1428,7 @@ export function ProxyRoutesPage() {
     setMatchResult(null);
     try {
       form.reset(toFormValues(route, managedDomains));
-      setIsAdvancedOpen(Boolean(route.origin_host || route.remark));
+      setIsAdvancedOpen(true);
       setIsEditorOpen(true);
     } catch (error) {
       setFeedback({ tone: 'danger', message: getErrorMessage(error) });
@@ -1585,9 +1602,14 @@ export function ProxyRoutesPage() {
         </AppCard>
       </div>
 
-      <AppModal
-        isOpen={isEditorOpen}
-        onClose={handleReset}
+      <Drawer
+        open={isEditorOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleReset();
+          }
+        }}
+        direction="right"
         title={editingRouteId ? '编辑规则' : '新增规则'}
         description="新增或修改反代规则后，可直接回到列表页继续发布。"
         size="xl"
@@ -1619,6 +1641,35 @@ export function ProxyRoutesPage() {
           className="space-y-6"
           onSubmit={handleSubmit}
         >
+          <section className="grid gap-3 rounded-3xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--surface-elevated)_84%,white_16%)] p-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto]">
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--foreground-muted)]">
+                Rule
+              </p>
+              <p className="truncate text-sm font-medium text-[var(--foreground-primary)]">
+                {effectiveDomain || '未选择域名'}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--foreground-muted)]">
+                Origin
+              </p>
+              <p className="truncate text-sm font-medium text-[var(--foreground-primary)]">
+                {primaryOriginPreview || '未填写源站'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-start gap-2 md:justify-end">
+              <StatusBadge
+                label={watchedEnabled ? '已启用' : '已停用'}
+                variant={watchedEnabled ? 'success' : 'warning'}
+              />
+              <StatusBadge
+                label={watchedEnableHttps ? `HTTPS · ${certificatePreview}` : 'HTTP'}
+                variant={watchedEnableHttps ? 'info' : 'warning'}
+              />
+            </div>
+          </section>
+
           <HeroSwitchField
             id="proxy-route-enabled"
             label="启用规则"
@@ -1699,6 +1750,13 @@ export function ProxyRoutesPage() {
                         <HeroSelectField
                           ariaLabel={`协议 ${index + 1}`}
                           value={currentRow.scheme}
+                          displayValue={
+                            currentRow.scheme === 'https'
+                              ? 'HTTPS'
+                              : currentRow.scheme === 'http'
+                                ? 'HTTP'
+                                : undefined
+                          }
                           onChange={(nextValue) => {
                             const nextScheme =
                               nextValue as OriginRowFormValue['scheme'];
@@ -1730,8 +1788,12 @@ export function ProxyRoutesPage() {
                             }
                           }}
                         >
-                          <SelectItem key="https">HTTPS</SelectItem>
-                          <SelectItem key="http">HTTP</SelectItem>
+                          <SelectItem key="https" textValue="HTTPS">
+                            HTTPS
+                          </SelectItem>
+                          <SelectItem key="http" textValue="HTTP">
+                            HTTP
+                          </SelectItem>
                         </HeroSelectField>
                       </div>
 
@@ -2127,7 +2189,7 @@ export function ProxyRoutesPage() {
             ) : null}
           </section>
         </form>
-      </AppModal>
+      </Drawer>
     </>
   );
 }
