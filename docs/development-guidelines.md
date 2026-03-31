@@ -124,7 +124,7 @@
 * `proxy_routes` 如关联 `origins`，必须同时保存可直接渲染的 `origin_url`；源站地址变更时，由 service 负责同步更新引用该源站的规则快照
 * `proxy_routes` 的上游统一使用 named `upstream` + keepalive；单上游如带 base path 或 query，应在 `proxy_pass` 上补回 URI，多上游仅允许纯 `scheme://host[:port]`
 * `proxy_routes.origin_host` 为可选字段，仅用于覆盖回源 `Host` 请求头，不引入新的平台化对象
-* 流量限制、反向代理、HTTPS 与缓存配置当前都归属站点级 `proxy_routes`，同一网站内不拆分域名级差异配置
+* 流量限制、反向代理、HTTPS 与缓存配置当前都归属站点级 `proxy_routes`，同一网站内不拆分域名级差异配置；其中 HTTPS 可绑定一张或多张证书，但证书选择仍属于站点级配置而非域名级配置
 * `config_versions` 必须保存完整快照与渲染结果
 * 全局同时只能有一个激活版本
 * 回滚通过重新激活旧版本实现

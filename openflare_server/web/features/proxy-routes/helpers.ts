@@ -283,6 +283,7 @@ export function buildPayloadFromRoute(
     enabled: route.enabled,
     enable_https: route.enable_https,
     cert_id: route.cert_id,
+    cert_ids: route.cert_ids,
     redirect_http: route.redirect_http,
     limit_conn_per_server: route.limit_conn_per_server,
     limit_conn_per_ip: route.limit_conn_per_ip,
@@ -316,4 +317,3 @@ export function getWebsiteStatusBadges(route: ProxyRouteItem) {
       : { label: '缓存关闭', variant: 'warning' as const },
   ];
 }
-

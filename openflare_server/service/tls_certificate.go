@@ -2,6 +2,7 @@ package service
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -54,7 +55,7 @@ func CreateTLSCertificate(input TLSCertificateInput) (*model.TLSCertificate, err
 	}
 	if err = certificate.Insert(); err != nil {
 		if isUniqueConstraintError(err) {
-			return nil, errors.New("证书名称已存在")
+			return nil, errors.New("certificate name already exists")
 		}
 		return nil, err
 	}
@@ -63,7 +64,7 @@ func CreateTLSCertificate(input TLSCertificateInput) (*model.TLSCertificate, err
 
 func CreateTLSCertificateFromFiles(name string, certFile *multipart.FileHeader, keyFile *multipart.FileHeader, remark string) (*model.TLSCertificate, error) {
 	if certFile == nil || keyFile == nil {
-		return nil, errors.New("证书文件和私钥文件不能为空")
+		return nil, errors.New("certificate file and key file cannot be empty")
 	}
 	certContent, err := readMultipartFile(certFile)
 	if err != nil {
@@ -101,13 +102,31 @@ func UpdateTLSCertificate(id uint, input TLSCertificateInput) (*model.TLSCertifi
 }
 
 func DeleteTLSCertificate(id uint) error {
-	var routeCount int64
-	if err := model.DB.Model(&model.ProxyRoute{}).Where("cert_id = ?", id).Count(&routeCount).Error; err != nil {
+	routes, err := model.ListProxyRoutes()
+	if err != nil {
 		return err
 	}
-	if routeCount > 0 {
-		return errors.New("证书仍被反代规则引用，无法删除")
+	for _, route := range routes {
+		if route == nil {
+			continue
+		}
+		if route.CertID != nil && *route.CertID == id {
+			return errors.New("certificate is still referenced by proxy routes")
+		}
+		if strings.TrimSpace(route.CertIDs) == "" {
+			continue
+		}
+		var certIDs []uint
+		if err := json.Unmarshal([]byte(route.CertIDs), &certIDs); err != nil {
+			return fmt.Errorf("proxy route %d cert_ids payload is invalid: %w", route.ID, err)
+		}
+		for _, certID := range certIDs {
+			if certID == id {
+				return errors.New("certificate is still referenced by proxy routes")
+			}
+		}
 	}
+
 	certificate, err := model.GetTLSCertificateByID(id)
 	if err != nil {
 		return err
@@ -121,17 +140,17 @@ func buildTLSCertificate(existing *model.TLSCertificate, input TLSCertificateInp
 	keyPEM := strings.TrimSpace(input.KeyPEM)
 	remark := strings.TrimSpace(input.Remark)
 	if name == "" {
-		return nil, errors.New("证书名称不能为空")
+		return nil, errors.New("certificate name cannot be empty")
 	}
 	if certPEM == "" || keyPEM == "" {
-		return nil, errors.New("证书内容和私钥内容不能为空")
+		return nil, errors.New("certificate content and key content cannot be empty")
 	}
 	parsed, err := tls.X509KeyPair([]byte(certPEM), []byte(keyPEM))
 	if err != nil {
-		return nil, fmt.Errorf("证书或私钥格式不合法: %w", err)
+		return nil, fmt.Errorf("certificate or key format is invalid: %w", err)
 	}
 	if len(parsed.Certificate) == 0 {
-		return nil, errors.New("证书内容不合法")
+		return nil, errors.New("certificate content is invalid")
 	}
 	leaf, err := parseLeafCertificate(certPEM)
 	if err != nil {

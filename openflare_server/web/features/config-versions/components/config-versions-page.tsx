@@ -300,9 +300,6 @@ function PublishPreviewCard({
                 <p className="text-sm font-semibold text-[var(--foreground-primary)]">
                   Pending Main Config
                 </p>
-                <p className="text-xs text-[var(--foreground-secondary)]">
-                  {`Checksum: ${preview.checksum}`}
-                </p>
               </div>
               <CodeBlock className="max-h-[32rem] whitespace-pre-wrap">
                 {preview.main_config}

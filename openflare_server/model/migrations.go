@@ -330,6 +330,85 @@ func ensureProxyRouteSiteNameUniqueIndex(db *gorm.DB) error {
 	return db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_proxy_routes_site_name ON proxy_routes(site_name)`).Error
 }
 
+func decodeProxyRouteCertIDsForMigration(raw string, fallbackCertID *uint) ([]uint, error) {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		if fallbackCertID == nil || *fallbackCertID == 0 {
+			return []uint{}, nil
+		}
+		return []uint{*fallbackCertID}, nil
+	}
+
+	var certIDs []uint
+	if err := json.Unmarshal([]byte(text), &certIDs); err != nil {
+		return nil, fmt.Errorf("decode proxy route cert_ids failed: %w", err)
+	}
+
+	normalized := make([]uint, 0, len(certIDs))
+	seen := make(map[uint]struct{}, len(certIDs))
+	for _, certID := range certIDs {
+		if certID == 0 {
+			continue
+		}
+		if _, ok := seen[certID]; ok {
+			continue
+		}
+		seen[certID] = struct{}{}
+		normalized = append(normalized, certID)
+	}
+	if len(normalized) == 0 && fallbackCertID != nil && *fallbackCertID != 0 {
+		return []uint{*fallbackCertID}, nil
+	}
+	return normalized, nil
+}
+
+func backfillProxyRouteCertificateFields(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("database handle is nil")
+	}
+	if !db.Migrator().HasTable(&ProxyRoute{}) {
+		return nil
+	}
+	if !db.Migrator().HasColumn(&ProxyRoute{}, "cert_ids") {
+		return nil
+	}
+
+	var routes []ProxyRoute
+	if err := db.Order("id asc").Find(&routes).Error; err != nil {
+		return fmt.Errorf("list proxy routes for certificate field backfill failed: %w", err)
+	}
+	for _, route := range routes {
+		certIDs, err := decodeProxyRouteCertIDsForMigration(route.CertIDs, route.CertID)
+		if err != nil {
+			return fmt.Errorf("normalize proxy route %d cert_ids failed: %w", route.ID, err)
+		}
+		certIDsJSON, err := json.Marshal(certIDs)
+		if err != nil {
+			return fmt.Errorf("encode proxy route %d cert_ids failed: %w", route.ID, err)
+		}
+
+		var primaryCertID *uint
+		if len(certIDs) > 0 {
+			primaryCertID = &certIDs[0]
+		}
+
+		updates := make(map[string]any, 2)
+		if strings.TrimSpace(route.CertIDs) != string(certIDsJSON) {
+			updates["cert_ids"] = string(certIDsJSON)
+		}
+		if (route.CertID == nil) != (primaryCertID == nil) || (route.CertID != nil && primaryCertID != nil && *route.CertID != *primaryCertID) {
+			updates["cert_id"] = primaryCertID
+		}
+		if len(updates) == 0 {
+			continue
+		}
+		if err := db.Model(&ProxyRoute{}).Where("id = ?", route.ID).Updates(updates).Error; err != nil {
+			return fmt.Errorf("update proxy route %d certificate fields failed: %w", route.ID, err)
+		}
+	}
+	return nil
+}
+
 func validateDatabaseSchemaV5(db *gorm.DB, backend string) error {
 	if err := validateDatabaseSchemaV4(db, backend); err != nil {
 		return err
@@ -396,6 +475,42 @@ func validateDatabaseSchemaV6(db *gorm.DB, backend string) error {
 	}
 	if !db.Migrator().HasColumn(&ProxyRoute{}, "limit_rate") {
 		return fmt.Errorf("column proxy_routes.limit_rate is missing")
+	}
+	return nil
+}
+
+func validateDatabaseSchemaV7(db *gorm.DB, backend string) error {
+	if err := validateDatabaseSchemaV6(db, backend); err != nil {
+		return err
+	}
+	if !db.Migrator().HasColumn(&ProxyRoute{}, "cert_ids") {
+		return fmt.Errorf("column proxy_routes.cert_ids is missing")
+	}
+
+	var routes []ProxyRoute
+	if err := db.Order("id asc").Find(&routes).Error; err != nil {
+		return fmt.Errorf("list proxy routes for certificate validation failed: %w", err)
+	}
+	for _, route := range routes {
+		certIDs, err := decodeProxyRouteCertIDsForMigration(route.CertIDs, route.CertID)
+		if err != nil {
+			return fmt.Errorf("proxy route %d cert_ids are invalid: %w", route.ID, err)
+		}
+		if route.EnableHTTPS && len(certIDs) == 0 {
+			return fmt.Errorf("proxy route %d has https enabled without cert_ids", route.ID)
+		}
+		if !route.EnableHTTPS && route.RedirectHTTP {
+			return fmt.Errorf("proxy route %d enables redirect_http without https", route.ID)
+		}
+		if len(certIDs) == 0 {
+			if route.CertID != nil {
+				return fmt.Errorf("proxy route %d primary cert_id mirror is invalid", route.ID)
+			}
+			continue
+		}
+		if route.CertID == nil || *route.CertID != certIDs[0] {
+			return fmt.Errorf("proxy route %d primary cert_id mirror is invalid", route.ID)
+		}
 	}
 	return nil
 }
@@ -768,6 +883,24 @@ func migrateV6(db *gorm.DB, backend string) error {
 	return ensureProxyRouteSiteNameUniqueIndex(db)
 }
 
+// migrateV7 adds structured website-level certificate lists to proxy_routes
+// while keeping cert_id as the primary certificate compatibility mirror.
+func migrateV7(db *gorm.DB, backend string) error {
+	if err := applyCurrentSchema(db, backend); err != nil {
+		return err
+	}
+	if err := backfillOriginsFromProxyRoutes(db); err != nil {
+		return err
+	}
+	if err := backfillProxyRouteSiteFields(db); err != nil {
+		return err
+	}
+	if err := ensureProxyRouteSiteNameUniqueIndex(db); err != nil {
+		return err
+	}
+	return backfillProxyRouteCertificateFields(db)
+}
+
 func databaseSchemaMigrations() []databaseSchemaMigration {
 	return []databaseSchemaMigration{
 		{fromVersion: 1, toVersion: 2, migrate: migrateV2, validate: validateDatabaseSchemaV2},
@@ -775,6 +908,7 @@ func databaseSchemaMigrations() []databaseSchemaMigration {
 		{fromVersion: 3, toVersion: 4, migrate: migrateV4, validate: validateDatabaseSchemaV4},
 		{fromVersion: 4, toVersion: 5, migrate: migrateV5, validate: validateDatabaseSchemaV5},
 		{fromVersion: 5, toVersion: 6, migrate: migrateV6, validate: validateDatabaseSchemaV6},
+		{fromVersion: 6, toVersion: 7, migrate: migrateV7, validate: validateDatabaseSchemaV7},
 	}
 }
 
@@ -851,7 +985,10 @@ func initializeFreshDatabaseSchema(db *gorm.DB, backend string) error {
 	if err := ensureProxyRouteSiteNameUniqueIndex(db); err != nil {
 		return err
 	}
-	if err := validateDatabaseSchemaV6(db, backend); err != nil {
+	if err := backfillProxyRouteCertificateFields(db); err != nil {
+		return err
+	}
+	if err := validateDatabaseSchemaV7(db, backend); err != nil {
 		return err
 	}
 	return saveDatabaseSchemaVersion(db, currentDatabaseSchemaVersion)

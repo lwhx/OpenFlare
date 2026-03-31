@@ -374,6 +374,73 @@ func TestPublishConfigVersionRendersMultiDomainWebsite(t *testing.T) {
 	}
 }
 
+func TestPublishConfigVersionRendersMultipleCertificatesForMultiDomainWebsite(t *testing.T) {
+	setupServiceTestDB(t)
+
+	appCertPEM, appKeyPEM := generateCertificatePair(t, []string{"app.example.com"})
+	appCertificate, err := CreateTLSCertificate(TLSCertificateInput{
+		Name:    "app-only",
+		CertPEM: appCertPEM,
+		KeyPEM:  appKeyPEM,
+	})
+	if err != nil {
+		t.Fatalf("CreateTLSCertificate app-only failed: %v", err)
+	}
+
+	wwwCertPEM, wwwKeyPEM := generateCertificatePair(t, []string{"www.example.com"})
+	wwwCertificate, err := CreateTLSCertificate(TLSCertificateInput{
+		Name:    "www-only",
+		CertPEM: wwwCertPEM,
+		KeyPEM:  wwwKeyPEM,
+	})
+	if err != nil {
+		t.Fatalf("CreateTLSCertificate www-only failed: %v", err)
+	}
+
+	route, err := CreateProxyRoute(ProxyRouteInput{
+		SiteName:      "marketing-site",
+		Domains:       []string{"app.example.com", "www.example.com"},
+		OriginURL:     "https://origin.internal",
+		Enabled:       true,
+		EnableHTTPS:   true,
+		CertIDs:       []uint{appCertificate.ID, wwwCertificate.ID},
+		RedirectHTTP:  true,
+		CacheEnabled:  true,
+		CachePolicy:   proxyRouteCachePolicyPathPrefix,
+		CacheRules:    []string{"/assets"},
+		CustomHeaders: []ProxyRouteCustomHeaderInput{{Key: "X-Site", Value: "marketing"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyRoute failed: %v", err)
+	}
+	if route.CertID == nil || *route.CertID != appCertificate.ID {
+		t.Fatalf("expected primary cert mirror to point at first certificate, got %#v", route.CertID)
+	}
+	if len(route.CertIDs) != 2 || route.CertIDs[0] != appCertificate.ID || route.CertIDs[1] != wwwCertificate.ID {
+		t.Fatalf("expected cert_ids to persist in order, got %#v", route.CertIDs)
+	}
+
+	result, err := PublishConfigVersion("root")
+	if err != nil {
+		t.Fatalf("PublishConfigVersion failed: %v", err)
+	}
+	if strings.Count(result.Version.RenderedConfig, "ssl_certificate __OPENFLARE_CERT_DIR__/") != 2 {
+		t.Fatalf("expected rendered config to include two ssl_certificate directives, got %s", result.Version.RenderedConfig)
+	}
+	if strings.Count(result.Version.RenderedConfig, "ssl_certificate_key __OPENFLARE_CERT_DIR__/") != 2 {
+		t.Fatalf("expected rendered config to include two ssl_certificate_key directives, got %s", result.Version.RenderedConfig)
+	}
+	if !strings.Contains(result.Version.SupportFilesJSON, certificateCertFileName(appCertificate.ID)) {
+		t.Fatal("expected support files to include first certificate")
+	}
+	if !strings.Contains(result.Version.SupportFilesJSON, certificateCertFileName(wwwCertificate.ID)) {
+		t.Fatal("expected support files to include second certificate")
+	}
+	if !strings.Contains(result.Version.SnapshotJSON, `"cert_ids":[`) {
+		t.Fatal("expected snapshot to include cert_ids")
+	}
+}
+
 func TestDiffConfigVersionTracksAddedDomainWithinWebsite(t *testing.T) {
 	setupServiceTestDB(t)
 

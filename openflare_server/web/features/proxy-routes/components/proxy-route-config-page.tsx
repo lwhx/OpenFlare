@@ -159,14 +159,14 @@ const reverseProxySchema = z
 const httpsSchema = z
   .object({
     enable_https: z.boolean(),
-    cert_id: z.string(),
+    cert_ids: z.array(z.string()),
     redirect_http: z.boolean(),
   })
   .superRefine((value, context) => {
-    if (value.enable_https && !value.cert_id.trim()) {
+    if (value.enable_https && value.cert_ids.length === 0) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['cert_id'],
+        path: ['cert_ids'],
         message: '启用 HTTPS 时必须选择证书',
       });
     }
@@ -542,7 +542,12 @@ function HTTPSSection({
     resolver: zodResolver(httpsSchema),
     defaultValues: {
       enable_https: route.enable_https,
-      cert_id: route.cert_id ? String(route.cert_id) : '',
+      cert_ids:
+        route.cert_ids.length > 0
+          ? route.cert_ids.map((certID) => String(certID))
+          : route.cert_id
+            ? [String(route.cert_id)]
+            : [],
       redirect_http: route.redirect_http,
     },
   });
@@ -550,12 +555,18 @@ function HTTPSSection({
   useEffect(() => {
     form.reset({
       enable_https: route.enable_https,
-      cert_id: route.cert_id ? String(route.cert_id) : '',
+      cert_ids:
+        route.cert_ids.length > 0
+          ? route.cert_ids.map((certID) => String(certID))
+          : route.cert_id
+            ? [String(route.cert_id)]
+            : [],
       redirect_http: route.redirect_http,
     });
   }, [form, route]);
 
   const watchedEnableHTTPS = form.watch('enable_https');
+  const watchedCertIDs = form.watch('cert_ids');
 
   return (
     <ConfigSectionShell
@@ -571,7 +582,18 @@ function HTTPSSection({
           onSave(
             buildPayloadFromRoute(route, {
               enable_https: values.enable_https,
-              cert_id: values.enable_https && values.cert_id ? Number(values.cert_id) : null,
+              cert_id:
+                values.enable_https &&
+                values.cert_ids.some((value) => Number(value) > 0)
+                  ? Number(
+                      values.cert_ids.find((value) => Number(value) > 0) ?? 0,
+                    )
+                  : null,
+              cert_ids: values.enable_https
+                ? values.cert_ids
+                    .map((value) => Number(value))
+                    .filter((value) => Number.isFinite(value) && value > 0)
+                : [],
               redirect_http: values.enable_https ? values.redirect_http : false,
             }),
             { message: 'HTTPS 设置已保存。' },
@@ -585,7 +607,7 @@ function HTTPSSection({
           onChange={(checked) => {
             form.setValue('enable_https', checked, { shouldDirty: true });
             if (!checked) {
-              form.setValue('cert_id', '', { shouldDirty: true });
+              form.setValue('cert_ids', [], { shouldDirty: true });
               form.setValue('redirect_http', false, { shouldDirty: true });
             }
           }}
@@ -593,20 +615,30 @@ function HTTPSSection({
 
         <ResourceField
           label="证书"
-          error={form.formState.errors.cert_id?.message}
+          error={form.formState.errors.cert_ids?.message}
           hint="请确保该证书能覆盖当前站点的全部域名。"
         >
           <ResourceSelect
+            multiple
+            size={Math.min(Math.max(certificates.length, 4), 8)}
+            className="min-h-44"
             disabled={!watchedEnableHTTPS}
-            {...form.register('cert_id')}
+            {...form.register('cert_ids')}
           >
             <option value="">请选择证书</option>
             {certificates.map((certificate) => (
               <option key={certificate.id} value={certificate.id}>
-                {certificate.name}
+                {certificate.not_after
+                  ? `${certificate.name} · ${certificate.not_after}`
+                  : certificate.name}
               </option>
             ))}
           </ResourceSelect>
+          {watchedEnableHTTPS && watchedCertIDs.length > 0 ? (
+            <p className="text-xs leading-5 text-[var(--foreground-secondary)]">
+              已选择 {watchedCertIDs.length} 张证书，发布时会校验证书集合是否覆盖全部域名。
+            </p>
+          ) : null}
         </ResourceField>
 
         <ToggleField
