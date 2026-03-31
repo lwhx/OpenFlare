@@ -232,6 +232,18 @@ describe('Proxy route website pages', () => {
           );
         }
 
+        if (url.includes('/managed-domains/')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: [{ id: 1, domain: '*.example.com', cert_id: 1, enabled: true }],
+              }),
+            ),
+          );
+        }
+
         return Promise.reject(new Error(`Unhandled fetch: ${url}`));
       }),
     );
@@ -245,22 +257,28 @@ describe('Proxy route website pages', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
-    const dialogTextboxes = within(dialog).getAllByRole('textbox');
-    await user.type(dialogTextboxes[0], 'launch-site');
+    await user.type(within(dialog).getByPlaceholderText('marketing-site'), 'launch-site');
+
+    const primaryDomainInput = within(dialog).getByLabelText('域名 1');
+    await user.type(primaryDomainInput, 'app.exam');
+    await user.click(await within(dialog).findByRole('button', { name: 'app.example.com' }));
+
+    await user.click(within(dialog).getByLabelText('新增域名输入框 1'));
+    await user.type(within(dialog).getByLabelText('域名 2'), 'www.example.com');
+
     await user.type(
-      dialogTextboxes[1],
-      'app.example.com{enter}www.example.com',
-    );
-    await user.type(
-      dialogTextboxes[2],
+      within(dialog).getByLabelText('上游地址'),
       'https://origin-a.internal:443{enter}https://origin-b.internal:443',
     );
 
     const submitButton = document.querySelector(
       'button[form="create-website-form"]',
     ) as HTMLButtonElement | null;
-    expect(submitButton).not.toBeNull();
-    await user.click(submitButton!);
+    expect(submitButton).toBeInstanceOf(HTMLButtonElement);
+    if (!submitButton) {
+      throw new Error('missing create submit button');
+    }
+    await user.click(submitButton);
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith(
@@ -327,6 +345,18 @@ describe('Proxy route website pages', () => {
           );
         }
 
+        if (url.includes('/managed-domains/')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: [{ id: 1, domain: '*.example.com', cert_id: 1, enabled: true }],
+              }),
+            ),
+          );
+        }
+
         return Promise.reject(new Error(`Unhandled fetch: ${url}`));
       }),
     );
@@ -338,21 +368,26 @@ describe('Proxy route website pages', () => {
     const user = userEvent.setup();
     expect(await screen.findByText('marketing-site')).toBeInTheDocument();
 
-    const [siteNameInput, domainsText] = screen.getAllByRole('textbox');
+    const siteNameInput = screen.getByPlaceholderText('marketing-site');
     await user.clear(siteNameInput);
     await user.type(siteNameInput, 'brand-site');
 
-    await user.clear(domainsText);
-    await user.type(
-      domainsText,
-      'brand.example.com{enter}www.brand.example.com',
-    );
+    const primaryDomainInput = screen.getByLabelText('域名 1');
+    await user.clear(primaryDomainInput);
+    await user.type(primaryDomainInput, 'brand.example.com');
+
+    const secondaryDomainInput = screen.getByLabelText('域名 2');
+    await user.clear(secondaryDomainInput);
+    await user.type(secondaryDomainInput, 'www.brand.example.com');
 
     const saveButton = document.querySelector(
       'button[form="proxy-route-domains-form"]',
     ) as HTMLButtonElement | null;
-    expect(saveButton).not.toBeNull();
-    await user.click(saveButton!);
+    expect(saveButton).toBeInstanceOf(HTMLButtonElement);
+    if (!saveButton) {
+      throw new Error('missing domain save button');
+    }
+    await user.click(saveButton);
 
     await waitFor(() => {
       expect(updateRequests).toHaveLength(1);

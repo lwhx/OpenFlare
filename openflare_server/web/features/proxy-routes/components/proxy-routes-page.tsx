@@ -33,7 +33,6 @@ import {
   ResourceInput,
   SecondaryButton,
 } from '@/features/shared/components/resource-primitives';
-import { formatDateTime } from '@/lib/utils/date';
 
 type FeedbackState = {
   tone: 'info' | 'success' | 'danger';
@@ -388,6 +387,7 @@ export function ProxyRoutesPage() {
       <ProxyRouteCreateDrawer
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
+        domainSuggestionSources={routes.flatMap((route) => route.domains)}
         onCreated={async (route) => {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ['proxy-routes'] }),

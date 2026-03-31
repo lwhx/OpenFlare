@@ -1,13 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { Drawer } from '@/components/ui/drawer';
+import { getManagedDomains } from '@/features/managed-domains/api/managed-domains';
 import { createProxyRoute } from '@/features/proxy-routes/api/proxy-routes';
+import { DomainListInput } from '@/features/proxy-routes/components/domain-list-input';
 import {
   buildOriginUrl,
   getErrorMessage,
@@ -20,6 +22,7 @@ import type { ProxyRouteItem } from '@/features/proxy-routes/types';
 import {
   PrimaryButton,
   ResourceField,
+  ResourceInput,
   ResourceTextarea,
   ToggleField,
 } from '@/features/shared/components/resource-primitives';
@@ -69,15 +72,26 @@ export function ProxyRouteCreateDrawer({
   open,
   onOpenChange,
   onCreated,
+  domainSuggestionSources = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (route: ProxyRouteItem) => void;
+  domainSuggestionSources?: string[];
 }) {
   const form = useForm<CreateWebsiteFormValues>({
     resolver: zodResolver(createWebsiteSchema),
     defaultValues,
   });
+  const managedDomainsQuery = useQuery({
+    queryKey: ['managed-domains'],
+    queryFn: getManagedDomains,
+    enabled: open,
+  });
+  const combinedDomainSuggestions = [
+    ...domainSuggestionSources,
+    ...(managedDomainsQuery.data?.map((item) => item.domain) ?? []),
+  ];
 
   const createMutation = useMutation({
     mutationFn: async (values: CreateWebsiteFormValues) => {
@@ -156,24 +170,31 @@ export function ProxyRouteCreateDrawer({
       >
         <ResourceField
           label="站点标识"
-          hint="可选。留空时会自动使用第一行域名。"
+          hint="可选。留空时会自动使用第一个域名。"
           error={form.formState.errors.site_name?.message}
         >
-          <input
+          <ResourceInput
             {...form.register('site_name')}
             placeholder="marketing-site"
-            className="w-full rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-[var(--foreground-primary)] outline-none transition focus:border-[var(--border-strong)]"
           />
         </ResourceField>
 
         <ResourceField
           label="域名列表"
-          hint="每行一个域名，第一行会作为主域名。"
+          hint="一个输入框填写一个域名，点击右侧 + 可以继续追加。输入时会优先提示已有域名后缀。"
           error={form.formState.errors.domains_text?.message}
         >
-          <ResourceTextarea
-            placeholder={'app.example.com\nwww.example.com'}
-            {...form.register('domains_text')}
+          <Controller
+            control={form.control}
+            name="domains_text"
+            render={({ field }) => (
+              <DomainListInput
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                suggestionSources={combinedDomainSuggestions}
+              />
+            )}
           />
         </ResourceField>
 
@@ -183,6 +204,7 @@ export function ProxyRouteCreateDrawer({
           error={form.formState.errors.origin_urls_text?.message}
         >
           <ResourceTextarea
+            aria-label="上游地址"
             placeholder={'https://origin-a.internal:443\nhttps://origin-b.internal:443'}
             {...form.register('origin_urls_text')}
           />
@@ -201,10 +223,7 @@ export function ProxyRouteCreateDrawer({
           label="备注"
           error={form.formState.errors.remark?.message}
         >
-          <ResourceTextarea
-            placeholder=""
-            {...form.register('remark')}
-          />
+          <ResourceTextarea placeholder="" {...form.register('remark')} />
         </ResourceField>
 
         {createMutation.isError ? (

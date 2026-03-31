@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { EmptyState } from '@/components/feedback/empty-state';
@@ -14,19 +14,19 @@ import { InlineMessage } from '@/components/feedback/inline-message';
 import { LoadingState } from '@/components/feedback/loading-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { AppCard } from '@/components/ui/app-card';
-import { StatusBadge } from '@/components/ui/status-badge';
+import { getManagedDomains } from '@/features/managed-domains/api/managed-domains';
 import { getTlsCertificates } from '@/features/tls-certificates/api/tls-certificates';
 import type { TlsCertificateItem } from '@/features/tls-certificates/types';
 import {
   getProxyRoute,
   updateProxyRoute,
 } from '@/features/proxy-routes/api/proxy-routes';
+import { DomainListInput } from '@/features/proxy-routes/components/domain-list-input';
 import {
   buildPayloadFromRoute,
   customHeadersToText,
   getErrorMessage,
   getWebsiteConfigSection,
-  getWebsiteStatusBadges,
   linesFromTextarea,
   normalizeLimitRate,
   parseCustomHeadersText,
@@ -37,7 +37,6 @@ import {
   validateLimitRate,
   validateOriginHost,
   websiteConfigSections,
-  type WebsiteConfigSectionKey,
 } from '@/features/proxy-routes/helpers';
 import type {
   ProxyRouteItem,
@@ -53,7 +52,6 @@ import {
   ToggleField,
 } from '@/features/shared/components/resource-primitives';
 import { cn } from '@/lib/utils/cn';
-import { formatDateTime } from '@/lib/utils/date';
 
 type FeedbackState = {
   tone: 'success' | 'danger';
@@ -234,10 +232,12 @@ function DomainSettingsSection({
   route,
   saving,
   onSave,
+  suggestionSources,
 }: {
   route: ProxyRouteItem;
   saving: boolean;
   onSave: SaveHandler;
+  suggestionSources: string[];
 }) {
   const form = useForm<DomainSettingsValues>({
     resolver: zodResolver(domainSettingsSchema),
@@ -303,13 +303,20 @@ function DomainSettingsSection({
 
         <ResourceField
           label="域名列表"
-          hint="每行一个域名，第一行会作为主域名，并用于列表摘要和兼容镜像。"
+          hint="一个输入框填写一个域名，点击右侧 + 可以继续追加。输入时会优先提示已有域名后缀。"
           error={form.formState.errors.domains_text?.message}
         >
-          <ResourceTextarea
-            className="min-h-36"
-            placeholder={'app.example.com\nwww.example.com'}
-            {...form.register('domains_text')}
+          <Controller
+            control={form.control}
+            name="domains_text"
+            render={({ field }) => (
+              <DomainListInput
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                suggestionSources={suggestionSources}
+              />
+            )}
           />
         </ResourceField>
 
@@ -476,6 +483,7 @@ function ReverseProxySection({
           error={form.formState.errors.origin_urls_text?.message}
         >
           <ResourceTextarea
+            aria-label="上游地址"
             className="min-h-40"
             placeholder={'https://origin-a.internal:443\nhttps://origin-b.internal:443'}
             {...form.register('origin_urls_text')}
@@ -743,6 +751,10 @@ export function ProxyRouteConfigPage({
     queryKey: ['tls-certificates', 'list'],
     queryFn: getTlsCertificates,
   });
+  const managedDomainsQuery = useQuery({
+    queryKey: ['managed-domains'],
+    queryFn: getManagedDomains,
+  });
 
   const saveMutation = useMutation({
     mutationFn: async ({
@@ -776,6 +788,12 @@ export function ProxyRouteConfigPage({
     () => certificatesQuery.data ?? [],
     [certificatesQuery.data],
   );
+  const domainSuggestionSources = useMemo(() => {
+    return [
+      ...(route?.domains ?? []),
+      ...(managedDomainsQuery.data?.map((item) => item.domain) ?? []),
+    ];
+  }, [managedDomainsQuery.data, route?.domains]);
 
   if (!Number.isFinite(numericRouteID) || numericRouteID <= 0) {
     return (
@@ -816,10 +834,6 @@ export function ProxyRouteConfigPage({
       />
     );
   }
-
-  const currentSectionMeta =
-    websiteConfigSections.find((section) => section.key === currentSection) ??
-    websiteConfigSections[0];
 
   return (
     <div className="space-y-6">
@@ -887,6 +901,7 @@ export function ProxyRouteConfigPage({
             <DomainSettingsSection
               route={route}
               saving={saveMutation.isPending}
+              suggestionSources={domainSuggestionSources}
               onSave={(payload, context) =>
                 saveMutation.mutate({ payload, context })
               }
