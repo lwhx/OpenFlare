@@ -136,8 +136,7 @@ export function ProxyRouteCreateDrawer({
       open={open}
       onOpenChange={onOpenChange}
       direction="right"
-      title="新建网站"
-      description="先完成最小可用的站点录入，创建后再进入配置页继续补齐 HTTPS、缓存和限流。"
+      title="新建规则"
       footer={
         <div className="flex items-center justify-end gap-3">
           <PrimaryButton
@@ -145,7 +144,7 @@ export function ProxyRouteCreateDrawer({
             form="create-website-form"
             disabled={createMutation.isPending}
           >
-            {createMutation.isPending ? '创建中...' : '创建并进入配置'}
+            {createMutation.isPending ? '创建中...' : '创建'}
           </PrimaryButton>
         </div>
       }
@@ -203,7 +202,7 @@ export function ProxyRouteCreateDrawer({
           error={form.formState.errors.remark?.message}
         >
           <ResourceTextarea
-            placeholder="例如：营销站点，优先指向上海入口"
+            placeholder=""
             {...form.register('remark')}
           />
         </ResourceField>

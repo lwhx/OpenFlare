@@ -178,7 +178,7 @@ export function ProxyRoutesPage() {
   if (routesQuery.isError) {
     return (
       <ErrorState
-        title="网站列表加载失败"
+        title="规则列表加载失败"
         description={getErrorMessage(routesQuery.error)}
       />
     );
@@ -188,7 +188,7 @@ export function ProxyRoutesPage() {
     <>
       <div className="space-y-6">
         <PageHeader
-          title="网站配置"
+          title="规则配置"
           action={
             <div className="flex flex-wrap gap-3">
               <SecondaryButton
@@ -205,7 +205,7 @@ export function ProxyRoutesPage() {
                   setIsCreateOpen(true);
                 }}
               >
-                新建网站
+                新建规则
               </PrimaryButton>
             </div>
           }
@@ -266,7 +266,7 @@ export function ProxyRoutesPage() {
         </div>
 
         <AppCard
-          title="网站列表"
+          title="规则列表"
         >
           <div className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
