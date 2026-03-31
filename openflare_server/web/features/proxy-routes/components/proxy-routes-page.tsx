@@ -374,7 +374,7 @@ export function ProxyRoutesPage() {
                       </div>
 
                       <p className="text-sm text-[var(--foreground-secondary)]">
-                        {route.remark || '暂无备注'}
+                        {route.remark || null}
                       </p>
                     </div>
                   </article>
