@@ -949,11 +949,17 @@ func TestRenderConfigUsesDefaultServerFallback(t *testing.T) {
 	if !strings.Contains(preview.MainConfig, "listen 80 default_server;") {
 		t.Fatal("expected preview main config to include default http server")
 	}
+	if !strings.Contains(preview.MainConfig, "listen 443 ssl default_server;") {
+		t.Fatal("expected preview main config to include default https server")
+	}
 	if !strings.Contains(preview.MainConfig, "server_name _;") {
 		t.Fatal("expected preview main config to include default server_name")
 	}
 	if !strings.Contains(preview.MainConfig, "return 404;") {
 		t.Fatal("expected preview main config to return 404 for unmatched hosts")
+	}
+	if !strings.Contains(preview.MainConfig, "ssl_reject_handshake on;") {
+		t.Fatal("expected preview main config to reject unmatched https handshakes")
 	}
 }
 
@@ -1006,6 +1012,12 @@ func TestOpenRestyMainConfigTemplateRenderAndValidate(t *testing.T) {
 	}
 	if !strings.Contains(preview.MainConfig, "listen 80 default_server;") {
 		t.Fatal("expected preview main config to preserve managed default server block")
+	}
+	if !strings.Contains(preview.MainConfig, "listen 443 ssl default_server;") {
+		t.Fatal("expected preview main config to preserve managed default https server block")
+	}
+	if !strings.Contains(preview.MainConfig, "ssl_reject_handshake on;") {
+		t.Fatal("expected preview main config to preserve managed https handshake rejection")
 	}
 
 	invalidTemplate := strings.ReplaceAll(

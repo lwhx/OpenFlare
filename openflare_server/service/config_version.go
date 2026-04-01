@@ -1222,7 +1222,22 @@ func renderConnectionUpgradeMap() string {
 }
 
 func renderDefaultServerBlock() string {
-	return "    server {\n        listen 80 default_server;\n        server_name _;\n\n        return 404;\n    }\n\n"
+	return strings.Join([]string{
+		"    server {",
+		"        listen 80 default_server;",
+		"        server_name _;",
+		"",
+		"        return 404;",
+		"    }",
+		"",
+		"    server {",
+		"        listen 443 ssl default_server;",
+		"        server_name _;",
+		"",
+		"        ssl_reject_handshake on;",
+		"    }",
+		"",
+	}, "\n")
 }
 
 func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, upstreamConfig routeUpstreamConfig) string {
