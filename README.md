@@ -156,6 +156,17 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
 
 安装脚本默认写入 `/opt/openflare-agent`，创建 `openflare-agent.service`，并可重复执行以重装或升级 Agent。
 
+如需彻底卸载 Agent 并清空本地数据，可执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/uninstall-agent.sh | bash
+```
+
+卸载脚本会先停止并移除 `openflare-agent.service`、删除整个 `/opt/openflare-agent` 目录，然后根据卸载前保存的 `agent.json` 判断 OpenResty 安装方式：
+
+* Docker 模式：删除对应 OpenResty 容器，并尝试移除镜像
+* 本机 `openresty_path` 模式：不改动本机 OpenResty
+
 ### 3. 发布第一份配置
 
 1. 登录管理端并新增反代规则

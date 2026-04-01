@@ -304,8 +304,5 @@ export function getWebsiteStatusBadges(route: ProxyRouteItem) {
     route.enable_https
       ? { label: 'HTTPS', variant: 'info' as const }
       : { label: 'HTTP', variant: 'warning' as const },
-    route.cache_enabled
-      ? { label: '缓存开启', variant: 'success' as const }
-      : { label: '缓存关闭', variant: 'warning' as const },
   ];
 }
