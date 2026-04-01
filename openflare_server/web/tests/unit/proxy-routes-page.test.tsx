@@ -49,6 +49,7 @@ function buildRoute(overrides: Record<string, unknown> = {}) {
     enabled: true,
     enable_https: true,
     cert_id: 1,
+    cert_ids: [1],
     redirect_http: true,
     limit_conn_per_server: 120,
     limit_conn_per_ip: 12,
@@ -181,9 +182,10 @@ describe('Proxy route website pages', () => {
             upstreams: JSON.stringify([payload.origin_url, ...payload.upstreams]),
             upstream_list: [payload.origin_url, ...payload.upstreams],
             enabled: payload.enabled,
-            enable_https: false,
-            cert_id: null,
-            redirect_http: false,
+            enable_https: payload.enable_https,
+            cert_id: payload.cert_id,
+            cert_ids: payload.cert_ids ?? [],
+            redirect_http: payload.redirect_http,
             limit_conn_per_server: 0,
             limit_conn_per_ip: 0,
             limit_rate: '',
@@ -244,6 +246,18 @@ describe('Proxy route website pages', () => {
           );
         }
 
+        if (url.includes('/tls-certificates/')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: [{ id: 1, name: 'example-cert', not_after: null }],
+              }),
+            ),
+          );
+        }
+
         return Promise.reject(new Error(`Unhandled fetch: ${url}`));
       }),
     );
@@ -257,13 +271,18 @@ describe('Proxy route website pages', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
-    await user.type(within(dialog).getByPlaceholderText('marketing-site'), 'launch-site');
+    await user.type(
+      within(dialog).getByPlaceholderText('marketing-site'),
+      'launch-site',
+    );
 
     const primaryDomainInput = within(dialog).getByLabelText('域名 1');
     await user.type(primaryDomainInput, 'app.exam');
-    await user.click(await within(dialog).findByRole('button', { name: 'app.example.com' }));
+    await user.click(
+      await within(dialog).findByRole('button', { name: 'app.example.com' }),
+    );
 
-    await user.click(within(dialog).getByLabelText('新增域名输入框 1'));
+    await user.click(within(dialog).getByLabelText('新增域名输入框'));
     await user.type(within(dialog).getByLabelText('域名 2'), 'www.example.com');
 
     await user.type(
@@ -315,6 +334,10 @@ describe('Proxy route website pages', () => {
                   primary_domain: (payload.domains as string[])[0],
                   domain_count: (payload.domains as string[]).length,
                   enabled: payload.enabled,
+                  enable_https: payload.enable_https,
+                  cert_id: payload.cert_id,
+                  cert_ids: payload.cert_ids,
+                  redirect_http: payload.redirect_http,
                 }),
               }),
             ),
@@ -380,6 +403,9 @@ describe('Proxy route website pages', () => {
     await user.clear(secondaryDomainInput);
     await user.type(secondaryDomainInput, 'www.brand.example.com');
 
+    await user.selectOptions(screen.getByLabelText('证书 1'), '1');
+    await user.selectOptions(screen.getByLabelText('证书 2'), '1');
+
     const saveButton = document.querySelector(
       'button[form="proxy-route-domains-form"]',
     ) as HTMLButtonElement | null;
@@ -398,6 +424,10 @@ describe('Proxy route website pages', () => {
       domain: 'brand.example.com',
       domains: ['brand.example.com', 'www.brand.example.com'],
       enabled: true,
+      enable_https: true,
+      cert_id: 1,
+      cert_ids: [1],
+      redirect_http: true,
     });
   });
 });

@@ -15,13 +15,15 @@ import { LoadingState } from '@/components/feedback/loading-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { AppCard } from '@/components/ui/app-card';
 import { getManagedDomains } from '@/features/managed-domains/api/managed-domains';
-import { getTlsCertificates } from '@/features/tls-certificates/api/tls-certificates';
-import type { TlsCertificateItem } from '@/features/tls-certificates/types';
 import {
   getProxyRoute,
   updateProxyRoute,
 } from '@/features/proxy-routes/api/proxy-routes';
-import { DomainListInput } from '@/features/proxy-routes/components/domain-list-input';
+import {
+  buildDomainRowsFromRoute,
+  DomainListInput,
+  type DomainListRow,
+} from '@/features/proxy-routes/components/domain-list-input';
 import {
   buildPayloadFromRoute,
   customHeadersToText,
@@ -42,6 +44,8 @@ import type {
   ProxyRouteItem,
   ProxyRouteMutationPayload,
 } from '@/features/proxy-routes/types';
+import { getTlsCertificates } from '@/features/tls-certificates/api/tls-certificates';
+import type { TlsCertificateItem } from '@/features/tls-certificates/types';
 import {
   PrimaryButton,
   ResourceField,
@@ -69,20 +73,45 @@ type SaveHandler = (
 
 const domainSettingsSchema = z
   .object({
-    site_name: z.string().trim().min(1, '请输入站点标识').max(255, '站点标识不能超过 255 个字符'),
-    domains_text: z.string().trim().min(1, '请至少填写一个域名'),
+    site_name: z
+      .string()
+      .trim()
+      .min(1, '请输入站点标识')
+      .max(255, '站点标识不能超过 255 个字符'),
+    domain_rows: z
+      .array(
+        z.object({
+          domain: z.string(),
+          certificateId: z.string(),
+        }),
+      )
+      .min(1),
     enabled: z.boolean(),
+    redirect_http: z.boolean(),
   })
   .superRefine((value, context) => {
-    const domains = linesFromTextarea(value.domains_text).map((item) =>
-      item.toLowerCase(),
-    );
+    const domains = value.domain_rows
+      .map((item) => item.domain.trim().toLowerCase())
+      .filter(Boolean);
     const error = validateDomains(domains);
     if (error) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['domains_text'],
+        path: ['domain_rows'],
         message: error,
+      });
+    }
+
+    const selectedCertificateCount = new Set(
+      value.domain_rows
+        .map((item) => Number(item.certificateId))
+        .filter((item) => Number.isFinite(item) && item > 0),
+    ).size;
+    if (value.redirect_http && selectedCertificateCount === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['redirect_http'],
+        message: '启用 HTTP 跳转前，请先为域名选择证书',
       });
     }
   });
@@ -156,22 +185,6 @@ const reverseProxySchema = z
     }
   });
 
-const httpsSchema = z
-  .object({
-    enable_https: z.boolean(),
-    cert_ids: z.array(z.string()),
-    redirect_http: z.boolean(),
-  })
-  .superRefine((value, context) => {
-    if (value.enable_https && value.cert_ids.length === 0) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['cert_ids'],
-        message: '启用 HTTPS 时必须选择证书',
-      });
-    }
-  });
-
 const cacheSchema = z
   .object({
     cache_enabled: z.boolean(),
@@ -197,8 +210,28 @@ const cacheSchema = z
 type DomainSettingsValues = z.infer<typeof domainSettingsSchema>;
 type RateLimitValues = z.infer<typeof rateLimitSchema>;
 type ReverseProxyValues = z.infer<typeof reverseProxySchema>;
-type HTTPSValues = z.infer<typeof httpsSchema>;
 type CacheValues = z.infer<typeof cacheSchema>;
+
+function normalizeSelectedCertificateIDs(rows: DomainListRow[]) {
+  return Array.from(
+    new Set(
+      rows
+        .map((item) => Number(item.certificateId))
+        .filter((item) => Number.isFinite(item) && item > 0),
+    ),
+  );
+}
+
+function buildDomainRows(route: ProxyRouteItem) {
+  const selectedCertIDs =
+    route.cert_ids.length > 0
+      ? route.cert_ids
+      : route.cert_id
+        ? [route.cert_id]
+        : [];
+
+  return buildDomainRowsFromRoute(route.domains, selectedCertIDs);
+}
 
 function ConfigSectionShell({
   title,
@@ -230,11 +263,13 @@ function ConfigSectionShell({
 
 function DomainSettingsSection({
   route,
+  certificates,
   saving,
   onSave,
   suggestionSources,
 }: {
   route: ProxyRouteItem;
+  certificates: TlsCertificateItem[];
   saving: boolean;
   onSave: SaveHandler;
   suggestionSources: string[];
@@ -243,23 +278,29 @@ function DomainSettingsSection({
     resolver: zodResolver(domainSettingsSchema),
     defaultValues: {
       site_name: route.site_name,
-      domains_text: route.domains.join('\n'),
+      domain_rows: buildDomainRows(route),
       enabled: route.enabled,
+      redirect_http: route.redirect_http,
     },
   });
 
   useEffect(() => {
     form.reset({
       site_name: route.site_name,
-      domains_text: route.domains.join('\n'),
+      domain_rows: buildDomainRows(route),
       enabled: route.enabled,
+      redirect_http: route.redirect_http,
     });
   }, [form, route]);
+
+  const selectedCertificateIDs = normalizeSelectedCertificateIDs(
+    form.watch('domain_rows'),
+  );
 
   return (
     <ConfigSectionShell
       title="域名设置"
-      description="配置站点。"
+      description="在一个列表里同时维护域名、证书和 HTTPS 跳转。保存时会自动汇总站点证书集合。"
       formId="proxy-route-domains-form"
       saving={saving}
     >
@@ -267,9 +308,10 @@ function DomainSettingsSection({
         id="proxy-route-domains-form"
         className="space-y-5"
         onSubmit={form.handleSubmit((values) => {
-          const domains = linesFromTextarea(values.domains_text).map((item) =>
-            item.toLowerCase(),
-          );
+          const domains = values.domain_rows
+            .map((item) => item.domain.trim().toLowerCase())
+            .filter(Boolean);
+          const certIDs = normalizeSelectedCertificateIDs(values.domain_rows);
 
           onSave(
             buildPayloadFromRoute(route, {
@@ -277,19 +319,24 @@ function DomainSettingsSection({
               domain: domains[0],
               domains,
               enabled: values.enabled,
+              enable_https: certIDs.length > 0,
+              cert_id: certIDs[0] ?? null,
+              cert_ids: certIDs,
+              redirect_http: certIDs.length > 0 ? values.redirect_http : false,
             }),
             { message: '域名设置已保存。' },
           );
         })}
       >
         <ToggleField
-              label="启用站点"
-              description="关闭后站点会保留配置，但不会被纳入发布渲染。"
-              checked={form.watch('enabled')}
-              onChange={(checked) =>
-                  form.setValue('enabled', checked, { shouldDirty: true })
-              }
+          label="启用站点"
+          description="关闭后会保留配置，但不会参与发布。"
+          checked={form.watch('enabled')}
+          onChange={(checked) =>
+            form.setValue('enabled', checked, { shouldDirty: true })
+          }
         />
+
         <ResourceField
           label="站点标识"
           hint="建议使用稳定、可读的业务标识，不必与域名完全一致。"
@@ -303,23 +350,37 @@ function DomainSettingsSection({
 
         <ResourceField
           label="域名列表"
-          hint="一个输入框填写一个域名，点击右侧 + 可以继续追加。输入时会优先提示已有域名后缀。"
-          error={form.formState.errors.domains_text?.message}
+          hint="每行配置一个域名。可为不同域名选择不同证书，相同证书也可以重复选择。"
+          error={form.formState.errors.domain_rows?.message as string | undefined}
         >
           <Controller
             control={form.control}
-            name="domains_text"
+            name="domain_rows"
             render={({ field }) => (
               <DomainListInput
-                value={field.value}
+                rows={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 suggestionSources={suggestionSources}
+                certificates={certificates}
               />
             )}
           />
         </ResourceField>
 
+        <ToggleField
+          label="HTTP 自动跳转到 HTTPS"
+          description={
+            selectedCertificateIDs.length > 0
+              ? '开启后会额外生成 80 端口重定向规则。'
+              : '至少为一个域名选择证书后才能启用。'
+          }
+          checked={form.watch('redirect_http')}
+          disabled={selectedCertificateIDs.length === 0}
+          onChange={(checked) =>
+            form.setValue('redirect_http', checked, { shouldDirty: true })
+          }
+        />
       </form>
     </ConfigSectionShell>
   );
@@ -362,7 +423,7 @@ function RateLimitSection({
   return (
     <ConfigSectionShell
       title="流量限制"
-      description="网站限流, 空值或 0 表示关闭。"
+      description="站点限流，空值或 0 表示关闭。"
       formId="proxy-route-limits-form"
       saving={saving}
     >
@@ -384,7 +445,7 @@ function RateLimitSection({
       >
         <ResourceField
           label="并发限制"
-          hint="限制当前站点最大并发数"
+          hint="限制当前站点最大并发连接数。"
           error={form.formState.errors.limit_conn_per_server?.message}
         >
           <ResourceInput
@@ -394,8 +455,8 @@ function RateLimitSection({
         </ResourceField>
 
         <ResourceField
-          label="单IP限制"
-          hint="限制单个IP访问最大并发数"
+          label="单 IP 限制"
+          hint="限制单个 IP 的最大并发数。"
           error={form.formState.errors.limit_conn_per_ip?.message}
         >
           <ResourceInput
@@ -405,8 +466,8 @@ function RateLimitSection({
         </ResourceField>
 
         <ResourceField
-          label="流量限制"
-          hint="限制每个请求的流量上限。"
+          label="限速"
+          hint="限制单请求带宽，例如 512k 或 1m。"
           error={form.formState.errors.limit_rate?.message}
           className="md:col-span-2"
         >
@@ -448,7 +509,7 @@ function ReverseProxySection({
   return (
     <ConfigSectionShell
       title="反向代理"
-      description="第一行作为主回源；如果填写多行，会自动进入多上游负载均衡模式。"
+      description="第一行作为主回源；填写多行时会自动进入多上游负载均衡模式。"
       formId="proxy-route-proxy-form"
       saving={saving}
     >
@@ -513,143 +574,12 @@ function ReverseProxySection({
           />
         </ResourceField>
 
-        <ResourceField
-          label="备注"
-          error={form.formState.errors.remark?.message}
-        >
+        <ResourceField label="备注" error={form.formState.errors.remark?.message}>
           <ResourceTextarea
             placeholder="例如：多活回源，优先使用上海入口"
             {...form.register('remark')}
           />
         </ResourceField>
-      </form>
-    </ConfigSectionShell>
-  );
-}
-
-function HTTPSSection({
-  route,
-  certificates,
-  saving,
-  onSave,
-}: {
-  route: ProxyRouteItem;
-  certificates: TlsCertificateItem[];
-  saving: boolean;
-  onSave: SaveHandler;
-}) {
-  const form = useForm<HTTPSValues>({
-    resolver: zodResolver(httpsSchema),
-    defaultValues: {
-      enable_https: route.enable_https,
-      cert_ids:
-        route.cert_ids.length > 0
-          ? route.cert_ids.map((certID) => String(certID))
-          : route.cert_id
-            ? [String(route.cert_id)]
-            : [],
-      redirect_http: route.redirect_http,
-    },
-  });
-
-  useEffect(() => {
-    form.reset({
-      enable_https: route.enable_https,
-      cert_ids:
-        route.cert_ids.length > 0
-          ? route.cert_ids.map((certID) => String(certID))
-          : route.cert_id
-            ? [String(route.cert_id)]
-            : [],
-      redirect_http: route.redirect_http,
-    });
-  }, [form, route]);
-
-  const watchedEnableHTTPS = form.watch('enable_https');
-  const watchedCertIDs = form.watch('cert_ids');
-
-  return (
-    <ConfigSectionShell
-      title="HTTPS"
-      description="启用后必须选择覆盖当前全部域名的证书。发布时服务端会再次验证证书覆盖范围。"
-      formId="proxy-route-https-form"
-      saving={saving}
-    >
-      <form
-        id="proxy-route-https-form"
-        className="space-y-5"
-        onSubmit={form.handleSubmit((values) => {
-          onSave(
-            buildPayloadFromRoute(route, {
-              enable_https: values.enable_https,
-              cert_id:
-                values.enable_https &&
-                values.cert_ids.some((value) => Number(value) > 0)
-                  ? Number(
-                      values.cert_ids.find((value) => Number(value) > 0) ?? 0,
-                    )
-                  : null,
-              cert_ids: values.enable_https
-                ? values.cert_ids
-                    .map((value) => Number(value))
-                    .filter((value) => Number.isFinite(value) && value > 0)
-                : [],
-              redirect_http: values.enable_https ? values.redirect_http : false,
-            }),
-            { message: 'HTTPS 设置已保存。' },
-          );
-        })}
-      >
-        <ToggleField
-          label="启用 HTTPS"
-          description="关闭后站点只会渲染 HTTP server。"
-          checked={watchedEnableHTTPS}
-          onChange={(checked) => {
-            form.setValue('enable_https', checked, { shouldDirty: true });
-            if (!checked) {
-              form.setValue('cert_ids', [], { shouldDirty: true });
-              form.setValue('redirect_http', false, { shouldDirty: true });
-            }
-          }}
-        />
-
-        <ResourceField
-          label="证书"
-          error={form.formState.errors.cert_ids?.message}
-          hint="请确保该证书能覆盖当前站点的全部域名。"
-        >
-          <ResourceSelect
-            multiple
-            size={Math.min(Math.max(certificates.length, 4), 8)}
-            className="min-h-44"
-            disabled={!watchedEnableHTTPS}
-            {...form.register('cert_ids')}
-          >
-            <option value="">请选择证书</option>
-            {certificates.map((certificate) => (
-              <option key={certificate.id} value={certificate.id}>
-                {certificate.not_after
-                  ? `${certificate.name} · ${certificate.not_after}`
-                  : certificate.name}
-              </option>
-            ))}
-          </ResourceSelect>
-          {watchedEnableHTTPS && watchedCertIDs.length > 0 ? (
-            <p className="text-xs leading-5 text-[var(--foreground-secondary)]">
-              已选择 {watchedCertIDs.length} 张证书，发布时会校验证书集合是否覆盖全部域名。
-            </p>
-          ) : null}
-        </ResourceField>
-
-        <ToggleField
-          label="HTTP 自动跳转到 HTTPS"
-          description="开启后会生成额外的 80 端口重定向 server。"
-          checked={form.watch('redirect_http')}
-          disabled={!watchedEnableHTTPS}
-          onChange={(checked) =>
-            form.setValue('redirect_http', checked, { shouldDirty: true })
-          }
-        />
       </form>
     </ConfigSectionShell>
   );
@@ -751,7 +681,7 @@ function CacheSection({
                   ? '/assets\n/static'
                   : watchedPolicy === 'path_exact'
                     ? '/robots.txt\n/manifest.json'
-                    : '按 URL 缓存无需额外规则'
+                    : '按 URL 缓存时无需额外规则'
             }
             {...form.register('cache_rules_text')}
           />
@@ -820,18 +750,19 @@ export function ProxyRouteConfigPage({
     () => certificatesQuery.data ?? [],
     [certificatesQuery.data],
   );
-  const domainSuggestionSources = useMemo(() => {
-    return [
+  const domainSuggestionSources = useMemo(
+    () => [
       ...(route?.domains ?? []),
       ...(managedDomainsQuery.data?.map((item) => item.domain) ?? []),
-    ];
-  }, [managedDomainsQuery.data, route?.domains]);
+    ],
+    [managedDomainsQuery.data, route?.domains],
+  );
 
   if (!Number.isFinite(numericRouteID) || numericRouteID <= 0) {
     return (
       <EmptyState
-        title="缺少网站 ID"
-        description="请从网站列表进入配置子页面。"
+        title="缺少站点 ID"
+        description="请从站点列表进入配置页面。"
       />
     );
   }
@@ -843,7 +774,7 @@ export function ProxyRouteConfigPage({
   if (routeQuery.isError) {
     return (
       <ErrorState
-        title="网站详情加载失败"
+        title="站点详情加载失败"
         description={getErrorMessage(routeQuery.error)}
       />
     );
@@ -861,8 +792,8 @@ export function ProxyRouteConfigPage({
   if (!route) {
     return (
       <EmptyState
-        title="网站不存在"
-        description="该网站可能已被删除，或当前 ID 无法匹配到记录。"
+        title="站点不存在"
+        description="该站点可能已被删除，或当前 ID 无法匹配到记录。"
       />
     );
   }
@@ -900,7 +831,7 @@ export function ProxyRouteConfigPage({
 
       <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <AppCard title="配置分区" >
+          <AppCard title="配置分区">
             <div className="space-y-2">
               {websiteConfigSections.map((section) => {
                 const active = section.key === currentSection;
@@ -932,6 +863,7 @@ export function ProxyRouteConfigPage({
           {currentSection === 'domains' ? (
             <DomainSettingsSection
               route={route}
+              certificates={certificates}
               saving={saveMutation.isPending}
               suggestionSources={domainSuggestionSources}
               onSave={(payload, context) =>
@@ -953,17 +885,6 @@ export function ProxyRouteConfigPage({
           {currentSection === 'proxy' ? (
             <ReverseProxySection
               route={route}
-              saving={saveMutation.isPending}
-              onSave={(payload, context) =>
-                saveMutation.mutate({ payload, context })
-              }
-            />
-          ) : null}
-
-          {currentSection === 'https' ? (
-            <HTTPSSection
-              route={route}
-              certificates={certificates}
               saving={saveMutation.isPending}
               onSave={(payload, context) =>
                 saveMutation.mutate({ payload, context })

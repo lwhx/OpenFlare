@@ -8,7 +8,7 @@ export const websiteConfigSections = [
   {
     key: 'domains',
     label: '域名设置',
-    description: '维护站点标识。',
+    description: '维护站点标识、域名列表和证书绑定。',
   },
   {
     key: 'limits',
@@ -18,21 +18,17 @@ export const websiteConfigSections = [
   {
     key: 'proxy',
     label: '反向代理',
-    description: '配置主回源、上游。',
-  },
-  {
-    key: 'https',
-    label: 'HTTPS',
-    description: '证书设置。',
+    description: '配置主回源和上游地址。',
   },
   {
     key: 'cache',
     label: '缓存',
-    description: '页面缓存。',
+    description: '配置站点缓存策略。',
   },
 ] as const;
 
-export type WebsiteConfigSectionKey = (typeof websiteConfigSections)[number]['key'];
+export type WebsiteConfigSectionKey =
+  (typeof websiteConfigSections)[number]['key'];
 
 const domainPattern =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
@@ -130,8 +126,7 @@ export function parseOriginUrls(value: string) {
 
 export function parseOriginUrl(originUrl: string) {
   const parsed = new URL(originUrl);
-  const port =
-    parsed.port || (parsed.protocol === 'http:' ? '80' : '443');
+  const port = parsed.port || (parsed.protocol === 'http:' ? '80' : '443');
   const path = parsed.pathname === '/' ? '' : parsed.pathname;
 
   return {
@@ -173,7 +168,7 @@ export function validateOriginHost(value: string) {
     /[\/\\\s]/.test(normalized) ||
     !originHostPattern.test(normalized)
   ) {
-    return '回源主机名格式不合法';
+    return '回源 Host 格式不合法';
   }
   return null;
 }
@@ -250,11 +245,7 @@ export function validateCacheRules(
   }
 
   for (const rule of rules) {
-    if (
-      !rule.startsWith('/') ||
-      rule.includes('://') ||
-      /[\s]/.test(rule)
-    ) {
+    if (!rule.startsWith('/') || rule.includes('://') || /[\s]/.test(rule)) {
       return `缓存路径规则格式不合法：${rule}`;
     }
   }

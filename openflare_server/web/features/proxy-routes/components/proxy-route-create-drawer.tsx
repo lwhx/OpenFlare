@@ -2,23 +2,26 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { Drawer } from '@/components/ui/drawer';
 import { getManagedDomains } from '@/features/managed-domains/api/managed-domains';
 import { createProxyRoute } from '@/features/proxy-routes/api/proxy-routes';
-import { DomainListInput } from '@/features/proxy-routes/components/domain-list-input';
+import {
+  DomainListInput,
+  type DomainListRow,
+} from '@/features/proxy-routes/components/domain-list-input';
 import {
   buildOriginUrl,
   getErrorMessage,
-  linesFromTextarea,
   parseOriginUrl,
   parseOriginUrls,
   validateDomains,
-} from '@/features/proxy-routes/helpers';buyao
+} from '@/features/proxy-routes/helpers';
 import type { ProxyRouteItem } from '@/features/proxy-routes/types';
+import { getTlsCertificates } from '@/features/tls-certificates/api/tls-certificates';
 import {
   PrimaryButton,
   ResourceField,
@@ -27,23 +30,29 @@ import {
   ToggleField,
 } from '@/features/shared/components/resource-primitives';
 
+const domainRowSchema = z.object({
+  domain: z.string(),
+  certificateId: z.string(),
+});
+
 const createWebsiteSchema = z
   .object({
     site_name: z.string().trim().max(255, '站点标识不能超过 255 个字符'),
-    domains_text: z.string().trim().min(1, '请至少填写一个域名'),
+    domain_rows: z.array(domainRowSchema).min(1),
     origin_urls_text: z.string().trim().min(1, '请至少填写一个上游地址'),
     enabled: z.boolean(),
+    redirect_http: z.boolean(),
     remark: z.string().max(255, '备注不能超过 255 个字符'),
   })
   .superRefine((value, context) => {
-    const domains = linesFromTextarea(value.domains_text).map((item) =>
-      item.toLowerCase(),
-    );
+    const domains = value.domain_rows
+      .map((item) => item.domain.trim().toLowerCase())
+      .filter(Boolean);
     const domainError = validateDomains(domains);
     if (domainError) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['domains_text'],
+        path: ['domain_rows'],
         message: domainError,
       });
     }
@@ -56,17 +65,41 @@ const createWebsiteSchema = z
         message: error,
       });
     }
+
+    const selectedCertificateCount = new Set(
+      value.domain_rows
+        .map((item) => Number(item.certificateId))
+        .filter((item) => Number.isFinite(item) && item > 0),
+    ).size;
+    if (value.redirect_http && selectedCertificateCount === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['redirect_http'],
+        message: '启用 HTTP 跳转前，请先为域名选择证书',
+      });
+    }
   });
 
 type CreateWebsiteFormValues = z.infer<typeof createWebsiteSchema>;
 
 const defaultValues: CreateWebsiteFormValues = {
   site_name: '',
-  domains_text: '',
+  domain_rows: [{ domain: '', certificateId: '' }],
   origin_urls_text: '',
   enabled: true,
+  redirect_http: false,
   remark: '',
 };
+
+function normalizeSelectedCertificateIDs(rows: DomainListRow[]) {
+  return Array.from(
+    new Set(
+      rows
+        .map((item) => Number(item.certificateId))
+        .filter((item) => Number.isFinite(item) && item > 0),
+    ),
+  );
+}
 
 export function ProxyRouteCreateDrawer({
   open,
@@ -88,16 +121,29 @@ export function ProxyRouteCreateDrawer({
     queryFn: getManagedDomains,
     enabled: open,
   });
-  const combinedDomainSuggestions = [
-    ...domainSuggestionSources,
-    ...(managedDomainsQuery.data?.map((item) => item.domain) ?? []),
-  ];
+  const certificatesQuery = useQuery({
+    queryKey: ['tls-certificates', 'list'],
+    queryFn: getTlsCertificates,
+    enabled: open,
+  });
+
+  const combinedDomainSuggestions = useMemo(
+    () => [
+      ...domainSuggestionSources,
+      ...(managedDomainsQuery.data?.map((item) => item.domain) ?? []),
+    ],
+    [domainSuggestionSources, managedDomainsQuery.data],
+  );
+  const selectedCertificateIDs = normalizeSelectedCertificateIDs(
+    form.watch('domain_rows'),
+  );
 
   const createMutation = useMutation({
     mutationFn: async (values: CreateWebsiteFormValues) => {
-      const domains = linesFromTextarea(values.domains_text).map((item) =>
-        item.toLowerCase(),
-      );
+      const domains = values.domain_rows
+        .map((item) => item.domain.trim().toLowerCase())
+        .filter(Boolean);
+      const selectedCertIDs = normalizeSelectedCertificateIDs(values.domain_rows);
       const { urls } = parseOriginUrls(values.origin_urls_text);
       const primaryOrigin = parseOriginUrl(urls[0]);
 
@@ -119,9 +165,10 @@ export function ProxyRouteCreateDrawer({
         origin_host: '',
         upstreams: urls.slice(1),
         enabled: values.enabled,
-        enable_https: false,
-        cert_id: null,
-        redirect_http: false,
+        enable_https: selectedCertIDs.length > 0,
+        cert_id: selectedCertIDs[0] ?? null,
+        cert_ids: selectedCertIDs,
+        redirect_http: selectedCertIDs.length > 0 ? values.redirect_http : false,
         limit_conn_per_server: 0,
         limit_conn_per_ip: 0,
         limit_rate: '',
@@ -170,7 +217,7 @@ export function ProxyRouteCreateDrawer({
       >
         <ResourceField
           label="站点标识"
-          hint="可选。留空时会自动使用第一个域名。"
+          hint="可选，留空时会自动使用第一个域名。"
           error={form.formState.errors.site_name?.message}
         >
           <ResourceInput
@@ -181,26 +228,41 @@ export function ProxyRouteCreateDrawer({
 
         <ResourceField
           label="域名列表"
-          hint="一个输入框填写一个域名，点击右侧 + 可以继续追加。输入时会优先提示已有域名后缀。"
-          error={form.formState.errors.domains_text?.message}
+          hint="每行配置一个域名，可按需为该行选择证书。保存时会自动汇总站点证书集合。"
+          error={form.formState.errors.domain_rows?.message as string | undefined}
         >
           <Controller
             control={form.control}
-            name="domains_text"
+            name="domain_rows"
             render={({ field }) => (
               <DomainListInput
-                value={field.value}
+                rows={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 suggestionSources={combinedDomainSuggestions}
+                certificates={certificatesQuery.data ?? []}
               />
             )}
           />
         </ResourceField>
 
+        <ToggleField
+          label="HTTP 自动跳转到 HTTPS"
+          description={
+            selectedCertificateIDs.length > 0
+              ? '勾选后会额外生成 80 端口重定向规则。'
+              : '至少为一个域名选择证书后才能启用。'
+          }
+          checked={form.watch('redirect_http')}
+          disabled={selectedCertificateIDs.length === 0}
+          onChange={(checked) =>
+            form.setValue('redirect_http', checked, { shouldDirty: true })
+          }
+        />
+
         <ResourceField
           label="上游地址"
-          hint="每行一个完整 URL。第一行作为主回源，多上游模式下请保持相同协议且不要带 path/query。"
+          hint="每行一个完整 URL。第一行作为主回源，多上游模式请保持相同协议且不要包含 path 或 query。"
           error={form.formState.errors.origin_urls_text?.message}
         >
           <ResourceTextarea
@@ -212,7 +274,7 @@ export function ProxyRouteCreateDrawer({
 
         <ToggleField
           label="创建后立即启用"
-          description="关闭后网站会先以草稿形式保存，发布配置前仍可继续编辑。"
+          description="关闭后站点会以草稿保存，后续仍可继续编辑。"
           checked={form.watch('enabled')}
           onChange={(checked) =>
             form.setValue('enabled', checked, { shouldDirty: true })
@@ -223,7 +285,7 @@ export function ProxyRouteCreateDrawer({
           label="备注"
           error={form.formState.errors.remark?.message}
         >
-          <ResourceTextarea placeholder="" {...form.register('remark')} />
+          <ResourceTextarea {...form.register('remark')} />
         </ResourceField>
 
         {createMutation.isError ? (

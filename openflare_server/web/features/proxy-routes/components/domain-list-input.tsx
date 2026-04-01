@@ -1,15 +1,23 @@
 'use client';
 
 import { useId, useMemo } from 'react';
+import { Minus, Plus } from 'lucide-react';
 
+import type { TlsCertificateItem } from '@/features/tls-certificates/types';
 import {
   ResourceInput,
+  ResourceSelect,
   SecondaryButton,
 } from '@/features/shared/components/resource-primitives';
+export type DomainListRow = {
+  domain: string;
+  certificateId: string;
+};
 
-function splitDomainRows(value: string) {
-  const rows = value.split(/\r?\n/);
-  return rows.length > 0 ? rows : [''];
+const actionButtonClassName = 'h-12 w-[72px] shrink-0 rounded-2xl px-0';
+
+function ensureRows(rows: DomainListRow[]) {
+  return rows.length > 0 ? rows : [{ domain: '', certificateId: '' }];
 }
 
 function buildSuggestionSources(domains: string[]) {
@@ -32,7 +40,11 @@ function buildSuggestionSources(domains: string[]) {
   return Array.from(values);
 }
 
-function buildDomainSuggestions(input: string, sources: string[], rows: string[]) {
+function buildDomainSuggestions(
+  input: string,
+  sources: string[],
+  rows: DomainListRow[],
+) {
   const normalizedInput = input.trim().toLowerCase();
   if (!normalizedInput) {
     return [];
@@ -40,7 +52,7 @@ function buildDomainSuggestions(input: string, sources: string[], rows: string[]
 
   const existingDomains = new Set(
     rows
-      .map((row) => row.trim().toLowerCase())
+      .map((row) => row.domain.trim().toLowerCase())
       .filter((row) => row && row !== normalizedInput),
   );
   const suggestions: string[] = [];
@@ -72,114 +84,171 @@ function buildDomainSuggestions(input: string, sources: string[], rows: string[]
   });
 }
 
+export function buildDomainRowsFromRoute(
+  domains: string[],
+  certIDs: number[],
+): DomainListRow[] {
+  if (domains.length === 0) {
+    return ensureRows([]);
+  }
+
+  if (certIDs.length === 0) {
+    return domains.map((domain) => ({ domain, certificateId: '' }));
+  }
+
+  if (certIDs.length === 1) {
+    return domains.map((domain) => ({
+      domain,
+      certificateId: String(certIDs[0]),
+    }));
+  }
+
+  return domains.map((domain, index) => ({
+    domain,
+    certificateId: certIDs[index] ? String(certIDs[index]) : '',
+  }));
+}
+
 export function DomainListInput({
-  value,
+  rows,
   onChange,
   onBlur,
   suggestionSources = [],
-  placeholder = 'app.example.com',
+  certificates = [],
+  domainPlaceholder = 'app.example.com',
 }: {
-  value: string;
-  onChange: (value: string) => void;
+  rows: DomainListRow[];
+  onChange: (rows: DomainListRow[]) => void;
   onBlur?: () => void;
   suggestionSources?: string[];
-  placeholder?: string;
+  certificates?: TlsCertificateItem[];
+  domainPlaceholder?: string;
 }) {
   const listId = useId();
-  const rows = splitDomainRows(value);
+  const safeRows = ensureRows(rows);
   const normalizedSources = useMemo(
     () => buildSuggestionSources(suggestionSources),
     [suggestionSources],
   );
 
-  const updateRows = (nextRows: string[]) => {
-    onChange(nextRows.join('\n'));
+  const updateRows = (nextRows: DomainListRow[]) => {
+    onChange(ensureRows(nextRows));
   };
 
   return (
-    <div className="space-y-3">
-      {rows.map((row, index) => {
-        const suggestions = buildDomainSuggestions(row, normalizedSources, rows).slice(
-          0,
-          4,
-        );
+    <div className="space-y-4">
+      {safeRows.map((row, index) => {
+        const suggestions = buildDomainSuggestions(
+          row.domain,
+          normalizedSources,
+          safeRows,
+        ).slice(0, 4);
 
         return (
-          <div key={`${index}-${rows.length}`} className="space-y-2">
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
+          <div key={`${index}-${safeRows.length}`} className="space-y-2">
+            <div className="grid gap-3 md:grid-cols-[72px_minmax(0,1fr)_280px] md:items-start">
+              <SecondaryButton
+                type="button"
+                aria-label={`删除域名输入框 ${index + 1}`}
+                className={actionButtonClassName}
+                disabled={safeRows.length === 1}
+                onClick={() => {
+                  if (safeRows.length === 1) {
+                    updateRows([{ domain: '', certificateId: '' }]);
+                    return;
+                  }
+
+                  updateRows(
+                    safeRows.filter((_, rowIndex) => rowIndex !== index),
+                  );
+                }}
+              >
+                <Minus aria-hidden="true" className="h-[14px] w-[14px]" />
+              </SecondaryButton>
+
+              <div className="min-w-0 space-y-2">
                 <ResourceInput
-                  value={row}
+                  value={row.domain}
                   list={`${listId}-${index}`}
                   aria-label={`域名 ${index + 1}`}
-                  placeholder={index === 0 ? placeholder : 'www.example.com'}
+                  placeholder={index === 0 ? domainPlaceholder : 'www.example.com'}
                   onBlur={onBlur}
                   onChange={(event) => {
-                    const nextRows = rows.slice();
-                    nextRows[index] = event.target.value;
+                    const nextRows = safeRows.slice();
+                    nextRows[index] = {
+                      ...nextRows[index],
+                      domain: event.target.value,
+                    };
                     updateRows(nextRows);
                   }}
+                  className="h-12"
                 />
                 <datalist id={`${listId}-${index}`}>
                   {suggestions.map((suggestion) => (
                     <option key={suggestion} value={suggestion} />
                   ))}
                 </datalist>
+
+                {suggestions.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="inline-flex items-center rounded-full border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 py-1 text-xs text-[var(--foreground-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--foreground-primary)]"
+                        onClick={() => {
+                          const nextRows = safeRows.slice();
+                          nextRows[index] = {
+                            ...nextRows[index],
+                            domain: suggestion,
+                          };
+                          updateRows(nextRows);
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
-              <SecondaryButton
-                type="button"
-                aria-label={`新增域名输入框 ${index + 1}`}
-                className="h-[46px] min-w-11 px-0"
-                onClick={() => {
-                  const nextRows = rows.slice();
-                  nextRows.splice(index + 1, 0, '');
+              <ResourceSelect
+                aria-label={`证书 ${index + 1}`}
+                value={row.certificateId}
+                onChange={(event) => {
+                  const nextRows = safeRows.slice();
+                  nextRows[index] = {
+                    ...nextRows[index],
+                    certificateId: event.target.value,
+                  };
                   updateRows(nextRows);
                 }}
+                className="h-12"
               >
-                +
-              </SecondaryButton>
-
-              <SecondaryButton
-                type="button"
-                aria-label={`删除域名输入框 ${index + 1}`}
-                className="h-[46px] min-w-11 px-0"
-                disabled={rows.length === 1}
-                onClick={() => {
-                  if (rows.length === 1) {
-                    updateRows(['']);
-                    return;
-                  }
-
-                  updateRows(rows.filter((_, rowIndex) => rowIndex !== index));
-                }}
-              >
-                -
-              </SecondaryButton>
-            </div>
-
-            {suggestions.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    className="inline-flex items-center rounded-full border border-[var(--border-default)] bg-[var(--surface-panel)] px-3 py-1 text-xs text-[var(--foreground-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--foreground-primary)]"
-                    onClick={() => {
-                      const nextRows = rows.slice();
-                      nextRows[index] = suggestion;
-                      updateRows(nextRows);
-                    }}
-                  >
-                    {suggestion}
-                  </button>
+                <option value="">
+                  {certificates.length === 0 ? '暂无可选证书' : '选择证书'}
+                </option>
+                {certificates.map((certificate) => (
+                  <option key={certificate.id} value={certificate.id}>
+                    {certificate.name}
+                  </option>
                 ))}
-              </div>
-            ) : null}
-
+              </ResourceSelect>
+            </div>
           </div>
         );
       })}
+
+      <SecondaryButton
+        type="button"
+        aria-label="新增域名输入框"
+        className={actionButtonClassName}
+        onClick={() => {
+          updateRows([...safeRows, { domain: '', certificateId: '' }]);
+        }}
+      >
+        <Plus aria-hidden="true" className="h-[14px] w-[14px]" />
+      </SecondaryButton>
     </div>
   );
 }
