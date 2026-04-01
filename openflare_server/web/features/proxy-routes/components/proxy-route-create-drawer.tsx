@@ -230,6 +230,7 @@ export function ProxyRouteCreateDrawer({
           label="域名列表"
           hint="每行配置一个域名，可按需为该行选择证书。保存时会自动汇总站点证书集合。"
           error={form.formState.errors.domain_rows?.message as string | undefined}
+          container="div"
         >
           <Controller
             control={form.control}

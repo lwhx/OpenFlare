@@ -352,6 +352,7 @@ function DomainSettingsSection({
           label="域名列表"
           hint="每行配置一个域名。可为不同域名选择不同证书，相同证书也可以重复选择。"
           error={form.formState.errors.domain_rows?.message as string | undefined}
+          container="div"
         >
           <Controller
             control={form.control}

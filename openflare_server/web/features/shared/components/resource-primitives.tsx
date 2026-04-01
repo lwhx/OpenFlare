@@ -14,6 +14,7 @@ interface ResourceFieldProps {
   error?: string;
   className?: string;
   tooltip?: string;
+  container?: 'label' | 'div';
   children: ReactNode;
 }
 
@@ -36,10 +37,13 @@ export function ResourceField({
   error,
   className,
   tooltip,
+  container = 'label',
   children,
 }: ResourceFieldProps) {
+  const Container = container;
+
   return (
-    <label className={cn('block space-y-2', className)}>
+    <Container className={cn('block space-y-2', className)}>
       <span className="flex items-center gap-2 text-sm font-medium text-[var(--foreground-primary)]">
         <span>{label}</span>
         {tooltip ? <FieldTooltip content={tooltip} /> : null}
@@ -54,7 +58,7 @@ export function ResourceField({
           {hint}
         </span>
       ) : null}
-    </label>
+    </Container>
   );
 }
 

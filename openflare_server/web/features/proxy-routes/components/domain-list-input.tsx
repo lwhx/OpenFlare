@@ -14,7 +14,11 @@ export type DomainListRow = {
   certificateId: string;
 };
 
-const actionButtonClassName = 'h-12 w-[72px] shrink-0 rounded-2xl px-0';
+const actionButtonBaseClassName = 'h-11 w-11 shrink-0 rounded-2xl px-0';
+const removeButtonClassName =
+  'border-[var(--border-default)] bg-[var(--surface-elevated)] text-[var(--foreground-secondary)] hover:border-[var(--status-danger-border)] hover:bg-[var(--status-danger-soft)] hover:text-[var(--status-danger-foreground)] disabled:border-[var(--border-default)] disabled:bg-[var(--surface-muted)] disabled:text-[var(--foreground-muted)]';
+const addButtonClassName =
+  'border-dashed border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--foreground-secondary)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary-soft)] hover:text-[var(--brand-primary)]';
 
 function ensureRows(rows: DomainListRow[]) {
   return rows.length > 0 ? rows : [{ domain: '', certificateId: '' }];
@@ -146,11 +150,11 @@ export function DomainListInput({
 
         return (
           <div key={`${index}-${safeRows.length}`} className="space-y-2">
-            <div className="grid gap-3 md:grid-cols-[72px_minmax(0,1fr)_280px] md:items-start">
+            <div className="grid gap-3 md:grid-cols-[44px_minmax(0,1fr)_280px] md:items-start">
               <SecondaryButton
                 type="button"
                 aria-label={`删除域名输入框 ${index + 1}`}
-                className={actionButtonClassName}
+                className={`${actionButtonBaseClassName} ${removeButtonClassName}`}
                 disabled={safeRows.length === 1}
                 onClick={() => {
                   if (safeRows.length === 1) {
@@ -242,7 +246,7 @@ export function DomainListInput({
       <SecondaryButton
         type="button"
         aria-label="新增域名输入框"
-        className={actionButtonClassName}
+        className={`${actionButtonBaseClassName} ${addButtonClassName}`}
         onClick={() => {
           updateRows([...safeRows, { domain: '', certificateId: '' }]);
         }}
