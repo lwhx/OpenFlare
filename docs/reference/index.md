@@ -1,0 +1,10 @@
+# 参考
+
+本部分收敛运行、接口与仓库层面的稳定信息，适合部署、联调和排查时快速查阅。
+
+| 页面 | 内容 |
+| --- | --- |
+| [配置项](./configuration.md) | Server 环境变量、命令行参数、运行时 Option 与 Agent 配置字段 |
+| [命令与脚本](./cli.md) | 常用启动、构建、测试、安装和卸载命令 |
+| [API 约定](./api.md) | 管理端 API 与 Agent API 的响应结构、鉴权和路径约定 |
+| [仓库结构](./repository.md) | `openflare_server`、`openflare_agent`、`openflare_server/web` 与 `docs` 的职责 |
