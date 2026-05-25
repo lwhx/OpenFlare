@@ -40,15 +40,14 @@
 
 Server：
 
-* Go 1.24+
+* Go 1.25+
 * Gin
 * GORM
 * SQLite / PostgreSQL
 * 现有登录体系
 
 Agent：
-
-* Go 1.24+
+* 
 * 单二进制
 * 节点本地执行
 * `openresty_path` 优先

@@ -4,10 +4,10 @@ OpenFlare Server 是 Gin + GORM 单体控制面，负责管理端 UI、管理 AP
 
 ## 前置条件
 
-| 项目 | 要求 |
-| --- | --- |
-| Go | `1.24+` |
-| Node.js | `18+` |
+| 项目 | 要求                                |
+| --- |-----------------------------------|
+| Go | `1.25+`                           |
+| Node.js | `18+`                             |
 | 数据库 | SQLite 文件目录可写，或可访问的 PostgreSQL 实例 |
 
 生产环境建议显式配置 `SESSION_SECRET`，并优先使用 PostgreSQL。

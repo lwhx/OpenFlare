@@ -6,13 +6,13 @@ This page summarizes the OpenFlare deployment baseline, integration flow, upgrad
 
 Server:
 
-* Go 1.24+
+* Go 1.25+
 * Node.js 18+
 * Writable SQLite directory or reachable PostgreSQL instance
 
 Agent:
 
-* Go 1.24+
+* Go 1.25+
 * Writable Agent data directory
 * Local mode requires `openresty -t` and `openresty -s reload`
 * Docker mode requires Docker access

@@ -6,13 +6,13 @@
 
 Server：
 
-* Go 1.24+
+* Go 1.25+
 * Node.js 18+
 * 可写 SQLite 文件目录，或可访问的 PostgreSQL 实例
 
 Agent：
 
-* Go 1.24+
+* Go 1.25+
 * 对 Agent 数据目录有写权限
 * 本机模式下可执行 `openresty -t` 与 `openresty -s reload`
 * Docker 模式下具备 Docker 执行权限

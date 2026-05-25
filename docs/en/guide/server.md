@@ -4,10 +4,10 @@ OpenFlare Server is the Gin + GORM control plane. It owns the web console, manag
 
 ## Requirements
 
-| Item | Requirement |
-| --- | --- |
-| Go | `1.24+` |
-| Node.js | `18+` |
+| Item | Requirement                                           |
+| --- |-------------------------------------------------------|
+| Go | `1.25+`                                               |
+| Node.js | `18+`                                                 |
 | Database | Writable SQLite path or reachable PostgreSQL instance |
 
 Set `SESSION_SECRET` explicitly in production and prefer PostgreSQL.
