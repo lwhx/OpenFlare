@@ -2,15 +2,15 @@ package router
 
 import (
 	"embed"
-	"github.com/gin-contrib/static"
-	"github.com/gin-gonic/gin"
 	"io/fs"
 	"net/http"
-	"openflare/controller"
 	"openflare/middleware"
 	"openflare/utils/embedfs"
 	pathpkg "path"
 	"strings"
+
+	"github.com/gin-contrib/static"
+	"github.com/gin-gonic/gin"
 )
 
 func setWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
@@ -20,8 +20,6 @@ func setWebRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	}
 
 	router.Use(middleware.GlobalWebRateLimit())
-	fileDownloadRoute := router.Group("/")
-	fileDownloadRoute.GET("/upload/:file", middleware.DownloadRateLimit(), controller.DownloadFile)
 	router.Use(normalizeStaticExportDataNavigation())
 	router.Use(middleware.Cache())
 	router.Use(static.Serve("/", embedfs.EmbedFolder(buildFS, "web/build")))
