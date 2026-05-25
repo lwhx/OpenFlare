@@ -85,14 +85,6 @@ func SetApiRouter(router *gin.Engine) {
 			updateRoute.POST("/manual-upgrade", controller.ConfirmManualServerUpgrade)
 			updateRoute.POST("/upgrade", controller.UpgradeServer)
 		}
-		fileRoute := apiRouter.Group("/file")
-		fileRoute.Use(middleware.AdminAuth())
-		{
-			fileRoute.GET("/", controller.GetAllFiles)
-			fileRoute.GET("/search", controller.SearchFiles)
-			fileRoute.POST("/", middleware.UploadRateLimit(), controller.UploadFile)
-			fileRoute.POST("/:id/delete", controller.DeleteFile)
-		}
 		proxyRoute := apiRouter.Group("/proxy-routes")
 		proxyRoute.Use(middleware.AdminAuth())
 		{
