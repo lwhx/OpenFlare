@@ -18,11 +18,24 @@ type TLSCertificateInput struct {
 }
 
 type TLSCertificateContent struct {
-	ID      uint   `json:"id"`
-	Name    string `json:"name"`
-	CertPEM string `json:"cert_pem"`
-	KeyPEM  string `json:"key_pem"`
-	Remark  string `json:"remark"`
+	ID            uint   `json:"id"`
+	Name          string `json:"name"`
+	CertPEM       string `json:"cert_pem"`
+	KeyPEM        string `json:"key_pem"`
+	Remark        string `json:"remark"`
+	Provider      string `json:"provider"`
+	AcmeAccountID uint   `json:"acme_account_id"`
+	DnsAccountID  uint   `json:"dns_account_id"`
+	KeyAlgorithm  string `json:"key_algorithm"`
+	AutoRenew     bool   `json:"auto_renew"`
+	PrimaryDomain string `json:"primary_domain"`
+	OtherDomains  string `json:"other_domains"`
+	DisableCNAME  bool   `json:"disable_cname"`
+	SkipDNS       bool   `json:"skip_dns"`
+	DNS1          string `json:"dns1"`
+	DNS2          string `json:"dns2"`
+	ApplyStatus   string `json:"apply_status"`
+	ApplyMessage  string `json:"apply_message"`
 }
 
 type TLSApplyInput struct {
@@ -65,11 +78,24 @@ func GetTLSCertificateContent(id uint) (*TLSCertificateContent, error) {
 	}
 
 	return &TLSCertificateContent{
-		ID:      certificate.ID,
-		Name:    certificate.Name,
-		CertPEM: certificate.CertPEM,
-		KeyPEM:  certificate.KeyPEM,
-		Remark:  certificate.Remark,
+		ID:            certificate.ID,
+		Name:          certificate.Name,
+		CertPEM:       certificate.CertPEM,
+		KeyPEM:        certificate.KeyPEM,
+		Remark:        certificate.Remark,
+		Provider:      certificate.Provider,
+		AcmeAccountID: certificate.AcmeAccountID,
+		DnsAccountID:  certificate.DnsAccountID,
+		KeyAlgorithm:  certificate.KeyAlgorithm,
+		AutoRenew:     certificate.AutoRenew,
+		PrimaryDomain: certificate.PrimaryDomain,
+		OtherDomains:  certificate.OtherDomains,
+		DisableCNAME:  certificate.DisableCNAME,
+		SkipDNS:       certificate.SkipDNS,
+		DNS1:          certificate.DNS1,
+		DNS2:          certificate.DNS2,
+		ApplyStatus:   certificate.ApplyStatus,
+		ApplyMessage:  certificate.ApplyMessage,
 	}, nil
 }
 

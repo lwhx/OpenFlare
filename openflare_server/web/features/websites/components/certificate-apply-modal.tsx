@@ -81,7 +81,8 @@ export function CertificateApplyModal({
         other_domains:
           mode === 'convert-upload' ? '' : certificate.other_domains || '',
         remark: certificate.remark || '',
-        acme_account_id: certificate.acme_account_id,
+        acme_account_id:
+          mode === 'convert-upload' ? 0 : certificate.acme_account_id,
         dns_account_id:
           mode === 'convert-upload' ? 0 : certificate.dns_account_id,
         key_algorithm: certificate.key_algorithm || 'EC256',
