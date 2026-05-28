@@ -45,9 +45,29 @@ type CommandRunner interface {
 type OSCommandRunner struct{}
 
 func (r *OSCommandRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	slog.Debug("OSCommandRunner starting command", "name", name, "args", args)
+	tmpFile, err := os.CreateTemp("", "openflare-cmd-*")
+	if err != nil {
+		slog.Error("OSCommandRunner failed to create temp file, falling back to CombinedOutput", "error", err)
+		cmd := exec.CommandContext(ctx, name, args...)
+		output, outErr := cmd.CombinedOutput()
+		slog.Debug("OSCommandRunner finished CombinedOutput", "name", name, "error", outErr)
+		return output, outErr
+	}
+	defer os.Remove(tmpFile.Name())
+
 	cmd := exec.CommandContext(ctx, name, args...)
-	output, err := cmd.CombinedOutput()
-	return output, err
+	cmd.Stdout = tmpFile
+	cmd.Stderr = tmpFile
+
+	slog.Debug("OSCommandRunner executing cmd.Run()", "name", name)
+	runErr := cmd.Run()
+	slog.Debug("OSCommandRunner cmd.Run() returned", "name", name, "error", runErr)
+	tmpFile.Close()
+
+	output, _ := os.ReadFile(tmpFile.Name())
+	slog.Debug("OSCommandRunner command complete", "name", name, "output_len", len(output))
+	return output, runErr
 }
 
 type PathExecutor struct {
