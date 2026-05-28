@@ -1,5 +1,7 @@
 # 配置项
 
+你会学到：OpenFlare Server、前端构建和 Agent 支持哪些配置来源、配置项默认值是什么，以及常见部署组合应该如何配置。
+
 本文档汇总 OpenFlare `1.0.0` 当前支持的 Server 与 Agent 配置项，只保留仍然有效的启动、部署与运行参数。
 
 ## 配置来源
@@ -15,6 +17,16 @@ Agent 支持：
 1. `-config` 命令行参数。
 2. `agent.json` 配置文件。
 3. 少量日志相关环境变量。
+
+## 配置文件位置
+
+| 组件 | 默认位置 | 说明 |
+| --- | --- | --- |
+| Server SQLite | `openflare.db` | 可通过 `SQLITE_PATH` 修改 |
+| Server 上传目录 | `upload` | 可通过 `UPLOAD_PATH` 修改 |
+| Agent 配置文件 | `./agent.json` | 可通过 `-config` 指定 |
+| 一键安装 Agent 配置 | `/opt/openflare-agent/agent.json` | 安装脚本默认生成 |
+| Agent 数据目录 | 配置文件所在目录下的 `data` | 可通过 `data_dir` 修改 |
 
 ## Server 命令行参数
 
@@ -78,7 +90,7 @@ go run . --port 3000 --log-dir ./logs
 * 管理端支持手动清理时留空保留天数，以直接删除对应数据集的全部历史记录。
 * 第三方登录不再通过 `GitHubOAuthEnabled`、`GitHubClientId`、`GitHubClientSecret` 作为主配置入口；这些旧 Option 仅用于升级时迁移默认 GitHub 认证源。
 * 微信登录旧 Option 保留为兼容字段，但管理端不再提供微信登录配置入口。
-* Turnstile 旧 Option 与后端校验能力保留，已有配置仍会生效；
+* Turnstile 旧 Option 与后端校验能力保留，已有配置仍会生效。
 
 ## OpenResty 参数
 
@@ -164,6 +176,58 @@ OpenResty 性能参数与缓存参数继续统一保存在 `Option` 表。当前
 * `heartbeat_interval` 与 `request_timeout` 支持毫秒整数或 Go duration 字符串。
 * 未配置 `openresty_path` 时默认使用 Docker OpenResty 模式。
 * Agent 自动探测到私网 `node_ip` 时，Server 会在注册/心跳阶段优先保留 Agent 直连来源的公网地址，避免 NAT/多网卡场景误登记内网网卡地址。
+* [需要确认：安装脚本当前生成的 `sync_interval` 是否仍应保留；当前 Agent 配置结构未使用该字段。]
+
+## 常见配置组合
+
+### 生产 Server + PostgreSQL
+
+```bash
+export SESSION_SECRET='replace-with-a-long-random-string'
+export DSN='postgres://openflare:replace-with-strong-password@postgres:5432/openflare?sslmode=disable'
+export GIN_MODE='release'
+export LOG_LEVEL='info'
+```
+
+### 本地 Server + SQLite
+
+```bash
+export SESSION_SECRET='dev-session-secret'
+export SQLITE_PATH='./openflare-dev.db'
+export LOG_LEVEL='debug'
+go run .
+```
+
+### Agent + Docker OpenResty
+
+```json
+{
+  "server_url": "http://your-server:3000",
+  "agent_token": "replace-with-node-auth-token",
+  "data_dir": "/opt/openflare-agent/data",
+  "openresty_container_name": "openflare-openresty",
+  "openresty_docker_image": "openresty/openresty:alpine",
+  "heartbeat_interval": 10000,
+  "request_timeout": 10000
+}
+```
+
+### Agent + 本机 OpenResty
+
+```json
+{
+  "server_url": "http://your-server:3000",
+  "agent_token": "replace-with-node-auth-token",
+  "data_dir": "/var/lib/openflare-agent",
+  "openresty_path": "/usr/local/openresty/nginx/sbin/nginx",
+  "main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
+  "route_config_path": "/usr/local/openresty/nginx/conf/conf.d/openflare_routes.conf",
+  "cert_dir": "/usr/local/openresty/nginx/conf/openflare-certs",
+  "lua_dir": "/usr/local/openresty/nginx/conf/openflare-lua",
+  "heartbeat_interval": 10000,
+  "request_timeout": 10000
+}
+```
 
 ## 维护要求
 

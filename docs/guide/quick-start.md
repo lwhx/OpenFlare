@@ -1,10 +1,30 @@
 # 快速开始
 
-OpenFlare 的最小运行单元包含一个 Server 和至少一个 Agent。Server 负责管理端、配置版本与节点状态，Agent 运行在代理节点上，负责写入 OpenResty 配置并 reload。
+你会学到：如何用 Docker Compose 启动 OpenFlare Server、完成首次登录、接入第一个 Agent，并验证一份配置是否已经发布到节点。
 
-## 启动 Server
+OpenFlare 的最小运行单元包含：
 
-推荐使用 PostgreSQL 与 Docker Compose：
+| 组件 | 职责 |
+| --- | --- |
+| Server | 管理端 UI、管理 API、Agent API、配置渲染、版本发布与状态存储 |
+| Agent | 运行在代理节点上，拉取配置、写入 OpenResty、执行校验与 reload |
+| OpenResty | 实际接收流量并反向代理到源站 |
+
+默认情况下，Agent 未配置 `openresty_path` 时会使用 Docker OpenResty。因此快速开始建议在 Agent 节点准备 Docker。
+
+## 环境要求
+
+| 项目 | 要求 |
+| --- | --- |
+| Docker / Docker Compose | 用于启动 Server 和 PostgreSQL，也用于 Agent 默认的 Docker OpenResty 模式 |
+| 可访问端口 | Server 默认监听 `3000`，Agent 节点需要能访问 Server 地址 |
+| 浏览器 | 用于访问管理端 |
+
+[需要确认：项目建议的最低 Docker 与 Docker Compose 版本]
+
+## 1. 启动 Server
+
+在空目录中创建 `docker-compose.yml`：
 
 ```yaml
 services:
@@ -32,7 +52,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      SESSION_SECRET: replace-with-random-string
+      SESSION_SECRET: replace-with-a-long-random-string
       DSN: postgres://openflare:replace-with-strong-password@postgres:5432/openflare?sslmode=disable
       GIN_MODE: release
       LOG_LEVEL: info
@@ -41,11 +61,24 @@ volumes:
   postgres-data:
 ```
 
+启动服务：
+
 ```bash
 docker compose up -d
 ```
 
-访问 `http://localhost:3000`。
+确认容器已经运行：
+
+```bash
+docker compose ps
+docker compose logs -f openflare
+```
+
+看到 `server listening` 且 `openflare` 容器状态为 running 后，访问：
+
+```text
+http://localhost:3000
+```
 
 默认账号：
 
@@ -53,11 +86,24 @@ docker compose up -d
 | --- | --- |
 | `root` | `123456` |
 
-首次登录后请立即修改默认密码，并按需关闭新用户注册。
+首次登录后请立即修改默认密码。
 
-## 接入第一个节点
+## 2. 准备 Agent Token
 
-在管理端准备 `discovery_token` 或节点专属 `agent_token`，然后在节点上执行安装脚本。
+Agent 可以用两类凭证接入：
+
+| 凭证 | 适用场景 |
+| --- | --- |
+| `discovery_token` | 首次自动注册节点，由 Server 换成节点专属 Token |
+| `agent_token` | 已经在管理端创建或分配节点，直接使用节点专属 Token |
+
+在管理端准备其中一种凭证后，进入下一步。
+
+[需要确认：当前管理端中创建或查看 `discovery_token` 与节点 `agent_token` 的准确菜单路径]
+
+## 3. 安装 Agent
+
+在代理节点上执行安装脚本。
 
 使用 `discovery_token`：
 
@@ -75,13 +121,64 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
   --agent-token YOUR_AGENT_TOKEN
 ```
 
-安装脚本默认把 Agent 放在 `/opt/openflare-agent`，创建 `openflare-agent.service`，并在未显式配置本机 OpenResty 时使用 Docker OpenResty。
+脚本默认会：
 
-## 发布第一份配置
+| 项目 | 默认值 |
+| --- | --- |
+| 安装目录 | `/opt/openflare-agent` |
+| 配置文件 | `/opt/openflare-agent/agent.json` |
+| systemd 服务 | `openflare-agent.service` |
+| OpenResty 模式 | 未配置 `openresty_path` 时使用 Docker OpenResty |
 
-1. 在管理端新增网站配置，填写域名与源站地址。
-2. 发布前查看预览或变更摘要。
-3. 激活新版本。
-4. 等待 Agent 通过 heartbeat 发现版本变更并应用。
+确认 Agent 服务状态：
+
+```bash
+systemctl status openflare-agent
+journalctl -u openflare-agent -f
+```
+
+如果没有 systemd，脚本会输出手动启动命令。
+
+## 4. 发布第一份配置
+
+在管理端完成以下操作：
+
+1. 新增网站配置，填写网站名称、域名和源站地址。
+2. 确认网站配置处于启用状态。
+3. 发布前查看预览或变更摘要。
+4. 发布并激活新版本。
+5. 等待 Agent 在后续 heartbeat 中发现版本并应用。
 
 版本号格式为 `YYYYMMDD-NNN`。历史版本不可变，回滚通过重新激活旧版本完成。
+
+## 5. 验证是否成功
+
+在管理端确认：
+
+| 位置 | 期望结果 |
+| --- | --- |
+| 节点列表 | Agent 节点在线 |
+| 节点详情 | 当前版本与激活版本一致 |
+| 应用记录 | 最近一次应用成功 |
+| 版本页面 | 新版本处于激活状态 |
+
+在 Agent 节点确认：
+
+```bash
+journalctl -u openflare-agent -n 100 --no-pager
+docker ps --filter name=openflare-openresty
+```
+
+如果使用 Docker OpenResty，默认容器名是 `openflare-openresty`。
+
+## 常见失败原因
+
+| 现象 | 排查方向 |
+| --- | --- |
+| 浏览器打不开管理端 | 确认 `docker compose ps` 中 Server 正在运行，宿主机 `3000` 端口没有被占用 |
+| 登录后数据无法保存 | 检查 PostgreSQL 容器健康状态，以及 `DSN` 中的用户名、密码、库名是否一致 |
+| Agent 无法注册 | 确认 Agent 节点能访问 `--server-url`，并检查 Token 是否填错或已失效 |
+| Agent 在线但没有应用配置 | 确认网站配置已启用，并且已经发布并激活版本 |
+| OpenResty 应用失败 | 查看节点应用记录和 `journalctl -u openflare-agent`，重点检查域名、证书、上游地址和端口占用 |
+
+更多排查路径见 [故障排查](./troubleshooting.md)。

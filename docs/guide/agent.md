@@ -1,19 +1,21 @@
 # 接入 Agent
 
-OpenFlare Agent 运行在节点侧，负责注册、心跳、同步配置、写入 OpenResty 文件、校验、reload、失败回滚与自更新。
+你会学到：Agent 的职责、两种接入 Token 的区别、安装脚本参数、`agent.json` 配置方式，以及如何确认节点已经上线。
+
+OpenFlare Agent 运行在代理节点侧。它不会接收远程 shell 指令，而是通过 Agent API 拉取控制面发布的配置版本，在本地写入 OpenResty 文件、执行配置校验、reload，并在失败时尝试回滚到可运行配置。
 
 ## 接入方式
 
-Agent 支持两种认证入口：
-
 | 方式 | 适用场景 |
 | --- | --- |
-| `agent_token` | 已在管理端创建或分配节点，使用节点专属凭证接入 |
 | `discovery_token` | 首次自动注册节点，由 Server 置换为节点专属凭证 |
+| `agent_token` | 已在管理端创建或分配节点，直接使用节点专属凭证接入 |
 
-二者至少填写一个。
+`agent_token` 与 `discovery_token` 至少填写一个。
 
-## 安装脚本
+[需要确认：当前管理端中创建或查看 `discovery_token` 与节点 `agent_token` 的准确菜单路径]
+
+## 一键安装
 
 使用 `discovery_token`：
 
@@ -31,9 +33,28 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
   --agent-token YOUR_AGENT_TOKEN
 ```
 
-安装脚本会写入 `/opt/openflare-agent`，创建 `openflare-agent.service`，并可重复执行以重装或升级 Agent。
+安装脚本会下载最新 Agent，默认写入 `/opt/openflare-agent`，生成 `agent.json`，并在 Linux + systemd 环境创建 `openflare-agent.service`。
 
-## 配置文件示例
+支持参数：
+
+| 参数 | 说明 |
+| --- | --- |
+| `--server-url` | Server 地址，必填 |
+| `--discovery-token` | 首次自动注册 Token |
+| `--agent-token` | 节点专属 Token |
+| `--install-dir` | 安装目录，默认 `/opt/openflare-agent` |
+| `--repo` | 下载 Agent 的 GitHub 仓库，默认 `Rain-kl/OpenFlare` |
+| `--no-service` | 不创建 systemd 服务 |
+
+## 配置文件
+
+默认配置文件路径：
+
+```text
+/opt/openflare-agent/agent.json
+```
+
+Docker OpenResty 模式示例：
 
 ```json
 {
@@ -49,9 +70,41 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
 }
 ```
 
-未配置 `openresty_path` 时，Agent 默认使用 Docker OpenResty。裸 OpenResty 模式需要显式配置本机路径和必要的配置写入目录。
+本机 OpenResty 模式示例：
 
-## 源码运行
+```json
+{
+  "server_url": "http://127.0.0.1:3000",
+  "agent_token": "replace-with-node-auth-token",
+  "data_dir": "/var/lib/openflare-agent",
+  "openresty_path": "/usr/local/openresty/nginx/sbin/nginx",
+  "main_config_path": "/usr/local/openresty/nginx/conf/nginx.conf",
+  "route_config_path": "/usr/local/openresty/nginx/conf/conf.d/openflare_routes.conf",
+  "cert_dir": "/usr/local/openresty/nginx/conf/openflare-certs",
+  "lua_dir": "/usr/local/openresty/nginx/conf/openflare-lua",
+  "heartbeat_interval": 10000,
+  "request_timeout": 10000
+}
+```
+
+如果不配置 `openresty_path`，Agent 默认使用 Docker OpenResty。完整字段见 [配置项参考](../reference/configuration.md#agent-配置字段)。
+
+## 启动与验证
+
+systemd 环境：
+
+```bash
+systemctl status openflare-agent
+journalctl -u openflare-agent -f
+```
+
+手动启动：
+
+```bash
+/opt/openflare-agent/openflare-agent -config /opt/openflare-agent/agent.json
+```
+
+源码运行：
 
 ```bash
 cd openflare_agent
@@ -59,7 +112,7 @@ export LOG_LEVEL='info'
 go run ./cmd/agent -config /path/to/agent.json
 ```
 
-## 编译后二进制运行
+编译后二进制运行：
 
 ```bash
 cd openflare_agent
@@ -67,6 +120,14 @@ go build -o openflare-agent ./cmd/agent
 export LOG_LEVEL='info'
 ./openflare-agent -config /path/to/agent.json
 ```
+
+在管理端确认：
+
+| 位置 | 期望结果 |
+| --- | --- |
+| 节点列表 | 节点在线 |
+| 节点详情 | 能看到心跳时间、当前版本和基础资源信息 |
+| 应用记录 | 发布配置后出现应用结果 |
 
 ## 卸载
 
@@ -76,4 +137,20 @@ export LOG_LEVEL='info'
 curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/uninstall-agent.sh | bash
 ```
 
-卸载脚本会停止并移除 `openflare-agent.service`，删除 `/opt/openflare-agent`，并根据配置尝试清理 Docker OpenResty 容器。
+支持参数：
+
+| 参数 | 说明 |
+| --- | --- |
+| `--install-dir` | 安装目录，默认 `/opt/openflare-agent` |
+| `--service-name` | systemd 服务名，默认 `openflare-agent` |
+
+卸载脚本会先读取卸载前的 `agent.json` 判断 OpenResty 模式。Docker 模式会尝试删除对应容器和镜像；本机 `openresty_path` 模式不会删除本机 OpenResty。
+
+## 常见问题
+
+| 现象 | 处理步骤 |
+| --- | --- |
+| `agent_token 和 discovery_token 不能同时为空` | 检查 `agent.json` 至少配置了一个 Token |
+| 节点一直离线 | 在 Agent 节点执行 `curl -I http://your-server:3000`，确认 Server 地址可达 |
+| Docker OpenResty 没有启动 | 查看 `journalctl -u openflare-agent`，并确认当前用户有 Docker 执行权限 |
+| 发布后重复失败 | Agent 会阻断同一 `version + checksum` 的重复应用；需要修正配置后重新发布，或激活旧版本回滚 |

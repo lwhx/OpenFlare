@@ -40,11 +40,15 @@ function sidebarGuide(): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'Overview', link: '' },
         { text: 'Quick Start', link: 'quick-start' },
+        { text: 'Usage', link: 'usage' },
         { text: 'Deployment', link: 'deployment' },
+        { text: 'SSO Login', link: 'sso' },
         { text: 'Run Server', link: 'server' },
         { text: 'Connect Agent', link: 'agent' },
         { text: 'Publish First Site', link: 'first-site' },
-        { text: 'Upgrade and Maintenance', link: 'upgrade' }
+        { text: 'Upgrade and Maintenance', link: 'upgrade' },
+        { text: 'Local Development', link: 'development' },
+        { text: 'Troubleshooting', link: 'troubleshooting' }
       ]
     }
   ]

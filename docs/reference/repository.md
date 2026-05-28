@@ -1,5 +1,7 @@
 # 仓库结构
 
+你会学到：OpenFlare 仓库中 Server、Agent、前端、脚本和文档目录分别负责什么，以及贡献代码时应把逻辑放到哪一层。
+
 | 路径 | 职责 |
 | --- | --- |
 | `openflare_server` | Gin + GORM + SQLite/PostgreSQL 单体控制面 |

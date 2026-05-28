@@ -1,5 +1,7 @@
 # SSO 登录配置
 
+你会学到：如何为 OpenFlare 配置 GitHub OAuth 或标准 OIDC 登录入口，如何填写回调地址，以及第三方账号如何绑定本地用户。
+
 OpenFlare 支持通过认证源配置第三方登录入口。当前支持 GitHub OAuth 与标准 OIDC Provider，例如 Logto、authentik、Keycloak、Casdoor 等。
 
 认证源配置完成并启用后，会显示在登录页的第三方账号登录区域。用户可以通过第三方账号登录，也可以在已登录状态下把第三方账号绑定到当前本地账号。

@@ -1,10 +1,30 @@
 # Quick Start
 
-The minimal OpenFlare setup contains one Server and at least one Agent. Server owns the web console, release versions, and node state. Agent runs on proxy nodes and applies OpenResty configuration.
+You will learn how to start OpenFlare Server with Docker Compose, sign in for the first time, connect the first Agent, and verify that a configuration was published to a node.
 
-## Run Server
+The minimal OpenFlare setup contains:
 
-Docker Compose with PostgreSQL is recommended:
+| Component | Responsibility |
+| --- | --- |
+| Server | Management UI, management API, Agent API, configuration rendering, release publishing, and state storage |
+| Agent | Runs on proxy nodes, pulls configuration, writes OpenResty files, validates, and reloads |
+| OpenResty | Receives traffic and proxies requests to origins |
+
+By default, the Agent uses Docker OpenResty when `openresty_path` is not configured. Prepare Docker on Agent nodes for this quick start.
+
+## Requirements
+
+| Item | Requirement |
+| --- | --- |
+| Docker / Docker Compose | Used to start Server and PostgreSQL, and used by the default Agent Docker OpenResty mode |
+| Reachable ports | Server listens on `3000` by default. Agent nodes must reach the Server URL. |
+| Browser | Used to open the management UI |
+
+[Needs confirmation: minimum recommended Docker and Docker Compose versions]
+
+## 1. Start Server
+
+Create `docker-compose.yml` in an empty directory:
 
 ```yaml
 services:
@@ -32,7 +52,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      SESSION_SECRET: replace-with-random-string
+      SESSION_SECRET: replace-with-a-long-random-string
       DSN: postgres://openflare:replace-with-strong-password@postgres:5432/openflare?sslmode=disable
       GIN_MODE: release
       LOG_LEVEL: info
@@ -41,13 +61,26 @@ volumes:
   postgres-data:
 ```
 
+Start:
+
 ```bash
 docker compose up -d
 ```
 
-Open `http://localhost:3000`.
+Verify:
 
-Default credentials:
+```bash
+docker compose ps
+docker compose logs -f openflare
+```
+
+When the `openflare` container is running and logs show `server listening`, open:
+
+```text
+http://localhost:3000
+```
+
+Default account:
 
 | Username | Password |
 | --- | --- |
@@ -55,9 +88,32 @@ Default credentials:
 
 Change the default password immediately after first login.
 
-## Connect a Node
+## 2. Prepare an Agent Token
 
-Prepare a `discovery_token` or node-specific `agent_token` in the console, then run the install script on the node.
+Agents can connect with either:
+
+| Credential | Use Case |
+| --- | --- |
+| `discovery_token` | First-time automatic node registration. Server exchanges it for a node-specific token. |
+| `agent_token` | A node-specific token created or assigned in the management UI. |
+
+Prepare one of them in the management UI before continuing.
+
+[Needs confirmation: exact UI menu path for creating or viewing `discovery_token` and node `agent_token`]
+
+## 3. Install Agent
+
+Run the install script on the proxy node.
+
+With `discovery_token`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
+  --server-url http://your-server:3000 \
+  --discovery-token YOUR_DISCOVERY_TOKEN
+```
+
+With node-specific `agent_token`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
@@ -65,13 +121,64 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
   --agent-token YOUR_AGENT_TOKEN
 ```
 
-The script installs Agent under `/opt/openflare-agent`, creates `openflare-agent.service`, and uses Docker OpenResty unless a local `openresty_path` is configured.
+The script defaults to:
 
-## Publish the First Configuration
+| Item | Default |
+| --- | --- |
+| Install directory | `/opt/openflare-agent` |
+| Config file | `/opt/openflare-agent/agent.json` |
+| systemd service | `openflare-agent.service` |
+| OpenResty mode | Docker OpenResty when `openresty_path` is not configured |
 
-1. Create a site configuration with a domain and origin URL.
-2. Preview the release or check the diff before publishing.
-3. Activate the new version.
-4. Wait for Agent to discover and apply it through heartbeat.
+Check status:
+
+```bash
+systemctl status openflare-agent
+journalctl -u openflare-agent -f
+```
+
+If systemd is unavailable, the script prints a manual start command.
+
+## 4. Publish the First Configuration
+
+In the management UI:
+
+1. Create a site configuration with a site name, domain, and origin URL.
+2. Ensure the site is enabled.
+3. Preview the rendered configuration or review the diff.
+4. Publish and activate a new version.
+5. Wait for the Agent to discover and apply the version through heartbeat.
 
 Version numbers use `YYYYMMDD-NNN`. Historical versions are immutable; rollback reactivates an old version.
+
+## 5. Verify Success
+
+In the UI:
+
+| Location | Expected Result |
+| --- | --- |
+| Node list | Agent node is online |
+| Node detail | Current version matches the active version |
+| Apply logs | Latest apply succeeded |
+| Versions page | New version is active |
+
+On the Agent node:
+
+```bash
+journalctl -u openflare-agent -n 100 --no-pager
+docker ps --filter name=openflare-openresty
+```
+
+If Docker OpenResty is used, the default container name is `openflare-openresty`.
+
+## Common Failures
+
+| Symptom | What to Check |
+| --- | --- |
+| Cannot open the UI | Confirm `docker compose ps` shows Server running and host port `3000` is free |
+| Login works but data cannot be saved | Check PostgreSQL health and the username/password/database in `DSN` |
+| Agent cannot register | Confirm the Agent node can reach `--server-url`, and check whether the token is wrong or expired |
+| Agent is online but does not apply | Confirm the site is enabled and a version was published and activated |
+| OpenResty apply fails | Check apply logs and `journalctl -u openflare-agent`, especially domains, certificates, upstream URLs, and port conflicts |
+
+See [Troubleshooting](./troubleshooting.md) for deeper diagnostics.

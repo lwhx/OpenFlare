@@ -1,25 +1,54 @@
 # 部署说明
 
-本文档说明 OpenFlare `1.0.0` 之后的部署基线、联调入口、升级方式与 Agent 一键部署流程。
+你会学到：OpenFlare 的推荐部署方式、Server 与 Agent 的运行要求、源码启动方式、联调步骤、升级与卸载入口。
+
+生产环境建议使用 PostgreSQL 作为 Server 数据库，并为 Server 显式配置 `SESSION_SECRET`。Agent 节点默认使用 Docker OpenResty；如果要使用本机 OpenResty，需要额外配置 `openresty_path` 和写入目录。
+
+## 部署拓扑
+
+```text
+Browser
+  |
+  v
+OpenFlare Server :3000
+  |
+  | Agent API / heartbeat / config pull
+  v
+OpenFlare Agent
+  |
+  v
+Local OpenResty or Docker OpenResty
+  |
+  v
+Origin service
+```
 
 ## 前置条件
 
 Server：
 
-* Go 1.25+
-* Node.js 18+
-* 可写 SQLite 文件目录，或可访问的 PostgreSQL 实例
+| 项目 | 要求 |
+| --- | --- |
+| Go | `1.25+`，仅源码运行需要 |
+| Node.js | `18+`，仅源码构建管理端需要 |
+| 数据库 | 可写 SQLite 文件目录，或可访问的 PostgreSQL 实例 |
+| 端口 | 默认监听 `3000` |
 
 Agent：
 
-* Go 1.25+
-* 对 Agent 数据目录有写权限
-* 本机模式下可执行 `openresty -t` 与 `openresty -s reload`
-* Docker 模式下具备 Docker 执行权限
+| 项目 | 要求 |
+| --- | --- |
+| 系统 | 安装脚本支持 Linux 和 macOS；systemd 服务仅在 Linux + systemd 环境创建 |
+| 架构 | `amd64` 或 `arm64` |
+| Docker | 默认 Docker OpenResty 模式需要 |
+| 本机 OpenResty | 仅在显式配置 `openresty_path` 时需要 |
+| 网络 | Agent 节点必须能访问 Server 地址 |
 
-## Docker Compose 启动 Server
+[需要确认：生产环境推荐的最低 CPU、内存与磁盘容量]
 
-推荐生产部署使用 PostgreSQL：
+## Docker Compose 部署 Server
+
+创建 `docker-compose.yml`：
 
 ```yaml
 services:
@@ -48,8 +77,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      SESSION_SECRET: replace-with-random-string
-      SQLITE_PATH: /data/openflare.db
+      SESSION_SECRET: replace-with-a-long-random-string
       DSN: postgres://openflare:replace-with-strong-password@postgres:5432/openflare?sslmode=disable
       GIN_MODE: release
       LOG_LEVEL: info
@@ -61,8 +89,12 @@ volumes:
   openflare-data:
 ```
 
+启动：
+
 ```bash
 docker compose up -d
+docker compose ps
+docker compose logs -f openflare
 ```
 
 首次访问 `http://localhost:3000`，默认账号为 `root` / `123456`。登录后请立即修改默认密码。
@@ -82,78 +114,23 @@ pnpm build
 
 ```bash
 cd openflare_server
-export SESSION_SECRET='replace-with-random-string'
+export SESSION_SECRET='replace-with-a-long-random-string'
 export SQLITE_PATH='./openflare.db'
 export LOG_LEVEL='info'
 # 可选：设置后优先使用 PostgreSQL。
-# 如果 PostgreSQL 为空且本地 SQLite 文件存在，启动时会自动迁移数据。
 # export DSN='postgres://openflare:secret@127.0.0.1:5432/openflare?sslmode=disable'
 go run .
 ```
 
-默认监听 `3000` 端口。
-
-## Swagger
-
-登录管理端后访问：
-
-```text
-http://localhost:3000/swagger/index.html
-```
-
-本地重新生成 Swagger：
+默认监听 `3000` 端口。也可以显式指定：
 
 ```bash
-go install github.com/swaggo/swag/cmd/swag@v1.16.4
-cd openflare_server
-swag init -g main.go -o docs
+go run . --port 3000 --log-dir ./logs
 ```
 
-## Agent 接入模式
+## Agent 接入
 
-Agent 支持两种接入模式。
-
-使用节点专属 `agent_token`：
-
-```json
-{
-  "server_url": "http://127.0.0.1:3000",
-  "agent_token": "replace-with-node-auth-token",
-  "data_dir": "./data",
-  "openresty_container_name": "openflare-openresty",
-  "openresty_docker_image": "openresty/openresty:alpine",
-  "openresty_observability_port": 18081,
-  "observability_replay_minutes": 15,
-  "heartbeat_interval": 10000,
-  "request_timeout": 10000
-}
-```
-
-使用全局 `discovery_token`：
-
-```json
-{
-  "server_url": "http://127.0.0.1:3000",
-  "discovery_token": "replace-with-global-discovery-token",
-  "data_dir": "./data",
-  "openresty_container_name": "openflare-openresty",
-  "openresty_docker_image": "openresty/openresty:alpine",
-  "openresty_observability_port": 18081,
-  "observability_replay_minutes": 15,
-  "heartbeat_interval": 10000,
-  "request_timeout": 10000
-}
-```
-
-说明：
-
-* `agent_token` 与 `discovery_token` 至少填写一个。
-* 未配置 `openresty_path` 时默认使用 Docker OpenResty。
-* Agent 会暴露本机观测端口并在 Server 恢复后补传最近窗口数据。
-
-## 一键部署 Agent
-
-使用 `discovery_token`：
+使用 `discovery_token` 自动注册：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
@@ -169,20 +146,25 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
   --agent-token YOUR_AGENT_TOKEN
 ```
 
-支持参数：
+安装脚本支持参数：
 
 | 参数 | 说明 |
 | --- | --- |
-| `--server-url` | Server 地址 |
-| `--discovery-token` | 首次自动注册 Token |
-| `--agent-token` | 节点专属 Token |
-| `--install-dir` | 安装目录 |
-| `--repo` | 下载 Agent 的仓库 |
-| `--no-service` | 不创建系统服务 |
+| `--server-url` | Server 地址，必填 |
+| `--discovery-token` | 首次自动注册 Token，与 `--agent-token` 二选一 |
+| `--agent-token` | 节点专属 Token，与 `--discovery-token` 二选一 |
+| `--install-dir` | 安装目录，默认 `/opt/openflare-agent` |
+| `--repo` | 下载 Agent 的 GitHub 仓库，默认 `Rain-kl/OpenFlare` |
+| `--no-service` | 不创建 systemd 服务 |
 
-安装脚本会下载最新 Agent、生成 `agent.json`、创建 `openflare-agent.service` 并启动服务。
+确认状态：
 
-## 手动启动 Agent
+```bash
+systemctl status openflare-agent
+journalctl -u openflare-agent -f
+```
+
+## 手动运行 Agent
 
 源码运行：
 
@@ -201,42 +183,51 @@ export LOG_LEVEL='info'
 ./openflare-agent -config /path/to/agent.json
 ```
 
-## 卸载 Agent
+最小 `agent.json` 示例：
 
-如需彻底卸载 Agent 并清空本地数据：
+```json
+{
+  "server_url": "http://127.0.0.1:3000",
+  "agent_token": "replace-with-node-auth-token",
+  "data_dir": "./data",
+  "heartbeat_interval": 10000,
+  "request_timeout": 10000
+}
+```
+
+未配置 `openresty_path` 时，Agent 会使用 Docker OpenResty。
+
+## 最小联调步骤
+
+1. 启动 Server 并完成首次登录。
+2. 在管理端准备 `agent_token` 或 `discovery_token`。
+3. 启动 Agent，并确认节点在线。
+4. 新增一条启用的网站配置。
+5. 发布并激活新版本。
+6. 查看节点详情和应用记录，确认版本应用成功。
+7. 访问绑定域名或用 `curl` 验证反代结果。
+
+## 升级与卸载
+
+Server：
+
+* Root 用户可在管理端顶栏检查并升级正式版。
+* 如需尝试 preview 版本，可手动检查对应发布。
+* 也可通过上传 Server 二进制的方式执行确认升级。
+
+Agent：
+
+* Agent 默认只跟随正式版自动更新。
+* 安装脚本可重复执行，用于重装或升级 Agent。
+* preview 升级需要手动触发。
+
+卸载 Agent：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/uninstall-agent.sh | bash
 ```
 
-支持参数：
-
-| 参数 | 说明 |
-| --- | --- |
-| `--install-dir` | Agent 安装目录 |
-| `--service-name` | systemd 服务名 |
-
-卸载脚本会先停止 Agent、移除 `openflare-agent.service`、删除整个安装目录，再根据卸载前保存的 `agent.json` 判断 OpenResty 安装方式：
-
-* Docker 模式：删除对应容器，并尝试移除 OpenResty 镜像。
-* 本机 `openresty_path` 模式：不改动本机 OpenResty，仅提示用户手动卸载。
-
-## 最小联调步骤
-
-1. 在管理端准备 `agent_token` 或 `discovery_token`。
-2. 启动 Agent 并确认节点上线。
-3. 新增一条启用中的反代规则。
-4. 生成并激活新版本。
-5. 确认 Agent 拉取配置、执行 `openresty -t`、reload 并上报结果。
-
-预期管理端可看到节点在线状态、节点当前版本、最近一次应用结果，以及自动注册后的专属 `agent_token`。
-
-## 升级说明
-
-* Root 用户可在管理端顶栏检查并升级 Server 正式版。
-* 如需尝试 preview 版本，可手动检查对应发布。
-* 节点 Agent 默认只跟随正式版自动更新；preview 升级需要手动触发。
-* 也可通过上传 Server 二进制的方式执行确认升级。
+卸载脚本会停止 Agent、删除 systemd 服务和安装目录；如果检测到 Docker OpenResty 模式，会尝试移除对应容器和镜像。本机 `openresty_path` 模式不会删除本机 OpenResty。
 
 ## 常用验证命令
 
@@ -259,4 +250,12 @@ Frontend：
 ```bash
 cd openflare_server/web
 pnpm build
+```
+
+Swagger：
+
+```bash
+go install github.com/swaggo/swag/cmd/swag@v1.16.4
+cd openflare_server
+swag init -g main.go -o docs
 ```

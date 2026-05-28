@@ -68,12 +68,15 @@ function sidebarGuide(): DefaultTheme.SidebarItem[] {
       items: [
         { text: '概览', link: '' },
         { text: '快速开始', link: 'quick-start' },
+        { text: '基础使用', link: 'usage' },
         { text: '部署说明', link: 'deployment' },
         { text: 'SSO 登录配置', link: 'sso' },
         { text: '启动 Server', link: 'server' },
         { text: '接入 Agent', link: 'agent' },
         { text: '发布第一份配置', link: 'first-site' },
-        { text: '升级与维护', link: 'upgrade' }
+        { text: '升级与维护', link: 'upgrade' },
+        { text: '本地开发', link: 'development' },
+        { text: '故障排查', link: 'troubleshooting' }
       ]
     }
   ]

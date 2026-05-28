@@ -1,18 +1,23 @@
 # 启动 Server
 
-OpenFlare Server 是 Gin + GORM 单体控制面，负责管理端 UI、管理 API、Agent API、配置渲染、版本发布与状态存储。
+你会学到：如何从源码构建管理端前端、启动 OpenFlare Server、选择 SQLite 或 PostgreSQL，并访问 Swagger。
+
+OpenFlare Server 是 Gin + GORM 单体控制面，负责管理端 UI、管理 API、Agent API、配置渲染、版本发布、数据存储与聚合查询。
 
 ## 前置条件
 
-| 项目 | 要求                                |
-| --- |-----------------------------------|
-| Go | `1.25+`                           |
-| Node.js | `18+`                             |
+| 项目 | 要求 |
+| --- | --- |
+| Go | `1.25+` |
+| Node.js | `18+` |
+| pnpm | 推荐通过 `corepack enable` 使用项目声明的 pnpm |
 | 数据库 | SQLite 文件目录可写，或可访问的 PostgreSQL 实例 |
 
 生产环境建议显式配置 `SESSION_SECRET`，并优先使用 PostgreSQL。
 
 ## 构建管理端前端
+
+Go Server 会托管 `openflare_server/web/build` 中的静态产物。源码启动前先构建前端：
 
 ```bash
 cd openflare_server/web
@@ -21,33 +26,66 @@ pnpm install
 pnpm build
 ```
 
-`pnpm build` 会生成供 Go Server 托管的静态产物。
+常用前端检查：
 
-## 源码启动
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+```
+
+## 使用 SQLite 启动
 
 ```bash
 cd openflare_server
-export SESSION_SECRET='replace-with-random-string'
+export SESSION_SECRET='replace-with-a-long-random-string'
 export SQLITE_PATH='./openflare.db'
 export LOG_LEVEL='info'
-# 可选：设置后优先使用 PostgreSQL。
-# export DSN='postgres://openflare:secret@127.0.0.1:5432/openflare?sslmode=disable'
 go run .
 ```
 
-默认监听 `3000` 端口。也可以通过命令行指定：
+默认监听 `3000` 端口，访问：
+
+```text
+http://localhost:3000
+```
+
+## 使用 PostgreSQL 启动
+
+```bash
+cd openflare_server
+export SESSION_SECRET='replace-with-a-long-random-string'
+export DSN='postgres://openflare:secret@127.0.0.1:5432/openflare?sslmode=disable'
+export LOG_LEVEL='info'
+go run .
+```
+
+`DSN` 设置后优先于 SQLite。`DSN` 与兼容旧命名的 `SQL_DSN` 同时存在时，优先使用 `DSN`。
+
+如果目标 PostgreSQL 数据库为空且本地 `SQLITE_PATH` 文件存在，Server 启动阶段会尝试把 SQLite 数据迁移到 PostgreSQL，并在日志中输出迁移进度。
+
+## 命令行参数
 
 ```bash
 go run . --port 3000 --log-dir ./logs
 ```
 
+| 参数 | 作用 | 默认值 |
+| --- | --- | --- |
+| `--port` | 指定 Server 监听端口 | `3000` |
+| `--log-dir` | 指定日志目录 | 空，输出到标准输出 |
+| `--version` | 输出版本后退出 | `false` |
+| `--help` | 输出帮助后退出 | `false` |
+
 ## 首次登录
 
-访问 `http://localhost:3000`。
+默认账号：
 
 | 用户名 | 密码 |
 | --- | --- |
 | `root` | `123456` |
+
+首次登录后请立即修改默认密码。
 
 ## Swagger
 
@@ -57,10 +95,12 @@ go run . --port 3000 --log-dir ./logs
 http://localhost:3000/swagger/index.html
 ```
 
-如需在本地重新生成 Swagger 文档：
+本地重新生成 Swagger：
 
 ```bash
 go install github.com/swaggo/swag/cmd/swag@v1.16.4
 cd openflare_server
 swag init -g main.go -o docs
 ```
+
+Swagger 生成文件位于 `openflare_server/docs`。

@@ -1,5 +1,7 @@
 # 命令与脚本
 
+你会学到：OpenFlare Server、管理端前端、Agent、Swagger 和文档站的常用启动、构建、测试、安装与卸载命令。
+
 ## Server
 
 源码启动：
@@ -40,6 +42,15 @@ pnpm dev
 ```bash
 cd openflare_server/web
 pnpm build
+```
+
+检查：
+
+```bash
+cd openflare_server/web
+pnpm lint
+pnpm typecheck
+pnpm test
 ```
 
 ## Agent
@@ -87,4 +98,20 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/unin
 go install github.com/swaggo/swag/cmd/swag@v1.16.4
 cd openflare_server
 swag init -g main.go -o docs
+```
+
+## Docs
+
+本地预览：
+
+```bash
+cd docs
+pnpm dev
+```
+
+构建：
+
+```bash
+cd docs
+pnpm build
 ```
