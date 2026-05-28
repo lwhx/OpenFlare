@@ -3,24 +3,26 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"openflare/utils/geoip/iputil"
 	"os"
 	pathpkg "path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	defaultDockerMainConfigRelativePath    = "etc/nginx/nginx.conf"
-	defaultDockerRouteConfigRelativePath   = "etc/nginx/conf.d/openflare_routes.conf"
+	defaultMainConfigRelativePath          = "etc/nginx/nginx.conf"
+	defaultRouteConfigRelativePath         = "etc/nginx/conf.d/openflare_routes.conf"
 	defaultCertDirRelativePath             = "etc/nginx/certs"
 	defaultLuaDirRelativePath              = "etc/nginx/lua"
-	defaultDockerStateRelativePath         = "var/lib/openflare/agent-state.json"
+	defaultRuntimeConfigDirRelativePath    = "etc/openflare"
+	defaultAccessLogRelativePath           = "var/log/openflare/access.log"
+	defaultStateRelativePath               = "var/lib/openflare/agent-state.json"
 	defaultObservabilityBufferRelativePath = "var/lib/openflare/observability-buffer.json"
-	defaultDockerOpenRestyCertDir          = "/etc/nginx/openflare-certs"
-	defaultDockerOpenRestyLuaDir           = "/etc/nginx/openflare-lua"
 	defaultOpenRestyObservabilityPort      = 18081
 	defaultObservabilityReplayMinutes      = 15
 )
@@ -35,16 +37,18 @@ type Config struct {
 	NginxVersion               string              `json:"-"`
 	OpenrestyPath              string              `json:"openresty_path"`
 	OpenrestyResolvers         []string            `json:"openresty_resolvers,omitempty"`
-	OpenrestyContainerName     string              `json:"openresty_container_name"`
-	OpenrestyDockerImage       string              `json:"openresty_docker_image"`
-	DockerBinary               string              `json:"docker_binary"`
+	OpenrestyContainerName     string              `json:"openresty_container_name,omitempty"`
+	OpenrestyDockerImage       string              `json:"openresty_docker_image,omitempty"`
+	DockerBinary               string              `json:"docker_binary,omitempty"`
 	DataDir                    string              `json:"data_dir"`
 	MainConfigPath             string              `json:"main_config_path"`
 	RouteConfigPath            string              `json:"route_config_path"`
+	AccessLogPath              string              `json:"access_log_path"`
 	CertDir                    string              `json:"cert_dir"`
 	OpenrestyCertDir           string              `json:"openresty_cert_dir"`
 	LuaDir                     string              `json:"lua_dir"`
 	OpenrestyLuaDir            string              `json:"openresty_lua_dir"`
+	RuntimeConfigDir           string              `json:"runtime_config_dir"`
 	OpenrestyObservabilityPort int                 `json:"openresty_observability_port"`
 	ObservabilityBufferPath    string              `json:"observability_buffer_path"`
 	ObservabilityReplayMinutes int                 `json:"observability_replay_minutes"`
@@ -68,10 +72,12 @@ type configFile struct {
 	DataDir                    string              `json:"data_dir"`
 	MainConfigPath             string              `json:"main_config_path"`
 	RouteConfigPath            string              `json:"route_config_path"`
+	AccessLogPath              string              `json:"access_log_path"`
 	CertDir                    string              `json:"cert_dir"`
 	OpenrestyCertDir           string              `json:"openresty_cert_dir"`
 	LuaDir                     string              `json:"lua_dir"`
 	OpenrestyLuaDir            string              `json:"openresty_lua_dir"`
+	RuntimeConfigDir           string              `json:"runtime_config_dir"`
 	OpenrestyObservabilityPort int                 `json:"openresty_observability_port"`
 	ObservabilityBufferPath    string              `json:"observability_buffer_path"`
 	ObservabilityReplayMinutes int                 `json:"observability_replay_minutes"`
@@ -82,11 +88,16 @@ type configFile struct {
 
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 	file := &configFile{}
-	if err = json.Unmarshal(data, file); err != nil {
+	if err == nil {
+		if err = json.Unmarshal(data, file); err != nil {
+			return nil, err
+		}
+	}
+	if err != nil && !hasEnvConfig() {
 		return nil, err
 	}
 	cfg := &Config{
@@ -103,10 +114,12 @@ func Load(path string) (*Config, error) {
 		DataDir:                    file.DataDir,
 		MainConfigPath:             file.MainConfigPath,
 		RouteConfigPath:            file.RouteConfigPath,
+		AccessLogPath:              file.AccessLogPath,
 		CertDir:                    file.CertDir,
 		OpenrestyCertDir:           file.OpenrestyCertDir,
 		LuaDir:                     file.LuaDir,
 		OpenrestyLuaDir:            file.OpenrestyLuaDir,
+		RuntimeConfigDir:           file.RuntimeConfigDir,
 		OpenrestyObservabilityPort: file.OpenrestyObservabilityPort,
 		ObservabilityBufferPath:    file.ObservabilityBufferPath,
 		ObservabilityReplayMinutes: file.ObservabilityReplayMinutes,
@@ -115,6 +128,7 @@ func Load(path string) (*Config, error) {
 		RequestTimeout:             file.RequestTimeout,
 	}
 	cfg.configPath = path
+	applyEnvOverrides(cfg)
 	applyDefaults(cfg, filepath.Dir(path))
 	if err = validate(cfg); err != nil {
 		return nil, err
@@ -126,14 +140,8 @@ func applyDefaults(cfg *Config, baseDir string) {
 	baseDir = filepath.Clean(baseDir)
 	cfg.AgentVersion = AgentVersion
 	cfg.OpenrestyResolvers = normalizeResolverList(cfg.OpenrestyResolvers)
-	if cfg.OpenrestyContainerName == "" {
-		cfg.OpenrestyContainerName = "openflare-openresty"
-	}
-	if cfg.OpenrestyDockerImage == "" {
-		cfg.OpenrestyDockerImage = "openresty/openresty:alpine"
-	}
-	if cfg.DockerBinary == "" {
-		cfg.DockerBinary = "docker"
+	if cfg.OpenrestyPath == "" {
+		cfg.OpenrestyPath = "openresty"
 	}
 	if cfg.DataDir == "" {
 		cfg.DataDir = filepath.Join(baseDir, "data")
@@ -144,40 +152,32 @@ func applyDefaults(cfg *Config, baseDir string) {
 	if cfg.NodeIP == "" {
 		cfg.NodeIP = detectNodeIP()
 	}
-	if cfg.OpenrestyPath == "" {
-		cfg.MainConfigPath = joinManagedPath(cfg.DataDir, defaultDockerMainConfigRelativePath)
-		cfg.RouteConfigPath = joinManagedPath(cfg.DataDir, defaultDockerRouteConfigRelativePath)
-		cfg.StatePath = joinManagedPath(cfg.DataDir, defaultDockerStateRelativePath)
-	} else {
-		if cfg.MainConfigPath == "" {
-			cfg.MainConfigPath = joinManagedPath(cfg.DataDir, defaultDockerMainConfigRelativePath)
-		}
-		if cfg.RouteConfigPath == "" {
-			cfg.RouteConfigPath = joinManagedPath(cfg.DataDir, defaultDockerRouteConfigRelativePath)
-		}
-		if cfg.StatePath == "" {
-			cfg.StatePath = joinManagedPath(cfg.DataDir, defaultDockerStateRelativePath)
-		}
+	if cfg.MainConfigPath == "" {
+		cfg.MainConfigPath = joinManagedPath(cfg.DataDir, defaultMainConfigRelativePath)
+	}
+	if cfg.RouteConfigPath == "" {
+		cfg.RouteConfigPath = joinManagedPath(cfg.DataDir, defaultRouteConfigRelativePath)
+	}
+	if cfg.AccessLogPath == "" {
+		cfg.AccessLogPath = joinManagedPath(cfg.DataDir, defaultAccessLogRelativePath)
+	}
+	if cfg.StatePath == "" {
+		cfg.StatePath = joinManagedPath(cfg.DataDir, defaultStateRelativePath)
 	}
 	if cfg.CertDir == "" {
 		cfg.CertDir = joinManagedPath(cfg.DataDir, defaultCertDirRelativePath)
 	}
 	if cfg.OpenrestyCertDir == "" {
-		if cfg.OpenrestyPath != "" {
-			cfg.OpenrestyCertDir = cfg.CertDir
-		} else {
-			cfg.OpenrestyCertDir = defaultDockerOpenRestyCertDir
-		}
+		cfg.OpenrestyCertDir = cfg.CertDir
 	}
 	if cfg.LuaDir == "" {
 		cfg.LuaDir = joinManagedPath(cfg.DataDir, defaultLuaDirRelativePath)
 	}
 	if cfg.OpenrestyLuaDir == "" {
-		if cfg.OpenrestyPath != "" {
-			cfg.OpenrestyLuaDir = cfg.LuaDir
-		} else {
-			cfg.OpenrestyLuaDir = defaultDockerOpenRestyLuaDir
-		}
+		cfg.OpenrestyLuaDir = cfg.LuaDir
+	}
+	if cfg.RuntimeConfigDir == "" {
+		cfg.RuntimeConfigDir = joinManagedPath(cfg.DataDir, defaultRuntimeConfigDirRelativePath)
 	}
 	if cfg.OpenrestyObservabilityPort <= 0 {
 		cfg.OpenrestyObservabilityPort = defaultOpenRestyObservabilityPort
@@ -210,6 +210,9 @@ func normalizeManagedPaths(cfg *Config) {
 	if usesSlashPath(cfg.RouteConfigPath) {
 		cfg.RouteConfigPath = filepath.ToSlash(cfg.RouteConfigPath)
 	}
+	if usesSlashPath(cfg.AccessLogPath) {
+		cfg.AccessLogPath = filepath.ToSlash(cfg.AccessLogPath)
+	}
 	if usesSlashPath(cfg.CertDir) {
 		cfg.CertDir = filepath.ToSlash(cfg.CertDir)
 	}
@@ -222,12 +225,84 @@ func normalizeManagedPaths(cfg *Config) {
 	if usesSlashPath(cfg.OpenrestyLuaDir) {
 		cfg.OpenrestyLuaDir = filepath.ToSlash(cfg.OpenrestyLuaDir)
 	}
+	if usesSlashPath(cfg.RuntimeConfigDir) {
+		cfg.RuntimeConfigDir = filepath.ToSlash(cfg.RuntimeConfigDir)
+	}
 	if usesSlashPath(cfg.StatePath) {
 		cfg.StatePath = filepath.ToSlash(cfg.StatePath)
 	}
 	if usesSlashPath(cfg.ObservabilityBufferPath) {
 		cfg.ObservabilityBufferPath = filepath.ToSlash(cfg.ObservabilityBufferPath)
 	}
+}
+
+func hasEnvConfig() bool {
+	for _, key := range []string{
+		"OPENFLARE_SERVER_URL",
+		"OPENFLARE_AGENT_TOKEN",
+		"OPENFLARE_DISCOVERY_TOKEN",
+		"OPENFLARE_NODE_NAME",
+		"OPENFLARE_NODE_IP",
+		"OPENFLARE_DATA_DIR",
+		"OPENFLARE_OPENRESTY_PATH",
+		"OPENFLARE_HEARTBEAT_INTERVAL",
+		"OPENFLARE_REQUEST_TIMEOUT",
+		"OPENFLARE_OPENRESTY_OBSERVABILITY_PORT",
+	} {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func applyEnvOverrides(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	overrideString := func(key string, target *string) {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			*target = value
+		}
+	}
+	overrideString("OPENFLARE_SERVER_URL", &cfg.ServerURL)
+	overrideString("OPENFLARE_AGENT_TOKEN", &cfg.AgentToken)
+	overrideString("OPENFLARE_DISCOVERY_TOKEN", &cfg.DiscoveryToken)
+	overrideString("OPENFLARE_NODE_NAME", &cfg.NodeName)
+	overrideString("OPENFLARE_NODE_IP", &cfg.NodeIP)
+	overrideString("OPENFLARE_DATA_DIR", &cfg.DataDir)
+	overrideString("OPENFLARE_OPENRESTY_PATH", &cfg.OpenrestyPath)
+	if value := strings.TrimSpace(os.Getenv("OPENFLARE_HEARTBEAT_INTERVAL")); value != "" {
+		if duration, err := parseDurationValue(value); err == nil {
+			cfg.HeartbeatInterval = duration
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("OPENFLARE_REQUEST_TIMEOUT")); value != "" {
+		if duration, err := parseDurationValue(value); err == nil {
+			cfg.RequestTimeout = duration
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("OPENFLARE_OPENRESTY_OBSERVABILITY_PORT")); value != "" {
+		var port int
+		if _, err := fmt.Sscanf(value, "%d", &port); err == nil {
+			cfg.OpenrestyObservabilityPort = port
+		}
+	}
+}
+
+func parseDurationValue(value string) (MillisecondDuration, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return 0, nil
+	}
+	if parsed, err := time.ParseDuration(trimmed); err == nil {
+		return MillisecondDuration(parsed), nil
+	}
+	ms, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return MillisecondDuration(time.Duration(ms) * time.Millisecond), nil
 }
 
 func usesSlashPath(path string) bool {

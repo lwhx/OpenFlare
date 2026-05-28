@@ -302,15 +302,16 @@ func TestRunnerHeartbeatPayloadIncludesObservabilityExtensions(t *testing.T) {
 			NginxVersion:      "1.27.1.2",
 			DataDir:           tempDir,
 			RouteConfigPath:   filepath.Join(tempDir, "conf.d", "openflare_routes.conf"),
+			AccessLogPath:     filepath.Join(tempDir, "var", "log", "openflare", "access.log"),
 			HeartbeatInterval: config.MillisecondDuration(10 * time.Millisecond),
 		},
 		StateStore: stateStore,
 	}
-	if err := os.MkdirAll(filepath.Dir(runner.Config.RouteConfigPath), 0o755); err != nil {
-		t.Fatalf("failed to prepare route config dir: %v", err)
+	if err := os.MkdirAll(filepath.Dir(runner.Config.AccessLogPath), 0o755); err != nil {
+		t.Fatalf("failed to prepare access log dir: %v", err)
 	}
 	if err := os.WriteFile(
-		filepath.Join(filepath.Dir(runner.Config.RouteConfigPath), "openflare_access.log"),
+		runner.Config.AccessLogPath,
 		[]byte("{\"ts\":\""+time.Now().UTC().Format(time.RFC3339)+"\",\"host\":\"edge.example.com\",\"path\":\"/\",\"remote_addr\":\"10.0.0.8\",\"status\":200}\n"),
 		0o644,
 	); err != nil {

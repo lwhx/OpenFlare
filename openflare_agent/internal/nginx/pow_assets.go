@@ -36,7 +36,7 @@ end
 -- Lazy-load pow_config from file; reload when content changes
 local function load_pow_config()
     local config_paths = {
-        ngx.config.prefix() .. "openflare-lua/pow_config.json",
+        "__OPENFLARE_RUNTIME_CONFIG_DIR__/pow_config.json",
         "/etc/nginx/openflare-lua/pow_config.json",
         "/usr/local/openresty/nginx/conf/pow_config.json"
     }

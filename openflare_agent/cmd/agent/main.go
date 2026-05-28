@@ -34,9 +34,6 @@ func main() {
 		context.Background(),
 		nginx.ExecutorOptions{
 			NginxPath:                  cfg.OpenrestyPath,
-			DockerBinary:               cfg.DockerBinary,
-			ContainerName:              cfg.OpenrestyContainerName,
-			Image:                      cfg.OpenrestyDockerImage,
 			MainConfigPath:             cfg.MainConfigPath,
 			RouteConfigPath:            cfg.RouteConfigPath,
 			CertDir:                    cfg.CertDir,
@@ -52,33 +49,29 @@ func main() {
 		"ip", cfg.NodeIP,
 		"heartbeat_interval", cfg.HeartbeatInterval,
 		"route_config", cfg.RouteConfigPath,
+		"access_log", cfg.AccessLogPath,
 		"cert_dir", cfg.CertDir,
 		"lua_dir", cfg.LuaDir,
+		"runtime_config_dir", cfg.RuntimeConfigDir,
 	)
 
 	client := httpclient.New(cfg.ServerURL, cfg.InitialAuthToken(), cfg.RequestTimeout.Duration())
 	stateStore := state.NewStore(cfg.StatePath)
 	observabilityBuffer := state.NewObservabilityBufferStore(cfg.ObservabilityBufferPath)
-	runtimeRouteConfigPath := cfg.RouteConfigPath
-	if cfg.OpenrestyPath == "" {
-		runtimeRouteConfigPath = nginx.DockerRouteConfigPath
-	}
 	runtimeManager := &nginx.Manager{
 		MainConfigPath:               cfg.MainConfigPath,
 		RouteConfigPath:              cfg.RouteConfigPath,
-		RuntimeRouteConfigPath:       runtimeRouteConfigPath,
+		AccessLogPath:                cfg.AccessLogPath,
 		CertDir:                      cfg.CertDir,
 		NginxCertDir:                 cfg.OpenrestyCertDir,
 		LuaDir:                       cfg.LuaDir,
 		NginxLuaDir:                  cfg.OpenrestyLuaDir,
+		RuntimeConfigDir:             cfg.RuntimeConfigDir,
 		OpenrestyObservabilityListen: nginx.ObservabilityListenAddress(cfg.OpenrestyPath, cfg.OpenrestyObservabilityPort),
 		OpenrestyObservabilityPort:   cfg.OpenrestyObservabilityPort,
 		OpenrestyResolverDirective:   "",
 		Executor: nginx.NewExecutor(nginx.ExecutorOptions{
 			NginxPath:                  cfg.OpenrestyPath,
-			DockerBinary:               cfg.DockerBinary,
-			ContainerName:              cfg.OpenrestyContainerName,
-			Image:                      cfg.OpenrestyDockerImage,
 			MainConfigPath:             cfg.MainConfigPath,
 			RouteConfigPath:            cfg.RouteConfigPath,
 			CertDir:                    cfg.CertDir,

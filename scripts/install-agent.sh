@@ -14,6 +14,7 @@ DISCOVERY_TOKEN=""
 AGENT_TOKEN=""
 CREATE_SERVICE="true"
 SERVICE_NAME="openflare-agent"
+OPENRESTY_PATH=""
 
 usage() {
   cat <<EOF
@@ -27,6 +28,7 @@ Options:
   --discovery-token TOKEN   Discovery token for auto-registration
   --agent-token TOKEN       Node-specific agent token
   --install-dir DIR         Installation directory (default: /opt/openflare-agent)
+  --openresty-path PATH     OpenResty binary path (default: auto-detect from PATH)
   --repo REPO               GitHub repository (default: Rain-kl/OpenFlare)
   --no-service              Do not create systemd service
   -h, --help                Show this help message
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --discovery-token) DISCOVERY_TOKEN="$2"; shift 2 ;;
     --agent-token)  AGENT_TOKEN="$2"; shift 2 ;;
     --install-dir)  INSTALL_DIR="$2"; shift 2 ;;
+    --openresty-path) OPENRESTY_PATH="$2"; shift 2 ;;
     --repo)         REPO="$2"; shift 2 ;;
     --no-service)   CREATE_SERVICE="false"; shift ;;
     -h|--help)      usage ;;
@@ -79,6 +82,20 @@ esac
 
 if [[ "$OS" != "linux" && "$OS" != "darwin" ]]; then
   echo "Unsupported OS: $OS"
+  exit 1
+fi
+
+if [[ -z "$OPENRESTY_PATH" ]]; then
+  if command -v openresty >/dev/null 2>&1; then
+    OPENRESTY_PATH="$(command -v openresty)"
+  else
+    echo "Error: openresty was not found in PATH. Install OpenResty first or pass --openresty-path."
+    exit 1
+  fi
+fi
+
+if [[ ! -x "$OPENRESTY_PATH" ]]; then
+  echo "Error: OpenResty binary is not executable: ${OPENRESTY_PATH}"
   exit 1
 fi
 
@@ -140,9 +157,9 @@ if [[ -n "$AGENT_TOKEN" ]]; then
 {
   "server_url": "${SERVER_URL}",
   "agent_token": "${AGENT_TOKEN}",
+  "openresty_path": "${OPENRESTY_PATH}",
   "data_dir": "${INSTALL_DIR}/data",
   "heartbeat_interval": 30000,
-  "sync_interval": 30000,
   "request_timeout": 10000
 }
 CFGEOF
@@ -151,9 +168,9 @@ else
 {
   "server_url": "${SERVER_URL}",
   "discovery_token": "${DISCOVERY_TOKEN}",
+  "openresty_path": "${OPENRESTY_PATH}",
   "data_dir": "${INSTALL_DIR}/data",
   "heartbeat_interval": 30000,
-  "sync_interval": 30000,
   "request_timeout": 10000
 }
 CFGEOF
@@ -197,3 +214,4 @@ echo "OpenFlare Agent installed successfully!"
 echo "  Binary: ${INSTALL_DIR}/openflare-agent"
 echo "  Config: ${CONFIG_FILE}"
 echo "  Data:   ${INSTALL_DIR}/data"
+echo "  OpenResty: ${OPENRESTY_PATH}"

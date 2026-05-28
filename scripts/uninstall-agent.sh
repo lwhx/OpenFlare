@@ -19,9 +19,7 @@ Options:
 Behavior:
   1. Stop the agent service/process and remove the entire installation directory
   2. Remove the systemd service definition when present
-  3. Check the saved agent config to identify the OpenResty mode
-  4. If Docker mode was used, remove the OpenResty container and try to remove its image
-  5. If local openresty_path mode was used, do not modify the local OpenResty install
+  3. Leave the local OpenResty installation untouched
 
 Examples:
   uninstall-agent.sh
@@ -44,51 +42,8 @@ if [[ -z "$INSTALL_DIR" || "$INSTALL_DIR" == "/" || "$INSTALL_DIR" == "." ]]; th
   exit 1
 fi
 
-json_get_string() {
-  local file="$1"
-  local key="$2"
-  local match
-
-  match=$(grep -o "\"${key}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$file" 2>/dev/null | head -n 1 || true)
-  if [[ -z "$match" ]]; then
-    return 0
-  fi
-
-  printf '%s\n' "$match" | sed -E 's/.*:[[:space:]]*"([^"]*)"/\1/'
-}
-
 AGENT_BINARY="${INSTALL_DIR}/openflare-agent"
-CONFIG_FILE="${INSTALL_DIR}/agent.json"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
-
-OPENRESTY_PATH=""
-OPENRESTY_CONTAINER_NAME="openflare-openresty"
-OPENRESTY_DOCKER_IMAGE="openresty/openresty:alpine"
-DOCKER_BINARY="docker"
-OPENRESTY_MODE="unknown"
-
-if [[ -f "$CONFIG_FILE" ]]; then
-  OPENRESTY_PATH="$(json_get_string "$CONFIG_FILE" "openresty_path")"
-  OPENRESTY_CONTAINER_NAME="$(json_get_string "$CONFIG_FILE" "openresty_container_name")"
-  OPENRESTY_DOCKER_IMAGE="$(json_get_string "$CONFIG_FILE" "openresty_docker_image")"
-  DOCKER_BINARY="$(json_get_string "$CONFIG_FILE" "docker_binary")"
-
-  if [[ -z "$OPENRESTY_CONTAINER_NAME" ]]; then
-    OPENRESTY_CONTAINER_NAME="openflare-openresty"
-  fi
-  if [[ -z "$OPENRESTY_DOCKER_IMAGE" ]]; then
-    OPENRESTY_DOCKER_IMAGE="openresty/openresty:alpine"
-  fi
-  if [[ -z "$DOCKER_BINARY" ]]; then
-    DOCKER_BINARY="docker"
-  fi
-
-  if [[ -n "$OPENRESTY_PATH" ]]; then
-    OPENRESTY_MODE="local"
-  else
-    OPENRESTY_MODE="docker"
-  fi
-fi
 
 SYSTEMCTL_AVAILABLE="false"
 if command -v systemctl >/dev/null 2>&1; then
@@ -143,50 +98,5 @@ fi
 
 echo "Agent uninstall complete."
 echo ""
-echo "Checking OpenResty installation mode..."
-
-if [[ "$OPENRESTY_MODE" == "docker" ]]; then
-  echo "Detected Docker OpenResty mode."
-
-  if ! command -v "$DOCKER_BINARY" >/dev/null 2>&1; then
-    echo "Docker binary '${DOCKER_BINARY}' was not found."
-    echo "Please remove container '${OPENRESTY_CONTAINER_NAME}' and image '${OPENRESTY_DOCKER_IMAGE}' manually."
-    exit 0
-  fi
-
-  if "$DOCKER_BINARY" inspect "$OPENRESTY_CONTAINER_NAME" >/dev/null 2>&1; then
-    if [[ -z "$OPENRESTY_DOCKER_IMAGE" ]]; then
-      OPENRESTY_DOCKER_IMAGE="$("$DOCKER_BINARY" inspect -f '{{.Config.Image}}' "$OPENRESTY_CONTAINER_NAME" 2>/dev/null || true)"
-    fi
-
-    echo "Removing Docker container: ${OPENRESTY_CONTAINER_NAME}"
-    "$DOCKER_BINARY" rm -f "$OPENRESTY_CONTAINER_NAME"
-  else
-    echo "Docker container not found, skipping: ${OPENRESTY_CONTAINER_NAME}"
-  fi
-
-  if [[ -n "$OPENRESTY_DOCKER_IMAGE" ]] && "$DOCKER_BINARY" image inspect "$OPENRESTY_DOCKER_IMAGE" >/dev/null 2>&1; then
-    other_container_ids="$("$DOCKER_BINARY" ps -a --filter "ancestor=${OPENRESTY_DOCKER_IMAGE}" --format '{{.ID}}' 2>/dev/null || true)"
-    if [[ -z "$other_container_ids" ]]; then
-      echo "Removing Docker image: ${OPENRESTY_DOCKER_IMAGE}"
-      if ! "$DOCKER_BINARY" image rm "$OPENRESTY_DOCKER_IMAGE"; then
-        echo "Image removal skipped because Docker reported it is still in use."
-      fi
-    else
-      echo "Docker image is still used by other containers, skipping image removal: ${OPENRESTY_DOCKER_IMAGE}"
-    fi
-  fi
-
-  echo "Docker OpenResty cleanup complete."
-elif [[ "$OPENRESTY_MODE" == "local" ]]; then
-  echo "Detected local OpenResty mode via openresty_path:"
-  echo "  ${OPENRESTY_PATH}"
-  echo "Agent has been removed, but the local OpenResty installation was not modified."
-  echo "Please uninstall the local OpenResty manually if you no longer need it."
-else
-  echo "OpenResty mode could not be determined because ${CONFIG_FILE} was not found before uninstall."
-  echo "If you were using Docker OpenResty, please remove its container and image manually if needed."
-fi
-
-echo ""
+echo "Local OpenResty was not modified. Remove it manually if you no longer need it."
 echo "OpenFlare Agent uninstall finished."

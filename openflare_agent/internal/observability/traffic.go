@@ -9,7 +9,6 @@ import (
 	"openflare-agent/internal/protocol"
 	"openflare-agent/internal/state"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -128,10 +127,10 @@ func readAccessLogDelta(cfg *config.Config, stateStore *state.Store) *trafficAgg
 }
 
 func managedAccessLogPath(cfg *config.Config) string {
-	if cfg == nil || strings.TrimSpace(cfg.RouteConfigPath) == "" {
+	if cfg == nil || strings.TrimSpace(cfg.AccessLogPath) == "" {
 		return ""
 	}
-	return filepath.Join(filepath.Dir(cfg.RouteConfigPath), "openflare_access.log")
+	return cfg.AccessLogPath
 }
 
 func newTrafficAggregate() *trafficAggregate {

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestLoadDockerModeUsesManagedPaths(t *testing.T) {
+func TestLoadDefaultsToManagedBinaryPaths(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "agent.json")
 	payload := map[string]any{
@@ -34,11 +34,17 @@ func TestLoadDockerModeUsesManagedPaths(t *testing.T) {
 	if cfg.DataDir != filepath.Join(dir, "data") {
 		t.Fatalf("unexpected data dir: %s", cfg.DataDir)
 	}
-	if cfg.MainConfigPath != filepath.Join(dir, "data", defaultDockerMainConfigRelativePath) {
+	if cfg.OpenrestyPath != "openresty" {
+		t.Fatalf("unexpected openresty path: %s", cfg.OpenrestyPath)
+	}
+	if cfg.MainConfigPath != filepath.Join(dir, "data", defaultMainConfigRelativePath) {
 		t.Fatalf("unexpected main config path: %s", cfg.MainConfigPath)
 	}
-	if cfg.RouteConfigPath != filepath.Join(dir, "data", defaultDockerRouteConfigRelativePath) {
+	if cfg.RouteConfigPath != filepath.Join(dir, "data", defaultRouteConfigRelativePath) {
 		t.Fatalf("unexpected route config path: %s", cfg.RouteConfigPath)
+	}
+	if cfg.AccessLogPath != filepath.Join(dir, "data", defaultAccessLogRelativePath) {
+		t.Fatalf("unexpected access log path: %s", cfg.AccessLogPath)
 	}
 	if cfg.CertDir != filepath.Join(dir, "data", defaultCertDirRelativePath) {
 		t.Fatalf("unexpected cert dir: %s", cfg.CertDir)
@@ -46,19 +52,16 @@ func TestLoadDockerModeUsesManagedPaths(t *testing.T) {
 	if cfg.LuaDir != filepath.Join(dir, "data", defaultLuaDirRelativePath) {
 		t.Fatalf("unexpected lua dir: %s", cfg.LuaDir)
 	}
-	if cfg.OpenrestyContainerName != "openflare-openresty" {
-		t.Fatalf("unexpected openresty container name: %s", cfg.OpenrestyContainerName)
+	if cfg.RuntimeConfigDir != filepath.Join(dir, "data", defaultRuntimeConfigDirRelativePath) {
+		t.Fatalf("unexpected runtime config dir: %s", cfg.RuntimeConfigDir)
 	}
-	if cfg.OpenrestyDockerImage != "openresty/openresty:alpine" {
-		t.Fatalf("unexpected openresty image: %s", cfg.OpenrestyDockerImage)
-	}
-	if cfg.OpenrestyCertDir != defaultDockerOpenRestyCertDir {
+	if cfg.OpenrestyCertDir != cfg.CertDir {
 		t.Fatalf("unexpected openresty cert dir: %s", cfg.OpenrestyCertDir)
 	}
-	if cfg.OpenrestyLuaDir != defaultDockerOpenRestyLuaDir {
+	if cfg.OpenrestyLuaDir != cfg.LuaDir {
 		t.Fatalf("unexpected openresty lua dir: %s", cfg.OpenrestyLuaDir)
 	}
-	if cfg.StatePath != filepath.Join(dir, "data", defaultDockerStateRelativePath) {
+	if cfg.StatePath != filepath.Join(dir, "data", defaultStateRelativePath) {
 		t.Fatalf("unexpected state path: %s", cfg.StatePath)
 	}
 	if cfg.ObservabilityBufferPath != filepath.Join(dir, "data", defaultObservabilityBufferRelativePath) {
@@ -155,6 +158,41 @@ func TestLoadNormalizesExplicitResolvers(t *testing.T) {
 	}
 }
 
+func TestLoadKeepsDeprecatedDockerFieldsForCompatibility(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "agent.json")
+	payload := map[string]any{
+		"server_url":               "http://127.0.0.1:3000",
+		"agent_token":              "token",
+		"node_name":                "edge-01",
+		"node_ip":                  "10.0.0.8",
+		"openresty_container_name": "openflare-openresty",
+		"openresty_docker_image":   "openresty/openresty:alpine",
+		"docker_binary":            "docker",
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal config: %v", err)
+	}
+	if err = os.WriteFile(configPath, data, 0o644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.OpenrestyContainerName != "openflare-openresty" {
+		t.Fatalf("unexpected container name: %s", cfg.OpenrestyContainerName)
+	}
+	if cfg.OpenrestyDockerImage != "openresty/openresty:alpine" {
+		t.Fatalf("unexpected image: %s", cfg.OpenrestyDockerImage)
+	}
+	if cfg.DockerBinary != "docker" {
+		t.Fatalf("unexpected docker binary: %s", cfg.DockerBinary)
+	}
+}
+
 func TestLoadUsesCustomDataDirForGeneratedFiles(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "agent.json")
@@ -178,13 +216,16 @@ func TestLoadUsesCustomDataDirForGeneratedFiles(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	if cfg.RouteConfigPath != "/srv/openflare/"+defaultDockerRouteConfigRelativePath {
+	if cfg.RouteConfigPath != "/srv/openflare/"+defaultRouteConfigRelativePath {
 		t.Fatalf("unexpected route config path: %s", cfg.RouteConfigPath)
 	}
-	if cfg.MainConfigPath != "/srv/openflare/"+defaultDockerMainConfigRelativePath {
+	if cfg.MainConfigPath != "/srv/openflare/"+defaultMainConfigRelativePath {
 		t.Fatalf("unexpected main config path: %s", cfg.MainConfigPath)
 	}
-	if cfg.StatePath != "/srv/openflare/"+defaultDockerStateRelativePath {
+	if cfg.AccessLogPath != "/srv/openflare/"+defaultAccessLogRelativePath {
+		t.Fatalf("unexpected access log path: %s", cfg.AccessLogPath)
+	}
+	if cfg.StatePath != "/srv/openflare/"+defaultStateRelativePath {
 		t.Fatalf("unexpected state path: %s", cfg.StatePath)
 	}
 	if cfg.ObservabilityBufferPath != "/srv/openflare/"+defaultObservabilityBufferRelativePath {
@@ -195,6 +236,70 @@ func TestLoadUsesCustomDataDirForGeneratedFiles(t *testing.T) {
 	}
 	if cfg.LuaDir != "/srv/openflare/"+defaultLuaDirRelativePath {
 		t.Fatalf("unexpected lua dir: %s", cfg.LuaDir)
+	}
+	if cfg.RuntimeConfigDir != "/srv/openflare/"+defaultRuntimeConfigDirRelativePath {
+		t.Fatalf("unexpected runtime config dir: %s", cfg.RuntimeConfigDir)
+	}
+}
+
+func TestLoadUsesEnvConfigWhenFileIsMissing(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("OPENFLARE_SERVER_URL", "http://127.0.0.1:3000")
+	t.Setenv("OPENFLARE_AGENT_TOKEN", "token")
+	t.Setenv("OPENFLARE_NODE_NAME", "edge-env")
+	t.Setenv("OPENFLARE_NODE_IP", "10.0.0.9")
+	t.Setenv("OPENFLARE_DATA_DIR", "/srv/openflare-env")
+	t.Setenv("OPENFLARE_OPENRESTY_PATH", "/usr/bin/openresty")
+	t.Setenv("OPENFLARE_HEARTBEAT_INTERVAL", "45s")
+	t.Setenv("OPENFLARE_REQUEST_TIMEOUT", "2500")
+	t.Setenv("OPENFLARE_OPENRESTY_OBSERVABILITY_PORT", "19091")
+
+	cfg, err := Load(filepath.Join(dir, "missing-agent.json"))
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.ServerURL != "http://127.0.0.1:3000" || cfg.AgentToken != "token" {
+		t.Fatalf("unexpected env auth config: %#v", cfg)
+	}
+	if cfg.OpenrestyPath != "/usr/bin/openresty" {
+		t.Fatalf("unexpected openresty path: %s", cfg.OpenrestyPath)
+	}
+	if cfg.DataDir != "/srv/openflare-env" {
+		t.Fatalf("unexpected data dir: %s", cfg.DataDir)
+	}
+	if cfg.HeartbeatInterval.Duration() != 45*time.Second {
+		t.Fatalf("unexpected heartbeat interval: %s", cfg.HeartbeatInterval)
+	}
+	if cfg.RequestTimeout.Duration() != 2500*time.Millisecond {
+		t.Fatalf("unexpected request timeout: %s", cfg.RequestTimeout)
+	}
+	if cfg.OpenrestyObservabilityPort != 19091 {
+		t.Fatalf("unexpected observability port: %d", cfg.OpenrestyObservabilityPort)
+	}
+}
+
+func TestLoadEnvOverridesConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "agent.json")
+	if err := os.WriteFile(configPath, []byte(`{"server_url":"http://old:3000","agent_token":"old","node_name":"edge-01","node_ip":"10.0.0.8","openresty_path":"/old/openresty"}`), 0o644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+	t.Setenv("OPENFLARE_SERVER_URL", "http://new:3000")
+	t.Setenv("OPENFLARE_AGENT_TOKEN", "new-token")
+	t.Setenv("OPENFLARE_OPENRESTY_PATH", "/new/openresty")
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.ServerURL != "http://new:3000" {
+		t.Fatalf("expected server url from env, got %s", cfg.ServerURL)
+	}
+	if cfg.AgentToken != "new-token" {
+		t.Fatalf("expected token from env, got %s", cfg.AgentToken)
+	}
+	if cfg.OpenrestyPath != "/new/openresty" {
+		t.Fatalf("expected openresty path from env, got %s", cfg.OpenrestyPath)
 	}
 }
 
@@ -282,6 +387,15 @@ func TestSavePersistsMillisecondsAndOmitsRuntimeVersions(t *testing.T) {
 	}
 	if _, ok := decoded["nginx_path"]; ok {
 		t.Fatal("legacy nginx_path should not be persisted")
+	}
+	if _, ok := decoded["openresty_container_name"]; ok {
+		t.Fatal("deprecated openresty_container_name should not be persisted by default")
+	}
+	if _, ok := decoded["openresty_docker_image"]; ok {
+		t.Fatal("deprecated openresty_docker_image should not be persisted by default")
+	}
+	if _, ok := decoded["docker_binary"]; ok {
+		t.Fatal("deprecated docker_binary should not be persisted by default")
 	}
 }
 

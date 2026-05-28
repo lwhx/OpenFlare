@@ -1,0 +1,11 @@
+.git
+.idea
+anubis-source
+**/node_modules
+**/.next
+**/build
+**/dist
+**/.cache
+**/coverage
+**/*.db
+**/*.log

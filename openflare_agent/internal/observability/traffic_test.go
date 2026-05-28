@@ -28,7 +28,7 @@ func TestBuildTrafficReportAggregatesManagedAccessLog(t *testing.T) {
 	}
 
 	stateStore := state.NewStore(filepath.Join(tempDir, "state.json"))
-	report := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
+	report := BuildTrafficReport(&config.Config{AccessLogPath: logPath}, stateStore, nil)
 	if report == nil {
 		t.Fatal("expected traffic report")
 	}
@@ -50,7 +50,7 @@ func TestBuildTrafficReportAggregatesManagedAccessLog(t *testing.T) {
 		t.Fatalf("unexpected access log offset: %d", snapshot.AccessLogOffset)
 	}
 
-	secondReport := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
+	secondReport := BuildTrafficReport(&config.Config{AccessLogPath: logPath}, stateStore, nil)
 	if secondReport != nil {
 		t.Fatalf("expected no report without appended lines, got %+v", secondReport)
 	}
@@ -72,7 +72,7 @@ func TestBuildTrafficReportResetsOffsetAfterTruncate(t *testing.T) {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	report := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
+	report := BuildTrafficReport(&config.Config{AccessLogPath: logPath}, stateStore, nil)
 	if report == nil || report.RequestCount != 1 {
 		t.Fatalf("expected one request after truncate reset, got %+v", report)
 	}
@@ -94,7 +94,7 @@ func TestBuildTrafficObservabilityReturnsAccessLogs(t *testing.T) {
 	}
 
 	stateStore := state.NewStore(filepath.Join(tempDir, "state.json"))
-	report, accessLogs, fallbackMetrics := BuildTrafficObservability(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
+	report, accessLogs, fallbackMetrics := BuildTrafficObservability(&config.Config{AccessLogPath: logPath}, stateStore, nil)
 	if report == nil || report.RequestCount != 2 {
 		t.Fatalf("expected traffic report, got %+v", report)
 	}
@@ -125,7 +125,7 @@ func TestBuildTrafficObservabilityTruncatesLongAccessLogPath(t *testing.T) {
 	}
 
 	stateStore := state.NewStore(filepath.Join(tempDir, "state.json"))
-	_, accessLogs, _ := BuildTrafficObservability(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
+	_, accessLogs, _ := BuildTrafficObservability(&config.Config{AccessLogPath: logPath}, stateStore, nil)
 	if len(accessLogs) != 1 {
 		t.Fatalf("expected one access log, got %+v", accessLogs)
 	}
@@ -151,7 +151,7 @@ func TestBuildTrafficReportParsesCombinedAccessLog(t *testing.T) {
 	}
 
 	stateStore := state.NewStore(filepath.Join(tempDir, "state.json"))
-	report := BuildTrafficReport(&config.Config{RouteConfigPath: routeConfigPath}, stateStore, nil)
+	report := BuildTrafficReport(&config.Config{AccessLogPath: logPath}, stateStore, nil)
 	if report == nil {
 		t.Fatal("expected traffic report from combined access log")
 	}
