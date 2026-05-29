@@ -94,6 +94,21 @@ docker compose up -d
 ### 2. 安装 Agent
 
 安装 Agent 前请先在节点上安装 OpenResty，或改用内置 OpenResty 的 Agent Docker 镜像。
+你可以在控制面板的节点管理->详情->节点信息->节点标识与部署复制安装命令，或直接使用下面的脚本：
+
+#### Docker 部署
+
+Docker 部署可直接运行 Agent 镜像：
+
+```bash
+docker run -d --name openflare-agent --restart unless-stopped \
+  -p 80:80 -p 443:443 \
+  -e OPENFLARE_SERVER_URL=http://your-server:3000 \
+  -e OPENFLARE_AGENT_TOKEN=YOUR_AGENT_TOKEN \
+  ghcr.io/rain-kl/openflare-agent:latest
+```
+
+#### 本地部署
 
 使用 `discovery_token` 接入：
 
@@ -112,16 +127,6 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
 ```
 
 安装脚本默认写入 `/opt/openflare-agent`，创建 `openflare-agent.service`，自动查找 `openresty`，并可重复执行以重装或升级 Agent。
-
-Docker 部署可直接运行 Agent 镜像：
-
-```bash
-docker run -d --name openflare-agent --restart unless-stopped \
-  -p 80:80 -p 443:443 -p 127.0.0.1:18081:18081 \
-  -e OPENFLARE_SERVER_URL=http://your-server:3000 \
-  -e OPENFLARE_AGENT_TOKEN=YOUR_AGENT_TOKEN \
-  ghcr.io/rain-kl/openflare-agent:latest
-```
 
 ### 3. 卸载 Agent
 

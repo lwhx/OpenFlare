@@ -173,7 +173,7 @@ Docker 部署时直接运行 Agent 镜像。该镜像基于 OpenResty 镜像制�
 
 ```bash
 docker run -d --name openflare-agent --restart unless-stopped \
-  -p 80:80 -p 443:443 -p 127.0.0.1:18081:18081 \
+  -p 80:80 -p 443:443 \
   -v openflare-agent-data:/data \
   -v ./agent.json:/etc/openflare/agent.json:ro \
   ghcr.io/rain-kl/openflare-agent:latest
@@ -183,8 +183,7 @@ docker run -d --name openflare-agent --restart unless-stopped \
 
 ```bash
 docker run -d --name openflare-agent --restart unless-stopped \
-  -p 80:80 -p 443:443 -p 127.0.0.1:18081:18081 \
-  -v openflare-agent-data:/data \
+  -p 80:80 -p 443:443 \
   -e OPENFLARE_SERVER_URL=http://your-server:3000 \
   -e OPENFLARE_AGENT_TOKEN=YOUR_AGENT_TOKEN \
   ghcr.io/rain-kl/openflare-agent:latest

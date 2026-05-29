@@ -50,8 +50,7 @@ Agent self-update requires the GitHub Release to include both the target binary 
 
 ```bash
 docker run -d --name openflare-agent --restart unless-stopped \
-  -p 80:80 -p 443:443 -p 127.0.0.1:18081:18081 \
-  -v openflare-agent-data:/data \
+  -p 80:80 -p 443:443 \
   -e OPENFLARE_SERVER_URL=http://your-server:3000 \
   -e OPENFLARE_AGENT_TOKEN=YOUR_AGENT_TOKEN \
   ghcr.io/rain-kl/openflare-agent:latest
