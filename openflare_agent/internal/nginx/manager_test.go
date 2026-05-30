@@ -545,7 +545,7 @@ func TestManagerEnsureLuaAssetsWritesReadableFiles(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(manager.LuaDir, "pow", "check.lua")); err != nil {
 		t.Fatalf("failed to stat pow lua file: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(manager.LuaDir, "pow", "check.lua"))
+	data, err := os.ReadFile(filepath.Join(manager.LuaDir, "pow", "runtime.lua"))
 	if err != nil {
 		t.Fatalf("failed to read pow lua file: %v", err)
 	}
@@ -667,11 +667,11 @@ func TestManagerCurrentChecksumIncludesPowConfig(t *testing.T) {
 }
 
 func TestManagedPowLuaFilesUseInternalChallengeFlow(t *testing.T) {
-	if !strings.Contains(openRestyPowCheckLua, `return ngx.exec("/.within.website/x/cmd/anubis/api/make-challenge")`) {
-		t.Fatal("expected check.lua to internally execute make-challenge instead of issuing a 302 redirect")
+	if !strings.Contains(openRestyPowRuntimeLua, `return ngx.exec("/.within.website/x/cmd/anubis/api/make-challenge")`) {
+		t.Fatal("expected pow runtime lua to internally execute make-challenge instead of issuing a 302 redirect")
 	}
-	if strings.Contains(openRestyPowCheckLua, "ngx.redirect(") {
-		t.Fatal("expected check.lua to avoid external redirects for challenge rendering")
+	if strings.Contains(openRestyPowRuntimeLua, "ngx.redirect(") {
+		t.Fatal("expected pow runtime lua to avoid external redirects for challenge rendering")
 	}
 	if !strings.Contains(openRestyPowChallengeLua, `<h1 id="title" class="centered-div">`) {
 		t.Fatal("expected challenge html to include Anubis-compatible title node")
@@ -682,11 +682,11 @@ func TestManagedPowLuaFilesUseInternalChallengeFlow(t *testing.T) {
 	if !strings.Contains(openRestyPowChallengeLua, `<script id="anubis_public_url" type="application/json">"__openflare_internal__"</script>`) {
 		t.Fatal("expected challenge html to force Anubis frontend to reuse the current URL as redir target")
 	}
-	if !strings.Contains(openRestyPowCheckLua, `pow_sessions:set(session_key, "1", session_ttl)`) {
-		t.Fatal("expected check.lua to refresh the PoW session TTL on each valid request")
+	if !strings.Contains(openRestyPowRuntimeLua, `pow_sessions:set(session_key, "1", session_ttl)`) {
+		t.Fatal("expected pow runtime lua to refresh the PoW session TTL on each valid request")
 	}
-	if !strings.Contains(openRestyPowCheckLua, `ngx.header["Set-Cookie"] = session_cookie(cookie_val, session_ttl)`) {
-		t.Fatal("expected check.lua to refresh the browser session cookie on each valid request")
+	if !strings.Contains(openRestyPowRuntimeLua, `ngx.header["Set-Cookie"] = session_cookie(cookie_val, session_ttl)`) {
+		t.Fatal("expected pow runtime lua to refresh the browser session cookie on each valid request")
 	}
 	if !strings.Contains(openRestyPowChallengeLua, `local session_ttl = config.session_ttl or 600`) {
 		t.Fatal("expected challenge.lua to default session TTL to 10 minutes")

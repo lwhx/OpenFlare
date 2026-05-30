@@ -1025,7 +1025,7 @@ func TestPublishConfigVersionDetectsPoWChanges(t *testing.T) {
 	if !strings.Contains(secondRelease.Version.RenderedConfig, "application/javascript js mjs;") {
 		t.Fatal("expected rendered config to serve Anubis module scripts with a JavaScript MIME type")
 	}
-	if !strings.Contains(secondRelease.Version.RenderedConfig, "        dofile(\"__OPENFLARE_LUA_DIR__/waf/check.lua\")\n        if ngx.ctx.openflare_waf_blocked then\n            return\n        end\n        dofile(\"__OPENFLARE_LUA_DIR__/pow/check.lua\")") {
+	if !strings.Contains(secondRelease.Version.RenderedConfig, "        package.path = \"__OPENFLARE_LUA_DIR__/?.lua;__OPENFLARE_LUA_DIR__/?/init.lua;\" .. package.path\n        require(\"waf.runtime\").check()\n        if ngx.ctx.openflare_waf_blocked then\n            return\n        end\n        require(\"pow.runtime\").check()") {
 		t.Fatal("expected combined WAF and PoW access handler to short-circuit before PoW")
 	}
 	locationStart := strings.Index(secondRelease.Version.RenderedConfig, "    location / {\n")
@@ -1102,7 +1102,7 @@ func TestPublishConfigVersionRendersBasicAuthWithPoW(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, "                return ngx.exit(401)\n            end\n        }\n") {
 		t.Fatal("expected rendered basic auth Lua block to close the if statement before the nginx block")
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "        dofile(\"__OPENFLARE_LUA_DIR__/pow/check.lua\")") {
+	if !strings.Contains(result.Version.RenderedConfig, `require("pow.runtime").check()`) {
 		t.Fatal("expected PoW access handler to remain at server scope")
 	}
 	if !strings.Contains(result.Version.RenderedConfig, "proxy_pass http://backend_xbot_example_com_1;") {

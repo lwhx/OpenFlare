@@ -2,7 +2,10 @@ package nginx
 
 import "openflare-agent/internal/protocol"
 
-const openRestyWAFCheckLua = `local cjson = require "cjson.safe"
+const openRestyWAFRuntimeLua = `local _M = {}
+
+function _M.check()
+local cjson = require "cjson.safe"
 
 local config_dict = ngx.shared.openflare_waf_config
 
@@ -215,10 +218,28 @@ for _, group in ipairs(groups) do
         end
     end
 end
+
+return "ok"
+end
+
+return _M
+`
+
+const openRestyWAFCheckLua = `local source = debug.getinfo(1, "S").source or ""
+if string.sub(source, 1, 1) == "@" then
+    local script_path = string.sub(source, 2)
+    local base_dir = string.match(script_path, "^(.*)/waf/[^/]+%.lua$")
+    if base_dir and base_dir ~= "" then
+        package.path = base_dir .. "/?.lua;" .. base_dir .. "/?/init.lua;" .. package.path
+    end
+end
+
+return require("waf.runtime").check()
 `
 
 func ManagedWAFLuaFiles() []protocol.SupportFile {
 	return []protocol.SupportFile{
+		{Path: "waf/runtime.lua", Content: openRestyWAFRuntimeLua},
 		{Path: "waf/check.lua", Content: openRestyWAFCheckLua},
 	}
 }

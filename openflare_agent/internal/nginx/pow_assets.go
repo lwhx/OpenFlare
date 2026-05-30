@@ -10,7 +10,10 @@ import (
 //go:embed pow_static
 var powStaticFS embed.FS
 
-const openRestyPowCheckLua = `local source = debug.getinfo(1, "S").source or ""
+const openRestyPowRuntimeLua = `local _M = {}
+
+function _M.check()
+local source = debug.getinfo(1, "S").source or ""
 if string.sub(source, 1, 1) == "@" then
     local script_path = string.sub(source, 2)
     local base_dir = string.match(script_path, "^(.*)/pow/[^/]+%.lua$")
@@ -158,6 +161,21 @@ ngx.req.set_uri_args({
     host = host
 })
 return ngx.exec("/.within.website/x/cmd/anubis/api/make-challenge")
+end
+
+return _M
+`
+
+const openRestyPowCheckLua = `local source = debug.getinfo(1, "S").source or ""
+if string.sub(source, 1, 1) == "@" then
+    local script_path = string.sub(source, 2)
+    local base_dir = string.match(script_path, "^(.*)/pow/[^/]+%.lua$")
+    if base_dir and base_dir ~= "" then
+        package.path = base_dir .. "/?.lua;" .. base_dir .. "/?/init.lua;" .. package.path
+    end
+end
+
+return require("pow.runtime").check()
 `
 
 const openRestyPowChallengeLua = `local cjson = require "cjson.safe"
@@ -473,6 +491,7 @@ return M
 
 func ManagedPowLuaFiles() []protocol.SupportFile {
 	return []protocol.SupportFile{
+		{Path: "pow/runtime.lua", Content: openRestyPowRuntimeLua},
 		{Path: "pow/check.lua", Content: openRestyPowCheckLua},
 		{Path: "pow/challenge.lua", Content: openRestyPowChallengeLua},
 		{Path: "pow/verify.lua", Content: openRestyPowVerifyLua},
