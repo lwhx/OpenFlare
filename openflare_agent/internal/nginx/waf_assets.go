@@ -158,6 +158,7 @@ local function active_groups(config, groups)
 end
 
 local function exit_with_group(group)
+    ngx.ctx.openflare_waf_blocked = true
     ngx.status = tonumber(group.block_status_code) or 418
     local body = group.block_response_body or ""
     if body ~= "" then

@@ -1265,6 +1265,9 @@ func renderAccessBlock(siteName string, powEnabled bool) string {
 	return fmt.Sprintf(`    set $openflare_waf_site "%s";
     access_by_lua_block {
         dofile("%s/waf/check.lua")
+        if ngx.ctx.openflare_waf_blocked then
+            return
+        end
         dofile("%s/pow/check.lua")
     }
 `, escapedSiteName, nginxLuaDirPlaceholder, nginxLuaDirPlaceholder)

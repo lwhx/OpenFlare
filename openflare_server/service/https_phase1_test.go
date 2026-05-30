@@ -1025,8 +1025,8 @@ func TestPublishConfigVersionDetectsPoWChanges(t *testing.T) {
 	if !strings.Contains(secondRelease.Version.RenderedConfig, "application/javascript js mjs;") {
 		t.Fatal("expected rendered config to serve Anubis module scripts with a JavaScript MIME type")
 	}
-	if !strings.Contains(secondRelease.Version.RenderedConfig, "        dofile(\"__OPENFLARE_LUA_DIR__/waf/check.lua\")\n        dofile(\"__OPENFLARE_LUA_DIR__/pow/check.lua\")") {
-		t.Fatal("expected combined WAF and PoW access handler to render at server scope")
+	if !strings.Contains(secondRelease.Version.RenderedConfig, "        dofile(\"__OPENFLARE_LUA_DIR__/waf/check.lua\")\n        if ngx.ctx.openflare_waf_blocked then\n            return\n        end\n        dofile(\"__OPENFLARE_LUA_DIR__/pow/check.lua\")") {
+		t.Fatal("expected combined WAF and PoW access handler to short-circuit before PoW")
 	}
 	locationStart := strings.Index(secondRelease.Version.RenderedConfig, "    location / {\n")
 	if locationStart < 0 {
