@@ -406,6 +406,6 @@ func updateOptionMap(key string, value string) {
 	}
 	common.OptionMapRWMutex.Unlock()
 	if shouldRefreshGeoIP {
-		geoip.InitGeoIP()
+		geoip.InitGeoIP(common.GeoIPProvider)
 	}
 }

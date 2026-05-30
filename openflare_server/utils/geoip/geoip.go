@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"openflare/common"
 	"strings"
 	"sync"
 	"time"
@@ -110,8 +109,8 @@ func GetRegionUnicodeEmoji(isoCode string) string {
 	return string(rune1) + string(rune2)
 }
 
-func InitGeoIP() {
-	providerName := normalizeProvider(common.GeoIPProvider)
+func InitGeoIP(provider string) {
+	providerName := normalizeProvider(provider)
 	nextProvider, err := providerFactory(providerName)
 	if err != nil {
 		slog.Error("initialize GeoIP provider failed", "provider", providerName, "error", err)

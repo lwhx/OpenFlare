@@ -69,7 +69,7 @@ func main() {
 
 	// Initialize options
 	model.InitOptionMap()
-	geoip.InitGeoIP()
+	geoip.InitGeoIP(common.GeoIPProvider)
 	backgroundCtx, cancelBackgroundTasks := context.WithCancel(context.Background())
 	defer cancelBackgroundTasks()
 	service.StartDatabaseAutoCleanupScheduler(backgroundCtx)

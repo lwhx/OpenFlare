@@ -1,10 +1,12 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"openflare/utils/geoip"
 	"openflare/utils/geoip/iputil"
 	"os"
 	pathpkg "path"
@@ -25,6 +27,11 @@ const (
 	defaultObservabilityBufferRelativePath = "var/lib/openflare/observability-buffer.json"
 	defaultOpenRestyObservabilityPort      = 18081
 	defaultObservabilityReplayMinutes      = 15
+)
+
+var (
+	lookupOutboundIP = geoip.GetOutboundIP
+	lookupLocalIP    = detectLocalNodeIP
 )
 
 type Config struct {
@@ -403,6 +410,23 @@ func firstNonEmpty(values ...string) string {
 }
 
 func detectNodeIP() string {
+	if ip := detectOutboundNodeIP(); ip != "" {
+		return ip
+	}
+	return lookupLocalIP()
+}
+
+func detectOutboundNodeIP() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ip, err := lookupOutboundIP(ctx)
+	if err != nil || ip == nil {
+		return ""
+	}
+	return ip.String()
+}
+
+func detectLocalNodeIP() string {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return ""

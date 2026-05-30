@@ -167,7 +167,7 @@ journalctl -u openflare-agent -f
 
 ## Docker 运行 Agent
 
-Docker 部署时直接运行 Agent 镜像。该镜像基于 OpenResty 镜像制作，内置 Agent 控制器与 OpenResty 二进制。
+Docker 部署时直接运行 Agent 镜像。该镜像基于 OpenResty 镜像制作，内置 Agent 控制器与 OpenResty 二进制。未显式配置 `node_ip` 时，Agent 会优先通过第三方 API 获取真实出口 IP，避免把 Docker 网桥地址登记为节点 IP。
 
 挂载配置文件：
 

@@ -61,7 +61,7 @@ Agent supports the `-config` CLI flag, an `agent.json` file, and the `LOG_LEVEL`
 | `agent_token` | Node-specific auth token | one of `agent_token` / `discovery_token` | empty |
 | `discovery_token` | Global token for first registration | one of `agent_token` / `discovery_token` | empty |
 | `node_name` | Node name | no | host name |
-| `node_ip` | Node IP | no | auto-detected |
+| `node_ip` | Node IP | no | auto-detected; Agent first queries the public egress IP through a third-party API, then falls back to local interfaces |
 | `openresty_path` | OpenResty binary path | no | `openresty` |
 | `openresty_container_name` | Deprecated Docker-control field, read for compatibility only | no | empty |
 | `openresty_docker_image` | Deprecated Docker-control field, read for compatibility only | no | empty |
@@ -74,3 +74,5 @@ Agent supports the `-config` CLI flag, an `agent.json` file, and the `LOG_LEVEL`
 | `request_timeout` | HTTP timeout | no | `10000` ms |
 
 `heartbeat_interval` and `request_timeout` accept milliseconds or Go duration strings.
+
+When `node_ip` is not configured, Agent first queries `https://realip.cc` for the real public egress IP, which avoids recording a Docker bridge address in container deployments. If that lookup fails, Agent falls back to local interface detection and prefers a public IPv4 address.

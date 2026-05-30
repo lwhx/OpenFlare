@@ -1,8 +1,11 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net"
+	"openflare/utils/geoip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -275,6 +278,77 @@ func TestLoadUsesEnvConfigWhenFileIsMissing(t *testing.T) {
 	}
 	if cfg.OpenrestyObservabilityPort != 19091 {
 		t.Fatalf("unexpected observability port: %d", cfg.OpenrestyObservabilityPort)
+	}
+}
+
+func TestLoadDetectsOutboundIPWhenNodeIPMissing(t *testing.T) {
+	previousLookup := lookupOutboundIP
+	lookupOutboundIP = func(ctx context.Context, strategies ...geoip.OutboundIPStrategy) (net.IP, error) {
+		return net.ParseIP("8.8.8.8"), nil
+	}
+	defer func() {
+		lookupOutboundIP = previousLookup
+	}()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "agent.json")
+	payload := map[string]any{
+		"server_url":  "http://127.0.0.1:3000",
+		"agent_token": "token",
+		"node_name":   "edge-01",
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal config: %v", err)
+	}
+	if err = os.WriteFile(configPath, data, 0o644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.NodeIP != "8.8.8.8" {
+		t.Fatalf("expected outbound IP, got %s", cfg.NodeIP)
+	}
+}
+
+func TestLoadFallsBackToLocalIPWhenOutboundLookupFails(t *testing.T) {
+	previousOutboundLookup := lookupOutboundIP
+	previousLocalLookup := lookupLocalIP
+	lookupOutboundIP = func(ctx context.Context, strategies ...geoip.OutboundIPStrategy) (net.IP, error) {
+		return nil, errors.New("realip.cc unavailable")
+	}
+	lookupLocalIP = func() string {
+		return "9.9.9.9"
+	}
+	defer func() {
+		lookupOutboundIP = previousOutboundLookup
+		lookupLocalIP = previousLocalLookup
+	}()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "agent.json")
+	payload := map[string]any{
+		"server_url":  "http://127.0.0.1:3000",
+		"agent_token": "token",
+		"node_name":   "edge-01",
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("failed to marshal config: %v", err)
+	}
+	if err = os.WriteFile(configPath, data, 0o644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.NodeIP != "9.9.9.9" {
+		t.Fatalf("expected local fallback IP, got %s", cfg.NodeIP)
 	}
 }
 

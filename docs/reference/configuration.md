@@ -163,7 +163,7 @@ OpenResty 性能参数与缓存参数继续统一保存在 `Option` 表。当前
 | `agent_token` | 节点专属认证 Token | 与 `discovery_token` 二选一 | 空 |
 | `discovery_token` | 首次自动注册使用的全局 Token | 与 `agent_token` 二选一 | 空 |
 | `node_name` | 节点名称 | 否 | 自动使用主机名 |
-| `node_ip` | 节点 IP | 否 | 自动探测，优先选择公网 IPv4；仅无公网地址时退回可用内网地址 |
+| `node_ip` | 节点 IP | 否 | 自动探测，优先通过第三方 API 获取真实出口公网 IP；失败时退回本机网卡探测 |
 | `openresty_path` | OpenResty 二进制路径 | 否 | `openresty` |
 | `openresty_container_name` | 旧 Docker 控制字段，仅兼容读取 | 否 | 空 |
 | `openresty_docker_image` | 旧 Docker 控制字段，仅兼容读取 | 否 | 空 |
@@ -192,6 +192,7 @@ OpenResty 性能参数与缓存参数继续统一保存在 `Option` 表。当前
 * 未配置 `openresty_path` 时默认调用 `openresty`。
 * Agent 周期性健康检查会请求 `http://127.0.0.1:<openresty_observability_port>/openflare/stub_status`，不再通过高频 `openresty -t` 判断运行时健康；配置应用、启动恢复和 reload 前校验仍会执行 `openresty -t -c <main_config_path>`。
 * 如果 `agent.json` 不存在，但 `OPENFLARE_SERVER_URL` 与 Token 等环境变量足够，Agent 可以直接启动；两者同时存在时环境变量优先。
+* Agent 未配置 `node_ip` 时，会优先通过 `https://realip.cc` 获取真实出口公网 IP，适配 Docker/NAT 场景；该请求失败时，才退回本机网卡探测并优先选择公网 IPv4。
 * Agent 自动探测到私网 `node_ip` 时，Server 会在注册/心跳阶段优先保留 Agent 直连来源的公网地址，避免 NAT/多网卡场景误登记内网网卡地址。
 
 ## 常见配置组合
