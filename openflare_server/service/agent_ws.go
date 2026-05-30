@@ -127,6 +127,21 @@ func UnregisterAgentWSClient(client *AgentWSClient) {
 	slog.Debug("agent ws connection unregistered", "node_id", client.nodeID, "client_count", count)
 }
 
+func DisconnectAgentWSClient(nodeID string) {
+	defaultAgentWSHub.mu.Lock()
+	client := defaultAgentWSHub.clients[nodeID]
+	if client != nil {
+		delete(defaultAgentWSHub.clients, nodeID)
+	}
+	count := len(defaultAgentWSHub.clients)
+	defaultAgentWSHub.mu.Unlock()
+
+	if client != nil {
+		client.Close()
+		slog.Debug("agent ws connection forcefully disconnected", "node_id", nodeID, "client_count", count)
+	}
+}
+
 func IsAgentWSConnected(nodeID string) bool {
 	defaultAgentWSHub.mu.RLock()
 	client := defaultAgentWSHub.clients[nodeID]

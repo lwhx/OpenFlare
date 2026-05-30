@@ -150,6 +150,12 @@ func AgentWebSocket(c *gin.Context) {
 		}()
 
 		slog.Debug("agent ws upgrade succeeded", "node_id", node.NodeID, "remote", c.Request.RemoteAddr)
+
+		go func() {
+			<-client.Done()
+			_ = conn.Close()
+		}()
+
 		go streamAgentWSMessages(c, conn, client)
 
 		for {

@@ -130,6 +130,7 @@ func DeleteNode(id uint) error {
 		return err
 	}
 	invalidateAgentTokenCache(node.AgentToken)
+	DisconnectAgentWSClient(node.NodeID)
 	return nil
 }
 
