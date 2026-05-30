@@ -184,11 +184,15 @@ export function buildNodeDockerInstallCommand(
   serverUrl: string,
   agentToken: string,
 ) {
+  const image = 'ghcr.io/rain-kl/openflare-agent:latest';
+
   return [
+    `docker pull ${image}`,
+    `docker rm -f openflare-agent 2>/dev/null || true`,
     `docker run -d --name openflare-agent --restart unless-stopped \\`,
     `  -p 80:80 -p 443:443 \\`,
     `  -e OPENFLARE_SERVER_URL=${serverUrl} \\`,
     `  -e OPENFLARE_AGENT_TOKEN=${agentToken} \\`,
-    `  ghcr.io/rain-kl/openflare-agent:latest`,
+    `  ${image}`,
   ].join('\n');
 }
