@@ -392,7 +392,7 @@ func TestManagerCheckHealthFailsWhenStubStatusUnavailable(t *testing.T) {
 }
 
 func TestResolverDirectiveUsesExplicitResolvers(t *testing.T) {
-	got := ResolverDirective("", []string{"10.0.0.2", "1.1.1.1"})
+	got := ResolverDirective([]string{"10.0.0.2", "1.1.1.1"})
 	if !strings.Contains(got, "resolver 10.0.0.2 1.1.1.1") {
 		t.Fatalf("expected explicit resolver directive, got %q", got)
 	}
@@ -916,10 +916,10 @@ func TestManagerApplyRejectsCertFilePathTraversal(t *testing.T) {
 }
 
 func TestObservabilityListenAddress(t *testing.T) {
-	if got := ObservabilityListenAddress("", 18081); got != "127.0.0.1:18081" {
+	if got := ObservabilityListenAddress(18081); got != "127.0.0.1:18081" {
 		t.Fatalf("unexpected default observability listen address: %s", got)
 	}
-	if got := ObservabilityListenAddress("/usr/local/openresty/nginx/sbin/openresty", 18081); got != "127.0.0.1:18081" {
+	if got := ObservabilityListenAddress(18081); got != "127.0.0.1:18081" {
 		t.Fatalf("unexpected path observability listen address: %s", got)
 	}
 }

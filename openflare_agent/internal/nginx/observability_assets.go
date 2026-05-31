@@ -3,8 +3,8 @@ package nginx
 import "openflare-agent/internal/protocol"
 
 const (
-	openRestyObservabilityWindowTTL  = 7200
-	openRestyObservabilityWindowSize = 60
+	openRestyObservabilityWindowTTL  = "7200"
+	openRestyObservabilityWindowSize = "60"
 )
 
 const openRestyObservabilityInitLua = `local dict = ngx.shared.openflare_observability
@@ -25,9 +25,9 @@ if request_uri == "/openflare/observability" or request_uri == "/openflare/stub_
     return
 end
 
-local ttl = ` + "7200" + `
+local ttl = ` + openRestyObservabilityWindowTTL + `
 local now = ngx.time()
-local window_size = ` + "60" + `
+local window_size = ` + openRestyObservabilityWindowSize + `
 local window_start = now - (now % window_size)
 
 local function ensure_counter(key)
@@ -109,7 +109,7 @@ if not dict then
 end
 
 local now = ngx.time()
-local window_size = ` + "60" + `
+local window_size = ` + openRestyObservabilityWindowSize + `
 local window_start = now - (now % window_size)
 local current_window = tostring(window_start)
 

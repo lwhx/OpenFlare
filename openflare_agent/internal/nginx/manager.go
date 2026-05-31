@@ -102,7 +102,7 @@ func (e *PathExecutor) Reload(ctx context.Context) error {
 	return nil
 }
 
-func (e *PathExecutor) EnsureRuntime(ctx context.Context, recreate bool) error {
+func (e *PathExecutor) EnsureRuntime(ctx context.Context, _ bool) error {
 	if err := e.Test(ctx); err != nil {
 		return err
 	}
@@ -479,7 +479,7 @@ func parseNginxVersion(output string) string {
 	return matches[1]
 }
 
-var nginxVersionPattern = regexp.MustCompile(`(?im)(?:nginx|openresty) version:\s*(?:nginx|openresty)/([^\s]+)`)
+var nginxVersionPattern = regexp.MustCompile(`(?im)(?:nginx|openresty) version:\s*(?:nginx|openresty)/(\S+)`)
 
 func isIgnorableOpenrestyStopError(output string) bool {
 	text := strings.ToLower(strings.TrimSpace(output))
@@ -1095,22 +1095,22 @@ func (m *Manager) managedWAFLuaFiles() []protocol.SupportFile {
 	return files
 }
 
-func ObservabilityListenAddress(openrestyPath string, port int) string {
+func ObservabilityListenAddress(port int) string {
 	if port <= 0 {
 		return ""
 	}
 	return fmt.Sprintf("127.0.0.1:%d", port)
 }
 
-func ResolverDirective(openrestyPath string, explicitResolvers []string) string {
-	resolvers := resolverAddresses(openrestyPath, explicitResolvers)
+func ResolverDirective(explicitResolvers []string) string {
+	resolvers := resolverAddresses(explicitResolvers)
 	if len(resolvers) == 0 {
 		return ""
 	}
 	return fmt.Sprintf("    resolver %s valid=30s ipv6=off;\n    resolver_timeout 5s;\n", strings.Join(resolvers, " "))
 }
 
-func resolverAddresses(openrestyPath string, explicitResolvers []string) []string {
+func resolverAddresses(explicitResolvers []string) []string {
 	if resolvers := utils.UniqueAndCleanStringSlice(explicitResolvers); len(resolvers) > 0 {
 		return resolvers
 	}
