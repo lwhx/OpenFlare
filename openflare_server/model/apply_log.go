@@ -50,12 +50,6 @@ func CountApplyLogs(nodeID string) (total int64, err error) {
 	return total, err
 }
 
-func GetLatestApplyLog(nodeID string) (*ApplyLog, error) {
-	log := &ApplyLog{}
-	err := DB.Where("node_id = ?", nodeID).Order("id desc").First(log).Error
-	return log, err
-}
-
 func GetLatestApplyLogsByNodeIDs(nodeIDs []string) (map[string]*ApplyLog, error) {
 	result := make(map[string]*ApplyLog)
 	if len(nodeIDs) == 0 {

@@ -1,9 +1,7 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"openflare/common"
 	"openflare/model"
 	"openflare/service"
@@ -25,65 +23,43 @@ func GetStatus(c *gin.Context) {
 	if err != nil {
 		authSources = []service.PublicAuthSource{}
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"version":                   common.Version,
-			"start_time":                common.StartTime,
-			"email_verification":        common.EmailVerificationEnabled,
-			"github_oauth":              common.GitHubOAuthEnabled,
-			"github_client_id":          common.GitHubClientId,
-			"system_name":               common.SystemName,
-			"home_page_link":            common.HomePageLink,
-			"footer_html":               common.Footer,
-			"wechat_qrcode":             common.WeChatAccountQRCodeImageURL,
-			"wechat_login":              common.WeChatAuthEnabled,
-			"server_address":            common.ServerAddress,
-			"register_enabled":          common.RegisterEnabled,
-			"password_register_enabled": common.PasswordRegisterEnabled,
-			"auth_sources":              authSources,
-		},
+	respondSuccess(c, gin.H{
+		"version":                   common.Version,
+		"start_time":                common.StartTime,
+		"email_verification":        common.EmailVerificationEnabled,
+		"github_oauth":              common.GitHubOAuthEnabled,
+		"github_client_id":          common.GitHubClientId,
+		"system_name":               common.SystemName,
+		"home_page_link":            common.HomePageLink,
+		"footer_html":               common.Footer,
+		"wechat_qrcode":             common.WeChatAccountQRCodeImageURL,
+		"wechat_login":              common.WeChatAuthEnabled,
+		"server_address":            common.ServerAddress,
+		"password_register_enabled": common.PasswordRegisterEnabled,
+		"auth_sources":              authSources,
 	})
-	return
 }
 
 func GetNotice(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["Notice"],
-	})
-	return
+	respondSuccess(c, common.OptionMap["Notice"])
 }
 
 func GetAbout(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["About"],
-	})
-	return
+	respondSuccess(c, common.OptionMap["About"])
 }
 
 func SendEmailVerification(c *gin.Context) {
 	email := c.Query("email")
 	if err := validation.Validate.Var(email, "required,email"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
+		respondFailure(c, "无效的参数")
 		return
 	}
 	if model.IsEmailAlreadyTaken(email) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "邮箱地址已被占用",
-		})
+		respondFailure(c, "邮箱地址已被占用")
 		return
 	}
 	code := security.GenerateVerificationCode(6)
@@ -101,33 +77,20 @@ func SendEmailVerification(c *gin.Context) {
 	}
 	err := mail.SendEmail(cfg, subject, email, content)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-	return
+	respondSuccessMessage(c, "")
 }
 
 func SendPasswordResetEmail(c *gin.Context) {
 	email := c.Query("email")
 	if err := validation.Validate.Var(email, "required,email"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
+		respondFailure(c, "无效的参数")
 		return
 	}
 	if !model.IsEmailAlreadyTaken(email) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该邮箱地址未注册",
-		})
+		respondFailure(c, "该邮箱地址未注册")
 		return
 	}
 	code := security.GenerateVerificationCode(0)
@@ -146,17 +109,10 @@ func SendPasswordResetEmail(c *gin.Context) {
 	}
 	err := mail.SendEmail(cfg, subject, email, content)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-	return
+	respondSuccessMessage(c, "")
 }
 
 type PasswordResetRequest struct {
@@ -166,35 +122,23 @@ type PasswordResetRequest struct {
 
 func ResetPassword(c *gin.Context) {
 	var req PasswordResetRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	if !bindJSON(c, &req) {
+		return
+	}
 	if req.Email == "" || req.Token == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
+		respondFailure(c, "无效的参数")
 		return
 	}
 	if !security.VerifyCodeWithKey(req.Email, req.Token, security.PasswordResetPurpose) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "重置链接非法或已过期",
-		})
+		respondFailure(c, "重置链接非法或已过期")
 		return
 	}
 	password := security.GenerateVerificationCode(12)
-	err = model.ResetUserPasswordByEmail(req.Email, password)
+	err := model.ResetUserPasswordByEmail(req.Email, password)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		respondFailure(c, err.Error())
 		return
 	}
 	security.DeleteKey(req.Email, security.PasswordResetPurpose)
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    password,
-	})
-	return
+	respondSuccess(c, password)
 }

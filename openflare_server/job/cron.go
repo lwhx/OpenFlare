@@ -1,8 +1,9 @@
 package job
 
 import (
-	"github.com/robfig/cron/v3"
 	"log/slog"
+
+	"github.com/robfig/cron/v3"
 )
 
 var cronRunner *cron.Cron

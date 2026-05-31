@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
-	"net/http"
 	"openflare/service"
 	"strconv"
 
@@ -16,10 +14,10 @@ type wafIDsRequest struct {
 func ListWAFRuleGroups(c *gin.Context) {
 	groups, err := service.ListWAFRuleGroups()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": groups})
+	respondSuccess(c, groups)
 }
 
 func GetWAFRuleGroup(c *gin.Context) {
@@ -29,24 +27,23 @@ func GetWAFRuleGroup(c *gin.Context) {
 	}
 	group, err := service.GetWAFRuleGroup(id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": group})
+	respondSuccess(c, group)
 }
 
 func CreateWAFRuleGroup(c *gin.Context) {
 	var input service.WAFRuleGroupInput
-	if err := json.NewDecoder(c.Request.Body).Decode(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid payload"})
+	if !bindJSON(c, &input) {
 		return
 	}
 	group, err := service.CreateWAFRuleGroup(input)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": group})
+	respondSuccess(c, group)
 }
 
 func UpdateWAFRuleGroup(c *gin.Context) {
@@ -55,16 +52,15 @@ func UpdateWAFRuleGroup(c *gin.Context) {
 		return
 	}
 	var input service.WAFRuleGroupInput
-	if err := json.NewDecoder(c.Request.Body).Decode(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid payload"})
+	if !bindJSON(c, &input) {
 		return
 	}
 	group, err := service.UpdateWAFRuleGroup(id, input)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": group})
+	respondSuccess(c, group)
 }
 
 func DeleteWAFRuleGroup(c *gin.Context) {
@@ -73,10 +69,10 @@ func DeleteWAFRuleGroup(c *gin.Context) {
 		return
 	}
 	if err := service.DeleteWAFRuleGroup(id); err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+	respondSuccessMessage(c, "")
 }
 
 func ReplaceWAFRuleGroupSites(c *gin.Context) {
@@ -85,16 +81,15 @@ func ReplaceWAFRuleGroupSites(c *gin.Context) {
 		return
 	}
 	var request wafIDsRequest
-	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid payload"})
+	if !bindJSON(c, &request) {
 		return
 	}
 	group, err := service.ReplaceWAFRuleGroupSites(id, request.IDs)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": group})
+	respondSuccess(c, group)
 }
 
 func GetWAFSiteRuleGroups(c *gin.Context) {
@@ -104,10 +99,10 @@ func GetWAFSiteRuleGroups(c *gin.Context) {
 	}
 	view, err := service.GetWAFSiteRuleGroups(routeID)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": view})
+	respondSuccess(c, view)
 }
 
 func ReplaceWAFSiteRuleGroups(c *gin.Context) {
@@ -116,22 +111,21 @@ func ReplaceWAFSiteRuleGroups(c *gin.Context) {
 		return
 	}
 	var request wafIDsRequest
-	if err := json.NewDecoder(c.Request.Body).Decode(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid payload"})
+	if !bindJSON(c, &request) {
 		return
 	}
 	view, err := service.ReplaceWAFSiteRuleGroups(routeID, request.IDs)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": view})
+	respondSuccess(c, view)
 }
 
 func parseUintPathParam(c *gin.Context, name string) (uint, bool) {
 	id, err := strconv.ParseUint(c.Param(name), 10, 64)
 	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid id"})
+		respondBadRequest(c, "invalid id")
 		return 0, false
 	}
 	return uint(id), true

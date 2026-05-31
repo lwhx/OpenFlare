@@ -1,8 +1,9 @@
 package controller
 
 import (
-	"github.com/gin-gonic/gin"
 	"openflare/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GetProxyRoutes godoc

@@ -1,9 +1,7 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"openflare/common"
 	"openflare/model"
 	"openflare/service"
@@ -231,11 +229,11 @@ func validateOptionWithState(option model.Option, state map[string]string) error
 	switch option.Key {
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && strings.TrimSpace(state["GitHubClientId"]) == "" {
-			return fmt.Errorf("鏃犳硶鍚敤 GitHub OAuth锛岃鍏堝～鍏?GitHub Client ID 浠ュ強 GitHub Client Secret锛?")
+			return fmt.Errorf("无法启用 GitHub OAuth，请先填入 GitHub Client ID 以及 GitHub Client Secret！")
 		}
 	case "WeChatAuthEnabled":
 		if option.Value == "true" && strings.TrimSpace(state["WeChatServerAddress"]) == "" {
-			return fmt.Errorf("鏃犳硶鍚敤寰俊鐧诲綍锛岃鍏堝～鍏ュ井淇＄櫥褰曠浉鍏抽厤缃俊鎭紒")
+			return fmt.Errorf("无法启用微信登录，请先填入微信登录相关配置信息！")
 		}
 
 	}
@@ -260,13 +258,13 @@ func validateOptionWithState(option model.Option, state map[string]string) error
 
 func updateOptions(options []model.Option) error {
 	if len(options) == 0 {
-		return fmt.Errorf("鏃犳晥鐨勫弬鏁?")
+		return fmt.Errorf("无效的参数")
 	}
 
 	state := buildOptionValidationState(options)
 	for _, option := range options {
 		if strings.TrimSpace(option.Key) == "" {
-			return fmt.Errorf("鏃犳晥鐨勫弬鏁?")
+			return fmt.Errorf("无效的参数")
 		}
 		if err := validateOptionWithState(option, state); err != nil {
 			return err
@@ -295,12 +293,7 @@ func GetOptions(c *gin.Context) {
 		})
 	}
 	common.OptionMapRWMutex.Unlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    options,
-	})
-	return
+	respondSuccess(c, options)
 }
 
 // UpdateOption godoc
@@ -314,80 +307,47 @@ func GetOptions(c *gin.Context) {
 // @Router /api/option/update [post]
 func UpdateOption(c *gin.Context) {
 	var option model.Option
-	err := json.NewDecoder(c.Request.Body).Decode(&option)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
+	if !bindJSON(c, &option) {
 		return
 	}
 	switch option.Key {
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && common.GitHubClientId == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client ID 以及 GitHub Client Secret！",
-			})
+			respondFailure(c, "无法启用 GitHub OAuth，请先填入 GitHub Client ID 以及 GitHub Client Secret！")
 			return
 		}
 	case "WeChatAuthEnabled":
 		if option.Value == "true" && common.WeChatServerAddress == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
-			})
+			respondFailure(c, "无法启用微信登录，请先填入微信登录相关配置信息！")
 			return
 		}
 	}
-	if err = validateRateLimitOption(option.Key, option.Value); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+	if err := validateRateLimitOption(option.Key, option.Value); err != nil {
+		respondFailure(c, err.Error())
 		return
 	}
-	if err = validateOpenRestyOption(option.Key, option.Value); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+	if err := validateOpenRestyOption(option.Key, option.Value); err != nil {
+		respondFailure(c, err.Error())
 		return
 	}
-	if err = validateGeoIPOption(option.Key, option.Value); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+	if err := validateGeoIPOption(option.Key, option.Value); err != nil {
+		respondFailure(c, err.Error())
 		return
 	}
-	if err = validateDatabaseCleanupOption(option.Key, option.Value); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+	if err := validateDatabaseCleanupOption(option.Key, option.Value); err != nil {
+		respondFailure(c, err.Error())
 		return
 	}
-	if err = validateAgentOption(option.Key, option.Value); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+	if err := validateAgentOption(option.Key, option.Value); err != nil {
+		respondFailure(c, err.Error())
 		return
 	}
-	err = model.UpdateOption(option.Key, option.Value)
+	err := model.UpdateOption(option.Key, option.Value)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		respondFailure(c, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-	return
+	respondSuccessMessage(c, "")
 }
 
 // UpdateOptionsBatch godoc
@@ -401,24 +361,18 @@ func UpdateOption(c *gin.Context) {
 // @Router /api/option/update-batch [post]
 func UpdateOptionsBatch(c *gin.Context) {
 	var payload optionBatchPayload
-	if err := json.NewDecoder(c.Request.Body).Decode(&payload); err != nil || len(payload.Options) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "鏃犳晥鐨勫弬鏁?",
-		})
+	if !bindJSON(c, &payload) {
+		return
+	}
+	if len(payload.Options) == 0 {
+		respondBadRequest(c, "无效的参数")
 		return
 	}
 
 	if err := updateOptions(payload.Options); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		respondFailure(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
+	respondSuccessMessage(c, "")
 }

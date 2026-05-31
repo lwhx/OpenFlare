@@ -2,12 +2,13 @@ package middleware
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
 	"log/slog"
 	"net/http"
 	"openflare/common"
 	"openflare/utils/ratelimit"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 var timeFormat = "2006-01-02T15:04:05.000Z"
@@ -52,11 +53,11 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
-		} else {
-			rdb.LPush(ctx, key, time.Now().Format(timeFormat))
-			rdb.LTrim(ctx, key, 0, int64(maxRequestNum-1))
-			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
 		}
+
+		rdb.LPush(ctx, key, time.Now().Format(timeFormat))
+		rdb.LTrim(ctx, key, 0, int64(maxRequestNum-1))
+		rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
 	}
 }
 
@@ -74,12 +75,12 @@ func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gi
 		return func(c *gin.Context) {
 			redisRateLimiter(c, maxRequestNum, duration, mark)
 		}
-	} else {
-		// It's safe to call multi times.
-		inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
-		return func(c *gin.Context) {
-			memoryRateLimiter(c, maxRequestNum, duration, mark)
-		}
+	}
+
+	// It's safe to call multi times.
+	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+	return func(c *gin.Context) {
+		memoryRateLimiter(c, maxRequestNum, duration, mark)
 	}
 }
 
@@ -93,12 +94,4 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 
 func CriticalRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")
-}
-
-func DownloadRateLimit() func(c *gin.Context) {
-	return rateLimitFactory(common.DownloadRateLimitNum, common.DownloadRateLimitDuration, "DW")
-}
-
-func UploadRateLimit() func(c *gin.Context) {
-	return rateLimitFactory(common.UploadRateLimitNum, common.UploadRateLimitDuration, "UP")
 }
