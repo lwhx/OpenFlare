@@ -24,15 +24,8 @@ import (
 	"openflare-agent/internal/protocol"
 )
 
-const CertDirPlaceholder = "__OPENFLARE_CERT_DIR__"
-const RouteConfigPlaceholder = "__OPENFLARE_ROUTE_CONFIG__"
-const AccessLogPlaceholder = "__OPENFLARE_ACCESS_LOG__"
-const LuaDirPlaceholder = "__OPENFLARE_LUA_DIR__"
 const RuntimeConfigDirPlaceholder = "__OPENFLARE_RUNTIME_CONFIG_DIR__"
-const ObservabilityListenPlaceholder = "__OPENFLARE_OBSERVABILITY_LISTEN__"
-const ObservabilityPortPlaceholder = "__OPENFLARE_OBSERVABILITY_PORT__"
 const ResolverDirectivePlaceholder = "__OPENFLARE_RESOLVER_DIRECTIVE__"
-const PowStaticDirPlaceholder = "__OPENFLARE_POW_STATIC_DIR__"
 
 type Executor interface {
 	Test(ctx context.Context) error
@@ -395,30 +388,30 @@ func (m *Manager) CurrentChecksum() (string, error) {
 	}
 	normalizedMain := string(mainData)
 	if includePath := m.routeConfigIncludePath(); includePath != "" {
-		normalizedMain = strings.ReplaceAll(normalizedMain, includePath, RouteConfigPlaceholder)
+		normalizedMain = strings.ReplaceAll(normalizedMain, includePath, openrestyrender.RouteConfigPlaceholder)
 	}
 	if accessLogPath := m.accessLogRuntimePath(); accessLogPath != "" {
-		normalizedMain = strings.ReplaceAll(normalizedMain, accessLogPath, AccessLogPlaceholder)
+		normalizedMain = strings.ReplaceAll(normalizedMain, accessLogPath, openrestyrender.AccessLogPlaceholder)
 	}
 	if luaDir := m.luaRuntimePath(); luaDir != "" {
-		normalizedMain = strings.ReplaceAll(normalizedMain, luaDir, LuaDirPlaceholder)
+		normalizedMain = strings.ReplaceAll(normalizedMain, luaDir, openrestyrender.LuaDirPlaceholder)
 	}
 	if listen := strings.TrimSpace(m.OpenrestyObservabilityListen); listen != "" {
-		normalizedMain = strings.ReplaceAll(normalizedMain, listen, ObservabilityListenPlaceholder)
+		normalizedMain = strings.ReplaceAll(normalizedMain, listen, openrestyrender.ObservabilityListenPlaceholder)
 	}
 	if m.OpenrestyObservabilityPort > 0 {
-		normalizedMain = strings.ReplaceAll(normalizedMain, fmt.Sprintf("%d", m.OpenrestyObservabilityPort), ObservabilityPortPlaceholder)
+		normalizedMain = strings.ReplaceAll(normalizedMain, fmt.Sprintf("%d", m.OpenrestyObservabilityPort), openrestyrender.ObservabilityPortPlaceholder)
 	}
 	if resolverDirective := strings.TrimSpace(m.OpenrestyResolverDirective); resolverDirective != "" {
 		normalizedMain = strings.ReplaceAll(normalizedMain, resolverDirective, ResolverDirectivePlaceholder)
 	}
 	normalizedRoute := string(data)
 	if m.NginxCertDir != "" {
-		normalizedRoute = strings.ReplaceAll(normalizedRoute, m.NginxCertDir, CertDirPlaceholder)
+		normalizedRoute = strings.ReplaceAll(normalizedRoute, m.NginxCertDir, openrestyrender.CertDirPlaceholder)
 	}
 	if luaDir := m.luaRuntimePath(); luaDir != "" {
-		normalizedRoute = strings.ReplaceAll(normalizedRoute, luaDir+"/pow/static", PowStaticDirPlaceholder)
-		normalizedRoute = strings.ReplaceAll(normalizedRoute, luaDir, LuaDirPlaceholder)
+		normalizedRoute = strings.ReplaceAll(normalizedRoute, luaDir+"/pow/static", openrestyrender.PowStaticDirPlaceholder)
+		normalizedRoute = strings.ReplaceAll(normalizedRoute, luaDir, openrestyrender.LuaDirPlaceholder)
 	}
 	files, err := m.readManagedSupportFiles()
 	if err != nil {
@@ -1051,11 +1044,11 @@ func (m *Manager) ensureMimeTypes() error {
 func (m *Manager) renderRouteConfig(content string) string {
 	rendered := content
 	if m.NginxCertDir != "" {
-		rendered = strings.ReplaceAll(rendered, CertDirPlaceholder, m.NginxCertDir)
+		rendered = strings.ReplaceAll(rendered, openrestyrender.CertDirPlaceholder, m.NginxCertDir)
 	}
 	if luaDir := m.luaRuntimePath(); luaDir != "" {
-		rendered = strings.ReplaceAll(rendered, LuaDirPlaceholder, luaDir)
-		rendered = strings.ReplaceAll(rendered, PowStaticDirPlaceholder, luaDir+"/pow/static")
+		rendered = strings.ReplaceAll(rendered, openrestyrender.LuaDirPlaceholder, luaDir)
+		rendered = strings.ReplaceAll(rendered, openrestyrender.PowStaticDirPlaceholder, luaDir+"/pow/static")
 	}
 	return rendered
 }
@@ -1063,19 +1056,19 @@ func (m *Manager) renderRouteConfig(content string) string {
 func (m *Manager) renderMainConfig(content string) string {
 	rendered := content
 	if includePath := m.routeConfigIncludePath(); includePath != "" {
-		rendered = strings.ReplaceAll(rendered, RouteConfigPlaceholder, includePath)
+		rendered = strings.ReplaceAll(rendered, openrestyrender.RouteConfigPlaceholder, includePath)
 	}
 	if accessLogPath := m.accessLogRuntimePath(); accessLogPath != "" {
-		rendered = strings.ReplaceAll(rendered, AccessLogPlaceholder, accessLogPath)
+		rendered = strings.ReplaceAll(rendered, openrestyrender.AccessLogPlaceholder, accessLogPath)
 	}
 	if luaDir := m.luaRuntimePath(); luaDir != "" {
-		rendered = strings.ReplaceAll(rendered, LuaDirPlaceholder, luaDir)
+		rendered = strings.ReplaceAll(rendered, openrestyrender.LuaDirPlaceholder, luaDir)
 	}
 	if listen := strings.TrimSpace(m.OpenrestyObservabilityListen); listen != "" {
-		rendered = strings.ReplaceAll(rendered, ObservabilityListenPlaceholder, listen)
+		rendered = strings.ReplaceAll(rendered, openrestyrender.ObservabilityListenPlaceholder, listen)
 	}
 	if m.OpenrestyObservabilityPort > 0 {
-		rendered = strings.ReplaceAll(rendered, ObservabilityPortPlaceholder, fmt.Sprintf("%d", m.OpenrestyObservabilityPort))
+		rendered = strings.ReplaceAll(rendered, openrestyrender.ObservabilityPortPlaceholder, fmt.Sprintf("%d", m.OpenrestyObservabilityPort))
 	}
 	if resolverDirective := strings.TrimSpace(m.OpenrestyResolverDirective); resolverDirective != "" {
 		rendered = strings.ReplaceAll(rendered, ResolverDirectivePlaceholder, resolverDirective)
