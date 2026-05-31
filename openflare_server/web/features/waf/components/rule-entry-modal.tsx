@@ -72,7 +72,7 @@ export function RuleEntryModal({
 
   const clearCountries = () => onChange({ countryValues: [] });
 
-  const typeLabel = state.listType === 'whitelist' ? '白名单' : '黑名单';
+  const typeLabel = state.listType === 'blacklist' ? '黑名单' : '白名单';
   const dimensionLabel = state.dimension === 'ip' ? 'IP' : '地域';
 
   return (
