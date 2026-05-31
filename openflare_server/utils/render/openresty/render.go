@@ -387,14 +387,16 @@ func renderAccessBlock(siteName string, powEnabled bool) string {
 	}
 	return fmt.Sprintf(`    set $openflare_waf_site "%s";
     access_by_lua_block {
-        package.path = "%s/?.lua;%s/?/init.lua;" .. package.path
+        if not string.find(package.path, "%s/?.lua", 1, true) then
+            package.path = "%s/?.lua;%s/?/init.lua;" .. package.path
+        end
         require("waf.runtime").check()
         if ngx.ctx.openflare_waf_blocked then
             return
         end
         require("pow.runtime").check()
     }
-`, escapedSiteName, LuaDirPlaceholder, LuaDirPlaceholder)
+`, escapedSiteName, LuaDirPlaceholder, LuaDirPlaceholder, LuaDirPlaceholder)
 }
 
 func renderBasicAuthBlock(enabled bool, username, password string) string {
