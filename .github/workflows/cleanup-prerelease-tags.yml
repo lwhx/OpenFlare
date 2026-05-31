@@ -2,11 +2,6 @@ name: Cleanup prerelease tags
 
 on:
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: "Type cleanup-prerelease-tags to delete all prerelease releases and tags"
-        required: true
-        type: string
 
 permissions:
   contents: write
