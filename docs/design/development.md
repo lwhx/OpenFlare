@@ -6,13 +6,7 @@
 
 ## 仓库结构
 
-| 路径 | 职责 |
-| --- | --- |
-| `openflare_server` | Gin + GORM + SQLite/PostgreSQL 单体控制面 |
-| `openflare_server/web` | Next.js 管理端前端，静态导出后由 Go Server 托管 |
-| `openflare_agent` | Go 单体 Agent，运行在节点侧 |
-| `scripts` | Agent 安装与卸载脚本 |
-| `docs` | VitePress 文档站 |
+项目的核心物理目录及各模块（Server、Agent、Frontend 等）的职责分层，详见 [仓库结构](./repository.md)。
 
 ## 环境要求
 

@@ -15,16 +15,7 @@ OpenFlare 适合需要统一管理多台 OpenResty 代理节点的团队：
 
 OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingress Controller 或多租户云平台。
 
-## 目标用户
-
-| 用户 | 需求 |
-| --- | --- |
-| 自托管用户 | 快速部署一个可视化 OpenResty 控制面 |
-| 内部运维团队 | 管理多个反向代理节点、证书和配置版本 |
-| 开发团队 | 为内部服务提供统一入口和基础访问分析 |
-| 贡献者 | 在明确边界内修复缺陷、补强测试和改进文档 |
-
-## 当前稳定能力
+## 当前能力
 
 | 能力 | 说明 |
 | --- | --- |
@@ -58,27 +49,6 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 | 证书托管 | 为不同域名绑定 TLS 证书 |
 | 基础观测 | 查看节点状态、请求聚合、访问分析和健康事件 |
 
-## 核心对象
-
-当前有效实体：
-
-* `proxy_routes`
-* `origins`
-* `config_versions`
-* `nodes`
-* `auth_sources`
-* `external_accounts`
-* `node_system_profiles`
-* `apply_logs`
-* `tls_certificates`
-* `managed_domains`
-* `node_request_reports`
-* `node_access_logs`
-* `node_metric_snapshots`
-* `traffic_analytics_rollups`
-* `node_health_events`
-* `waf_rule_groups`
-* `waf_rule_group_bindings`
 
 ## 网站配置约束
 

@@ -68,110 +68,36 @@ Frontend：
 * Vitest + Testing Library + Playwright
 * pnpm
 
-## Server 分层
+## 工程分层约束
 
-| 目录 | 职责 |
-| --- | --- |
-| `controller/` | 参数解析、调用 service、返回响应 |
-| `service/` | 业务逻辑、校验、事务编排、渲染 |
-| `model/` | 模型定义与持久化 |
-| `router/` | 路由注册 |
-| `middleware/` | 认证、鉴权、限流等横切逻辑 |
-| `common/` | 配置、全局状态与初始化入口 |
-| `utils/` | 纯工具函数与通用 helper |
+各组件和模块（Server、Agent、Frontend）的物理目录分层职责详见 [仓库结构](../design/repository.md)。在此结构下，开发必须遵守以下核心分层规则：
 
-禁止在 `controller/` 堆积业务逻辑，禁止在 `middleware/` 实现业务流程，禁止为简单需求新增平台层抽象。
-
-## Agent 分层
-
-Agent 保持现有模块边界：
-
-* `config`
-* `heartbeat`
-* `sync`
-* `openresty` / `nginx`
-* `state`
-* `httpclient`
-* `protocol`
-* `internal/updater`
-
-要求：
-
-* 每个模块职责单一。
-* 外部命令调用集中封装。
-* 状态落盘与配置落盘分离。
-
-## Frontend 分层
-
-推荐目录：
-
-```text
-app/
-components/
-features/
-lib/
-hooks/
-store/
-types/
-styles/
-tests/
-```
-
-职责约束：
-
-* `app/`：路由、布局、页面组装。
-* `features/`：按业务域组织模块。
-* `components/`：跨 feature 复用组件。
-* `lib/`：请求客户端、环境变量、工具函数、常量。
-* `store/`：少量跨页面 UI 状态。
-* `types/`：共享类型定义。
-
-页面文件只负责获取路由参数、组织页面结构、调用 feature 组件；不应手写复杂 API 细节、复杂表单校验逻辑或维护大量彼此耦合的局部状态。
+* **Server 开发规则**：禁止在 `controller/` 堆积业务逻辑，禁止在 `middleware/` 实现业务流程，禁止为简单需求新增平台层抽象。
+* **Agent 开发规则**：每个模块职责单一，外部命令调用集中封装，状态落盘与配置落盘分离。
+* **Frontend 开发规则**：页面文件只负责获取路由参数、组织页面结构、调用 feature 组件；不应手写复杂 API 细节、复杂表单校验逻辑或维护大量彼此耦合的局部状态。
 
 ## 数据模型规范
 
-当前有效实体：
+在定义和修改 Go/GORM 模型实体时，所有模型的业务边界与设计约束必须严格符合 [产品边界](../design/index.md)。
 
-* `proxy_routes`
-* `origins`
-* `config_versions`
-* `nodes`
-* `auth_sources`
-* `external_accounts`
-* `node_system_profiles`
-* `apply_logs`
-* `tls_certificates`
-* `managed_domains`
-* `node_request_reports`
-* `node_access_logs`
-* `node_metric_snapshots`
-* `traffic_analytics_rollups`
-* `node_health_events`
-* `options`
-* `waf_rule_groups`
-* `waf_rule_group_bindings`
+### 1. 当前有效实体
+* **核心配置与反代**：`proxy_routes` (网站配置), `origins` (源站), `config_versions` (配置版本), `tls_certificates` (证书), `managed_domains` (托管域名).
+* **节点与状态**：`nodes` (节点), `node_system_profiles` (系统概况), `apply_logs` (应用日志).
+* **观测与分析**：`node_request_reports` (请求上报), `node_access_logs` (访问明细), `node_metric_snapshots` (指标快照), `traffic_analytics_rollups` (流量聚合), `node_health_events` (健康事件).
+* **系统配置与第三方登录**：`options` (全局参数), `auth_sources` (第三方认证源), `external_accounts` (外部绑定账号).
+* **安全与 WAF**：`waf_rule_groups` (WAF规则组), `waf_rule_group_bindings` (网站WAF绑定).
 
-通用约束：
-
-* 不新增平台化对象，除非设计文档明确要求。
-* `origins` 仅作为可复用源站地址目录，字段保持轻量。
-* `proxy_routes` 以“网站配置”作为聚合边界，必须包含唯一 `site_name` 与非空 `domains` 列表。
-* `proxy_routes.domains` 中的每个域名都必须全局唯一，列表第一项视为主域名。
-* `proxy_routes` 继续允许保存一个或多个上游地址用于负载均衡，但不引入独立 `origin_pool`。
-* 遗留 `domain` 字段只能作为 `domains[0]` 的兼容镜像；新代码不得继续以该字段作为唯一业务输入。
-* `proxy_routes` 如关联 `origins`，必须同时保存可直接渲染的 `origin_url`。
-* 上游统一使用 named `upstream` + keepalive；单上游如带 base path 或 query，应在 `proxy_pass` 上补回 URI，多上游仅允许纯 `scheme://host[:port]`。
-* 流量限制、反向代理与缓存配置当前都归属站点级 `proxy_routes`。
-* HTTPS 证书绑定必须通过与 `domains` 平行的 `domain_cert_ids` 逐域名保存；未绑定证书的域名不得参与 HTTPS 渲染。
-* WAF 全局规则组默认应用到所有网站，自定义规则组通过 `waf_rule_group_bindings` 绑定到网站配置；发布时必须进入完整版本快照。
-* `config_versions` 必须保存完整快照与渲染结果。
-* 全局同时只能有一个激活版本。
-* 回滚通过重新激活旧版本实现。
-* `nodes` 只保留控制面状态与低频摘要。
-* 观测数据必须按节点与时间窗口关联，快照与聚合结果采用追加式模型。
-* 原始访问明细必须有受控保留策略。
-* `auth_sources` 仅保存管理端第三方登录源配置，当前支持 `github` 与 `oidc`。
-* `external_accounts` 是第三方账号与本地用户的唯一绑定来源；旧 `users.github_id` 仅用于兼容迁移，不得作为新登录流程的业务输入。
+### 2. 底层数据库技术约束
+在编写或修改模型时，必须严格遵守以下持久化与数据库设计准则：
+* **禁止随意引入平台化新实体**：除非 [产品边界](../design/index.md) 设计发生调整并经评审。
+* **业务唯一性保障**：
+  * `proxy_routes.site_name` 作为业务唯一主标识。
+  * `proxy_routes.domains` 中的各域名必须全局唯一，不可跨站点冲突，列表第一项视为主域名。
+* **兼容字段处理**：遗留的 `proxy_routes.domain` 只能作为 `domains[0]` 的只读/兼容镜像，新代码不得以该字段为唯一业务输入。
+* **多上游及 Keepalive**：单上游时应支持 base path/query 并在 `proxy_pass` 中正确补齐 URI；多上游负载均衡时仅允许纯 `scheme://host[:port]`。
+* **证书映射**：证书绑定必须通过逐域名平行的 `domain_cert_ids` 字段精确保存，未绑定证书的域名不得参与 HTTPS 渲染。
+* **版本快照一致性**：`config_versions` 必须保存版本发布时的完整快照及 checksum 校验码，确保渲染结果不可变且全局单激活版本。
+* **外部账户唯一绑定**：第三方登录必须通过 `external_accounts` 映射至本地唯一用户，原 `users.github_id` 仅用于向后兼容迁移，任何新登录流程禁止以此为业务输入。
 
 ## 数据库迁移
 
