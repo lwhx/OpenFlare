@@ -168,25 +168,3 @@ func rewriteOriginURLAddress(rawURL string, newAddress string) (string, error) {
 	parsed.Host = formatOriginHost(address, port)
 	return parsed.String(), nil
 }
-
-func splitOriginURL(rawURL string) (scheme string, address string, port string, uri string, err error) {
-	parsed, err := url.ParseRequestURI(strings.TrimSpace(rawURL))
-	if err != nil {
-		return "", "", "", "", err
-	}
-	scheme = parsed.Scheme
-	address = normalizeOriginAddress(parsed.Hostname())
-	port = parsed.Port()
-	uri = parsed.EscapedPath()
-	if uri == "" {
-		uri = parsed.Path
-	}
-	if parsed.RawQuery != "" {
-		if uri == "" {
-			uri = "?" + parsed.RawQuery
-		} else {
-			uri = uri + "?" + parsed.RawQuery
-		}
-	}
-	return scheme, address, port, uri, nil
-}

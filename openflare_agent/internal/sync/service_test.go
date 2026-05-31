@@ -2,8 +2,10 @@ package sync
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +36,10 @@ type fakeManager struct {
 	applyMainContents  []string
 	applyRouteContents []string
 	applyFiles         [][]protocol.SupportFile
+}
+
+func testSourceConfigJSON(workerProcesses string, listen int) string {
+	return fmt.Sprintf(`{"routes":[{"id":1,"site_name":"example","domain":"example.com","domains":["example.com"],"origin_url":"http://127.0.0.1:%d","upstreams":["http://127.0.0.1:%d"],"enabled":true}],"openresty_config":{"worker_processes":"%s","worker_connections":1024,"worker_rlimit_nofile":65535,"events_multi_accept_enabled":true,"keepalive_timeout":20,"keepalive_requests":1000,"client_header_timeout":15,"client_body_timeout":15,"client_max_body_size":"64m","large_client_header_buffers":"4 16k","send_timeout":30,"proxy_connect_timeout":3,"proxy_send_timeout":60,"proxy_read_timeout":60,"websocket_enabled":true,"proxy_request_buffering":false,"proxy_buffering_enabled":true,"proxy_buffers":"16 16k","proxy_buffer_size":"8k","proxy_busy_buffers_size":"64k","gzip_enabled":true,"gzip_min_length":1024,"gzip_comp_level":5,"cache_enabled":false,"cache_levels":"1:2","cache_inactive":"30m","cache_max_size":"1g","cache_key_template":"$scheme$host$request_uri","cache_lock_enabled":true,"cache_lock_timeout":"5s","cache_use_stale":"error timeout updating http_500 http_502 http_503 http_504","main_config_template":"worker_processes {{OpenRestyWorkerProcesses}};"},"waf":{"rule_groups":[],"bindings":[]}}`, listen, listen, workerProcesses)
 }
 
 func (f *fakeExecutor) Test(ctx context.Context) error {
@@ -93,13 +99,11 @@ func (m *fakeManager) CurrentChecksum() (string, error) {
 func TestSyncOnceSuccess(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-001",
-			Checksum:       "checksum-1",
-			MainConfig:     "worker_processes auto;",
-			RouteConfig:    "server { listen 80; }",
-			RenderedConfig: "server { listen 80; }",
-			SupportFiles:   []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-001",
+			Checksum:         "checksum-1",
+			SourceConfigJSON: testSourceConfigJSON("auto", 80),
+			SupportFiles:     []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 
@@ -132,7 +136,7 @@ func TestSyncOnceSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read route config: %v", err)
 	}
-	if string(data) != "server { listen 80; }" {
+	if !strings.Contains(string(data), "listen 80;") || !strings.Contains(string(data), "server_name example.com;") {
 		t.Fatal("expected rendered config to be written to route file")
 	}
 	mainData, err := os.ReadFile(filepath.Join(filepath.Dir(routePath), "nginx.conf"))
@@ -158,7 +162,7 @@ func TestSyncOnceSuccess(t *testing.T) {
 	if client.reports[0].MainConfigChecksum == "" || client.reports[0].RouteConfigChecksum == "" {
 		t.Fatal("expected main and route config checksums to be reported")
 	}
-	if client.reports[0].SupportFileCount != 1 {
+	if client.reports[0].SupportFileCount != 4 {
 		t.Fatalf("expected support file count to be reported, got %d", client.reports[0].SupportFileCount)
 	}
 }
@@ -166,13 +170,11 @@ func TestSyncOnceSuccess(t *testing.T) {
 func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-002",
-			Checksum:       "checksum-2",
-			MainConfig:     "worker_processes 2;",
-			RouteConfig:    "server { listen 81; }",
-			RenderedConfig: "server { listen 81; }",
-			SupportFiles:   []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-002",
+			Checksum:         "checksum-2",
+			SourceConfigJSON: testSourceConfigJSON("2", 81),
+			SupportFiles:     []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 
@@ -225,7 +227,7 @@ func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 	if client.reports[0].MainConfigChecksum == "" || client.reports[0].RouteConfigChecksum == "" {
 		t.Fatal("expected failed report to include main and route config checksums")
 	}
-	if client.reports[0].SupportFileCount != 1 {
+	if client.reports[0].SupportFileCount != 4 {
 		t.Fatalf("expected failed report to include support file count, got %d", client.reports[0].SupportFileCount)
 	}
 }
@@ -233,13 +235,11 @@ func TestSyncOnceRollbackOnNginxFailure(t *testing.T) {
 func TestSyncOnceReportsWarningWhenRollbackKeepsOpenrestyHealthy(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-002",
-			Checksum:       "checksum-2",
-			MainConfig:     "worker_processes 2;",
-			RouteConfig:    "server { listen 81; }",
-			RenderedConfig: "server { listen 81; }",
-			SupportFiles:   []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-002",
+			Checksum:         "checksum-2",
+			SourceConfigJSON: testSourceConfigJSON("2", 81),
+			SupportFiles:     []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 
@@ -294,13 +294,11 @@ func TestSyncOnceReportsWarningWhenRollbackKeepsOpenrestyHealthy(t *testing.T) {
 func TestSyncOnStartupRecreatesRuntimeWhenChecksumMatches(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-003",
-			Checksum:       "checksum-3",
-			MainConfig:     "worker_processes auto;",
-			RouteConfig:    "server { listen 82; }",
-			RenderedConfig: "server { listen 82; }",
-			SupportFiles:   []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-003",
+			Checksum:         "checksum-3",
+			SourceConfigJSON: testSourceConfigJSON("auto", 82),
+			SupportFiles:     []protocol.SupportFile{{Path: "1.crt", Content: "cert"}},
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
@@ -320,14 +318,11 @@ func TestSyncOnStartupRecreatesRuntimeWhenChecksumMatches(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("SyncOnStartup failed: %v", err)
 	}
-	if len(manager.ensureCalls) != 1 || !manager.ensureCalls[0] {
-		t.Fatal("expected startup sync to recreate runtime")
+	if len(manager.applyMainContents) != 1 {
+		t.Fatal("expected startup sync to re-render and apply local config")
 	}
 	if len(client.reports) != 1 || client.reports[0].Result != ApplyResultSuccess {
-		t.Fatal("expected startup sync to report noop success when state is refreshed")
-	}
-	if client.reports[0].Message != "local config already matches active version; apply skipped" {
-		t.Fatalf("unexpected noop apply message: %q", client.reports[0].Message)
+		t.Fatal("expected startup sync to report apply success when state is refreshed")
 	}
 	snapshot, err := stateStore.Load()
 	if err != nil {
@@ -416,12 +411,10 @@ func TestSyncOnceDoesNotRepeatNoopReportWhenStateAlreadyMatches(t *testing.T) {
 func TestSyncOnStartupRecordsRuntimeFailure(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-004",
-			Checksum:       "checksum-4",
-			MainConfig:     "worker_processes 4;",
-			RouteConfig:    "server { listen 83; }",
-			RenderedConfig: "server { listen 83; }",
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-004",
+			Checksum:         "checksum-4",
+			SourceConfigJSON: testSourceConfigJSON("4", 83),
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
@@ -435,7 +428,7 @@ func TestSyncOnStartupRecordsRuntimeFailure(t *testing.T) {
 
 	manager := &fakeManager{
 		currentChecksum: "checksum-4",
-		ensureErr:       context.DeadlineExceeded,
+		applyOutcome:    nginx.ApplyOutcome{Status: nginx.ApplyStatusFatal, Message: context.DeadlineExceeded.Error()},
 	}
 	service := New(client, manager, stateStore)
 	if err = service.SyncOnStartup(context.Background(), &protocol.ActiveConfigMeta{
@@ -459,12 +452,10 @@ func TestSyncOnStartupRecordsRuntimeFailure(t *testing.T) {
 func TestSyncOnceSkipsPreviouslyBlockedVersion(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-006",
-			Checksum:       "checksum-6",
-			MainConfig:     "worker_processes 6;",
-			RouteConfig:    "server { listen 86; }",
-			RenderedConfig: "server { listen 86; }",
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-006",
+			Checksum:         "checksum-6",
+			SourceConfigJSON: testSourceConfigJSON("6", 86),
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
@@ -506,12 +497,10 @@ func TestSyncOnceSkipsPreviouslyBlockedVersion(t *testing.T) {
 func TestSyncOnStartupKeepsBlockedVersionSuppressedUntilNewTargetArrives(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-007",
-			Checksum:       "checksum-7",
-			MainConfig:     "worker_processes 7;",
-			RouteConfig:    "server { listen 87; }",
-			RenderedConfig: "server { listen 87; }",
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-007",
+			Checksum:         "checksum-7",
+			SourceConfigJSON: testSourceConfigJSON("7", 87),
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
@@ -565,12 +554,10 @@ func TestSyncOnStartupKeepsBlockedVersionSuppressedUntilNewTargetArrives(t *test
 func TestSyncOnStartupStartsFallbackWhenBlockedVersionHasNoLocalConfig(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-007",
-			Checksum:       "checksum-7",
-			MainConfig:     "worker_processes 7;",
-			RouteConfig:    "server { listen 87; }",
-			RenderedConfig: "server { listen 87; }",
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-007",
+			Checksum:         "checksum-7",
+			SourceConfigJSON: testSourceConfigJSON("7", 87),
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
@@ -625,12 +612,10 @@ func TestSyncOnStartupStartsFallbackWhenBlockedVersionHasNoLocalConfig(t *testin
 func TestSyncOnStartupStartsFallbackWhenResidualConfigCannotRecover(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-007",
-			Checksum:       "checksum-7",
-			MainConfig:     "worker_processes 7;",
-			RouteConfig:    "server { listen 87; }",
-			RenderedConfig: "server { listen 87; }",
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-007",
+			Checksum:         "checksum-7",
+			SourceConfigJSON: testSourceConfigJSON("7", 87),
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
@@ -679,12 +664,10 @@ func TestSyncOnStartupStartsFallbackWhenResidualConfigCannotRecover(t *testing.T
 func TestSyncOnceClearsBlockedTargetWhenNewVersionArrives(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-008",
-			Checksum:       "checksum-8",
-			MainConfig:     "worker_processes 8;",
-			RouteConfig:    "server { listen 88; }",
-			RenderedConfig: "server { listen 88; }",
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-008",
+			Checksum:         "checksum-8",
+			SourceConfigJSON: testSourceConfigJSON("8", 88),
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
@@ -732,12 +715,10 @@ func TestSyncOnceClearsBlockedTargetWhenNewVersionArrives(t *testing.T) {
 func TestSyncOnceSkipsFetchWhenHeartbeatChecksumMatches(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
-			Version:        "20260309-005",
-			Checksum:       "checksum-5",
-			MainConfig:     "worker_processes auto;",
-			RouteConfig:    "server { listen 84; }",
-			RenderedConfig: "server { listen 84; }",
-			CreatedAt:      time.Now().Format(time.RFC3339),
+			Version:          "20260309-005",
+			Checksum:         "checksum-5",
+			SourceConfigJSON: testSourceConfigJSON("auto", 84),
+			CreatedAt:        time.Now().Format(time.RFC3339),
 		},
 	}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))

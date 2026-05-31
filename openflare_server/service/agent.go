@@ -79,13 +79,11 @@ type ApplyLogCleanupResult struct {
 }
 
 type AgentConfigResponse struct {
-	Version        string        `json:"version"`
-	Checksum       string        `json:"checksum"`
-	MainConfig     string        `json:"main_config"`
-	RouteConfig    string        `json:"route_config"`
-	RenderedConfig string        `json:"rendered_config"`
-	SupportFiles   []SupportFile `json:"support_files"`
-	CreatedAt      time.Time     `json:"created_at"`
+	Version          string        `json:"version"`
+	Checksum         string        `json:"checksum"`
+	SourceConfigJSON string        `json:"source_config_json"`
+	SupportFiles     []SupportFile `json:"support_files"`
+	CreatedAt        time.Time     `json:"created_at"`
 }
 
 type AgentSettings struct {
@@ -233,13 +231,11 @@ func GetActiveConfigForAgent() (*AgentConfigResponse, error) {
 	}
 	slog.Debug("agent fetched active config", "version", version.Version, "checksum", version.Checksum)
 	return &AgentConfigResponse{
-		Version:        version.Version,
-		Checksum:       version.Checksum,
-		MainConfig:     version.MainConfig,
-		RouteConfig:    version.RenderedConfig,
-		RenderedConfig: version.RenderedConfig,
-		SupportFiles:   supportFiles,
-		CreatedAt:      version.CreatedAt,
+		Version:          version.Version,
+		Checksum:         version.Checksum,
+		SourceConfigJSON: version.SnapshotJSON,
+		SupportFiles:     sourceSupportFiles(supportFiles),
+		CreatedAt:        version.CreatedAt,
 	}, nil
 }
 
@@ -424,10 +420,6 @@ func normalizeApplyLogPageSize(pageSize int) int {
 		return maxApplyLogPageSize
 	}
 	return pageSize
-}
-
-func upsertNode(payload AgentNodePayload) (*model.Node, error) {
-	return nil, errors.New("不再支持匿名自动注册")
 }
 
 func computeNodeStatus(node *model.Node) string {

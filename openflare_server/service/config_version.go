@@ -1,16 +1,12 @@
 package service
 
 import (
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"openflare/common"
 	"openflare/model"
-	"regexp"
+	openrestyrender "openflare/utils/render/openresty"
 	"sort"
 	"strconv"
 	"strings"
@@ -67,6 +63,7 @@ type ConfigOptionDiffItem struct {
 }
 
 type snapshotRoute struct {
+	ID                 uint                          `json:"id,omitempty"`
 	SiteName           string                        `json:"site_name,omitempty"`
 	Domain             string                        `json:"domain"`
 	Domains            []string                      `json:"domains,omitempty"`
@@ -122,26 +119,6 @@ type snapshotWAFDocument struct {
 	Bindings   []snapshotWAFBinding   `json:"bindings"`
 }
 
-type routeCacheConfig struct {
-	Enabled bool
-	Policy  string
-	Rules   []string
-}
-
-type routeLimitConfig struct {
-	LimitConnPerServer int
-	LimitConnPerIP     int
-	LimitRate          string
-}
-
-type routeUpstreamConfig struct {
-	Name              string
-	Scheme            string
-	ProxyPassURI      string
-	Servers           []string
-	UsesNamedUpstream bool
-}
-
 type openRestyConfigSnapshot struct {
 	WorkerProcesses          string `json:"worker_processes"`
 	WorkerConnections        int    `json:"worker_connections"`
@@ -177,6 +154,7 @@ type openRestyConfigSnapshot struct {
 	CacheLockEnabled         bool   `json:"cache_lock_enabled"`
 	CacheLockTimeout         string `json:"cache_lock_timeout"`
 	CacheUseStale            string `json:"cache_use_stale"`
+	MainConfigTemplate       string `json:"main_config_template,omitempty"`
 }
 
 type snapshotDocument struct {
@@ -196,46 +174,6 @@ type configBundle struct {
 	SupportFiles      []SupportFile
 	Checksum          string
 	ChangedOptionKeys []string
-}
-
-const (
-	nginxCertDirPlaceholder             = "__OPENFLARE_CERT_DIR__"
-	nginxRouteConfigPlaceholder         = "__OPENFLARE_ROUTE_CONFIG__"
-	nginxAccessLogPlaceholder           = "__OPENFLARE_ACCESS_LOG__"
-	nginxLuaDirPlaceholder              = "__OPENFLARE_LUA_DIR__"
-	nginxObservabilityListenPlaceholder = "__OPENFLARE_OBSERVABILITY_LISTEN__"
-	nginxObservabilityPortPlaceholder   = "__OPENFLARE_OBSERVABILITY_PORT__"
-)
-
-var requiredMainConfigTemplatePlaceholders = []string{
-	"{{OpenRestyWorkerProcesses}}",
-	"{{OpenRestyWorkerConnections}}",
-	"{{OpenRestyWorkerRlimitNofile}}",
-	"{{OpenRestyConnectionUpgradeMap}}",
-	"{{OpenRestyDefaultServerBlock}}",
-	"{{OpenRestyAccessLogPath}}",
-	"{{OpenRestyEventsUseDirective}}",
-	"{{OpenRestyEventsMultiAcceptDirective}}",
-	"{{OpenRestyKeepaliveTimeout}}",
-	"{{OpenRestyKeepaliveRequests}}",
-	"{{OpenRestyClientHeaderTimeout}}",
-	"{{OpenRestyClientBodyTimeout}}",
-	"{{OpenRestyClientMaxBodySize}}",
-	"{{OpenRestyLargeClientHeaderBuffers}}",
-	"{{OpenRestySendTimeout}}",
-	"{{OpenRestyProxyConnectTimeout}}",
-	"{{OpenRestyProxySendTimeout}}",
-	"{{OpenRestyProxyReadTimeout}}",
-	"{{OpenRestyProxyRequestBuffering}}",
-	"{{OpenRestyProxyBuffering}}",
-	"{{OpenRestyProxyBuffers}}",
-	"{{OpenRestyProxyBufferSize}}",
-	"{{OpenRestyProxyBusyBuffersSize}}",
-	"{{OpenRestyGzip}}",
-	"{{OpenRestyGzipMinLength}}",
-	"{{OpenRestyGzipCompLevel}}",
-	"{{OpenRestyCacheBlock}}",
-	"{{OpenRestyRouteConfigInclude}}",
 }
 
 func ListConfigVersions() ([]*ConfigVersionSummary, error) {
@@ -427,6 +365,29 @@ func PublishConfigVersion(createdBy string, force bool) (*ReleaseResult, error) 
 	}, nil
 }
 
+func sourceSupportFiles(files []SupportFile) []SupportFile {
+	if len(files) == 0 {
+		return nil
+	}
+	result := make([]SupportFile, 0, len(files))
+	for _, file := range files {
+		if isRuntimeGeneratedSupportFile(file.Path) {
+			continue
+		}
+		result = append(result, file)
+	}
+	return result
+}
+
+func isRuntimeGeneratedSupportFile(path string) bool {
+	switch strings.TrimSpace(path) {
+	case "pow_config.json", "waf_config.json", openrestyrender.SourceConfigFileName:
+		return true
+	default:
+		return false
+	}
+}
+
 func ActivateConfigVersion(id uint) (*model.ConfigVersion, error) {
 	version, err := model.GetConfigVersionByID(id)
 	if err != nil {
@@ -506,32 +467,24 @@ func buildCurrentConfigBundle(requireRoutes bool) (*configBundle, error) {
 	if err != nil {
 		return nil, err
 	}
-	routeConfig, supportFiles, err := renderRouteConfig(routes, openRestyConfig, wafSnapshot)
+	certificateFiles, err := buildCertificateSupportFiles(snapshotRoutes)
 	if err != nil {
 		return nil, err
 	}
-	wafConfigJSON, err := renderWAFConfigBundle(wafSnapshot)
+	rendered, err := renderSnapshotConfig(string(snapshotJSON), certificateFiles)
 	if err != nil {
 		return nil, err
 	}
-	powConfigJSON, powSupportFiles, err := renderPowConfigBundle(routes, wafSnapshot)
-	if err != nil {
-		return nil, err
-	}
-	supportFiles = append(supportFiles, powSupportFiles...)
-	mainConfig := renderMainConfig(openRestyConfig)
-	supportFiles = append(supportFiles, SupportFile{Path: "pow_config.json", Content: powConfigJSON})
-	supportFiles = append(supportFiles, SupportFile{Path: "waf_config.json", Content: wafConfigJSON})
 	return &configBundle{
 		Routes:            routes,
 		SnapshotRoutes:    snapshotRoutes,
 		WAFSnapshot:       wafSnapshot,
 		OpenRestyConfig:   openRestyConfig,
 		SnapshotJSON:      string(snapshotJSON),
-		MainConfig:        mainConfig,
-		RouteConfig:       routeConfig,
-		SupportFiles:      supportFiles,
-		Checksum:          checksumBundle(mainConfig, routeConfig, supportFiles),
+		MainConfig:        rendered.MainConfig,
+		RouteConfig:       rendered.RouteConfig,
+		SupportFiles:      fromOpenRestySupportFiles(rendered.SupportFiles),
+		Checksum:          rendered.Checksum,
 		ChangedOptionKeys: openRestyOptionKeys(),
 	}, nil
 }
@@ -563,6 +516,7 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 			powConfig = nil
 		}
 		items = append(items, snapshotRoute{
+			ID:                 route.ID,
 			SiteName:           normalizeProxyRouteSiteNameInput(route, route.SiteName, domains[0]),
 			Domain:             domains[0],
 			Domains:            domains,
@@ -922,12 +876,68 @@ func buildOpenRestyConfigSnapshot() openRestyConfigSnapshot {
 		CacheLockEnabled:         common.OpenRestyCacheLockEnabled,
 		CacheLockTimeout:         common.OpenRestyCacheLockTimeout,
 		CacheUseStale:            common.OpenRestyCacheUseStale,
+		MainConfigTemplate:       common.OpenRestyMainConfigTemplate,
 	}
 }
 
-func diffOpenRestyOptionKeys(left openRestyConfigSnapshot, right openRestyConfigSnapshot) []string {
-	details := diffOpenRestyOptionDetails(left, right)
-	return extractOptionDiffKeys(details)
+func renderSnapshotConfig(sourceJSON string, certificateFiles []SupportFile) (*openrestyrender.Result, error) {
+	return openrestyrender.RenderJSON(sourceJSON, toOpenRestySupportFiles(certificateFiles))
+}
+
+func buildCertificateSupportFiles(routes []snapshotRoute) ([]SupportFile, error) {
+	certIDSet := make(map[uint]struct{})
+	for _, route := range routes {
+		for _, certID := range route.CertIDs {
+			if certID != 0 {
+				certIDSet[certID] = struct{}{}
+			}
+		}
+	}
+	if len(certIDSet) == 0 {
+		return nil, nil
+	}
+	certIDs := make([]uint, 0, len(certIDSet))
+	for certID := range certIDSet {
+		certIDs = append(certIDs, certID)
+	}
+	sort.Slice(certIDs, func(i, j int) bool { return certIDs[i] < certIDs[j] })
+	certificates, err := loadTLSCertificates(certIDs)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]SupportFile, 0, len(certificates)*2)
+	for _, certificate := range certificates {
+		if certificate == nil {
+			continue
+		}
+		files = append(files,
+			SupportFile{Path: certificateCertFileName(certificate.ID), Content: normalizePEM(certificate.CertPEM)},
+			SupportFile{Path: certificateKeyFileName(certificate.ID), Content: normalizePEM(certificate.KeyPEM)},
+		)
+	}
+	return dedupeSupportFiles(files), nil
+}
+
+func toOpenRestySupportFiles(files []SupportFile) []openrestyrender.SupportFile {
+	if len(files) == 0 {
+		return nil
+	}
+	result := make([]openrestyrender.SupportFile, 0, len(files))
+	for _, file := range files {
+		result = append(result, openrestyrender.SupportFile{Path: file.Path, Content: file.Content})
+	}
+	return result
+}
+
+func fromOpenRestySupportFiles(files []openrestyrender.SupportFile) []SupportFile {
+	if len(files) == 0 {
+		return nil
+	}
+	result := make([]SupportFile, 0, len(files))
+	for _, file := range files {
+		result = append(result, SupportFile{Path: file.Path, Content: file.Content})
+	}
+	return result
 }
 
 func buildInitialOpenRestyOptionDiffs(current openRestyConfigSnapshot) []ConfigOptionDiffItem {
@@ -1033,308 +1043,9 @@ func openRestyOptionKeys() []string {
 	}
 }
 
-func getPoWConfigForRoute(routeID uint, snapshot snapshotWAFDocument) (bool, *ProxyRoutePoWConfig) {
-	for _, binding := range snapshot.Bindings {
-		if binding.RouteID == routeID {
-			for _, groupID := range binding.RuleGroupIDs {
-				for _, group := range snapshot.RuleGroups {
-					if group.ID == groupID && group.PoWEnabled {
-						return true, group.PoWConfig
-					}
-				}
-			}
-			break
-		}
-	}
-	for _, group := range snapshot.RuleGroups {
-		if group.IsGlobal && group.PoWEnabled {
-			return true, group.PoWConfig
-		}
-	}
-	return false, nil
-}
-
-func renderRouteConfig(routes []*model.ProxyRoute, cfg openRestyConfigSnapshot, wafSnapshot snapshotWAFDocument) (string, []SupportFile, error) {
-	var builder strings.Builder
-	builder.WriteString("# This file is generated by OpenFlare. Do not edit manually.\n")
-	supportFiles := make([]SupportFile, 0)
-	for _, route := range routes {
-		domains, err := decodeStoredDomains(route.Domains, route.Domain)
-		if err != nil {
-			return "", nil, fmt.Errorf("route %s domains are invalid", route.Domain)
-		}
-		serverNames := renderServerNames(domains)
-		displayName := route.SiteName
-		if strings.TrimSpace(displayName) == "" {
-			displayName = domains[0]
-		}
-		customHeaders, err := decodeStoredCustomHeaders(route.CustomHeaders)
-		if err != nil {
-			return "", nil, fmt.Errorf("路由 %s 自定义请求头无效", route.Domain)
-		}
-		upstreams, err := decodeStoredUpstreams(route.Upstreams, route.OriginURL)
-		if err != nil {
-			return "", nil, fmt.Errorf("路由 %s 上游配置无效", route.Domain)
-		}
-		cacheRules, err := decodeStoredCacheRules(route.CacheRules)
-		if err != nil {
-			return "", nil, fmt.Errorf("路由 %s 缓存规则无效", route.Domain)
-		}
-		cacheConfig := routeCacheConfig{
-			Enabled: route.CacheEnabled,
-			Policy:  route.CachePolicy,
-			Rules:   cacheRules,
-		}
-		limitConfig := routeLimitConfig{
-			LimitConnPerServer: route.LimitConnPerServer,
-			LimitConnPerIP:     route.LimitConnPerIP,
-			LimitRate:          route.LimitRate,
-		}
-		upstreamConfig := buildRouteUpstreamConfig(route, upstreams)
-		if upstreamConfig.UsesNamedUpstream {
-			builder.WriteString(renderNamedUpstreamBlock(upstreamConfig))
-		}
-		powEnabled, _ := getPoWConfigForRoute(route.ID, wafSnapshot)
-		if route.PoWEnabled {
-			powEnabled = true
-		}
-		if !route.EnableHTTPS {
-			builder.WriteString(renderHTTPProxyServer(serverNames, displayName, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, limitConfig, upstreamConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword, cfg))
-			continue
-		}
-		certIDs, err := decodeStoredCertIDs(route.CertIDs, route.CertID)
-		if err != nil {
-			return "", nil, fmt.Errorf("route %s cert_ids are invalid: %w", route.Domain, err)
-		}
-		domainCertIDs, err := resolveProxyRouteDomainCertIDs(route, domains, certIDs)
-		if err != nil {
-			return "", nil, fmt.Errorf("route %s domain_cert_ids are invalid: %w", route.Domain, err)
-		}
-		if route.CertID == nil || *route.CertID == 0 {
-			return "", nil, fmt.Errorf("路由 %s 未配置证书", route.Domain)
-		}
-		if len(certIDs) == 0 {
-			return "", nil, fmt.Errorf("路由 %s 未配置证书", route.Domain)
-		}
-		certificates, err := loadTLSCertificates(certIDs)
-		if err != nil {
-			return "", nil, fmt.Errorf("route %s certificate lookup failed: %w", route.Domain, err)
-		}
-		certificateByID := make(map[uint]*model.TLSCertificate, len(certificates))
-		for _, certificate := range certificates {
-			if certificate == nil {
-				continue
-			}
-			certificateByID[certificate.ID] = certificate
-			supportFiles = append(supportFiles,
-				SupportFile{Path: certificateCertFileName(certificate.ID), Content: normalizePEM(certificate.CertPEM)},
-				SupportFile{Path: certificateKeyFileName(certificate.ID), Content: normalizePEM(certificate.KeyPEM)},
-			)
-		}
-
-		httpOnlyDomains := make([]string, 0, len(domains))
-		domainsByCertID := make(map[uint][]string, len(certIDs))
-		for index, domain := range domains {
-			if index >= len(domainCertIDs) || domainCertIDs[index] == 0 {
-				httpOnlyDomains = append(httpOnlyDomains, domain)
-				continue
-			}
-			domainsByCertID[domainCertIDs[index]] = append(
-				domainsByCertID[domainCertIDs[index]],
-				domain,
-			)
-		}
-		for _, certID := range certIDs {
-			assignedDomains := domainsByCertID[certID]
-			if len(assignedDomains) == 0 {
-				continue
-			}
-			certificate := certificateByID[certID]
-			if certificate == nil {
-				return "", nil, fmt.Errorf("route %s certificate %d does not exist", route.Domain, certID)
-			}
-			if err := validateCertificateCoverage(certificate, assignedDomains); err != nil {
-				return "", nil, fmt.Errorf("site %s certificate validation failed: %w", displayName, err)
-			}
-		}
-
-		if route.RedirectHTTP {
-			if len(httpOnlyDomains) > 0 {
-				builder.WriteString(renderHTTPProxyServer(renderServerNames(httpOnlyDomains), displayName, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, limitConfig, upstreamConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword, cfg))
-			}
-			for _, certID := range certIDs {
-				assignedDomains := domainsByCertID[certID]
-				if len(assignedDomains) == 0 {
-					continue
-				}
-				builder.WriteString(renderHTTPRedirectServer(renderServerNames(assignedDomains), displayName))
-			}
-		} else {
-			builder.WriteString(renderHTTPProxyServer(serverNames, displayName, route.OriginURL, route.OriginHost, customHeaders, cacheConfig, limitConfig, upstreamConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword, cfg))
-		}
-		for _, certID := range certIDs {
-			assignedDomains := domainsByCertID[certID]
-			if len(assignedDomains) == 0 {
-				continue
-			}
-			builder.WriteString(renderHTTPSServer(renderServerNames(assignedDomains), displayName, route.OriginURL, route.OriginHost, certID, customHeaders, cacheConfig, limitConfig, upstreamConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword, cfg))
-		}
-	}
-	return builder.String(), dedupeSupportFiles(supportFiles), nil
-}
-
-func renderMainConfig(cfg openRestyConfigSnapshot) string {
-	templateText := common.OpenRestyMainConfigTemplate
-	if strings.TrimSpace(templateText) == "" {
-		templateText = defaultOpenRestyMainConfigTemplate()
-	}
-	return renderMainConfigTemplate(templateText, cfg)
-}
-
 func ValidateOpenRestyMainConfigTemplate(templateText string) error {
-	trimmed := strings.TrimSpace(templateText)
-	if trimmed == "" {
-		return errors.New("OpenRestyMainConfigTemplate 不能为空")
-	}
-	for _, placeholder := range requiredMainConfigTemplatePlaceholders {
-		if !strings.Contains(trimmed, placeholder) {
-			return fmt.Errorf("OpenRestyMainConfigTemplate 必须保留占位符 %s", placeholder)
-		}
-	}
-	return nil
+	return openrestyrender.ValidateMainConfigTemplate(templateText)
 }
-
-func defaultOpenRestyMainConfigTemplate() string {
-	return common.OpenRestyMainConfigTemplate
-}
-
-func renderMainConfigTemplate(templateText string, cfg openRestyConfigSnapshot) string {
-	replacer := strings.NewReplacer(
-		"{{OpenRestyWorkerProcesses}}", cfg.WorkerProcesses,
-		"{{OpenRestyWorkerConnections}}", fmt.Sprintf("%d", cfg.WorkerConnections),
-		"{{OpenRestyWorkerRlimitNofile}}", fmt.Sprintf("%d", cfg.WorkerRlimitNofile),
-		"{{OpenRestyConnectionUpgradeMap}}", renderConnectionUpgradeMap(),
-		"{{OpenRestyDefaultServerBlock}}", renderDefaultServerBlock(),
-		"{{OpenRestyAccessLogPath}}", nginxAccessLogPlaceholder,
-		"{{OpenRestyEventsUseDirective}}", renderTemplateDirective(cfg.EventsUse != "", fmt.Sprintf("use %s;", cfg.EventsUse)),
-		"{{OpenRestyEventsMultiAcceptDirective}}", renderTemplateDirective(cfg.EventsMultiAcceptEnabled, "multi_accept on;"),
-		"{{OpenRestyKeepaliveTimeout}}", fmt.Sprintf("%d", cfg.KeepaliveTimeout),
-		"{{OpenRestyKeepaliveRequests}}", fmt.Sprintf("%d", cfg.KeepaliveRequests),
-		"{{OpenRestyClientHeaderTimeout}}", fmt.Sprintf("%d", cfg.ClientHeaderTimeout),
-		"{{OpenRestyClientBodyTimeout}}", fmt.Sprintf("%d", cfg.ClientBodyTimeout),
-		"{{OpenRestyClientMaxBodySize}}", cfg.ClientMaxBodySize,
-		"{{OpenRestyLargeClientHeaderBuffers}}", cfg.LargeClientHeaderBuffers,
-		"{{OpenRestySendTimeout}}", fmt.Sprintf("%d", cfg.SendTimeout),
-		"{{OpenRestyProxyConnectTimeout}}", fmt.Sprintf("%d", cfg.ProxyConnectTimeout),
-		"{{OpenRestyProxySendTimeout}}", fmt.Sprintf("%d", cfg.ProxySendTimeout),
-		"{{OpenRestyProxyReadTimeout}}", fmt.Sprintf("%d", cfg.ProxyReadTimeout),
-		"{{OpenRestyProxyRequestBuffering}}", onOff(cfg.ProxyRequestBuffering),
-		"{{OpenRestyProxyBuffering}}", onOff(cfg.ProxyBufferingEnabled),
-		"{{OpenRestyProxyBuffers}}", cfg.ProxyBuffers,
-		"{{OpenRestyProxyBufferSize}}", cfg.ProxyBufferSize,
-		"{{OpenRestyProxyBusyBuffersSize}}", cfg.ProxyBusyBuffersSize,
-		"{{OpenRestyGzip}}", onOff(cfg.GzipEnabled),
-		"{{OpenRestyGzipMinLength}}", fmt.Sprintf("%d", cfg.GzipMinLength),
-		"{{OpenRestyGzipCompLevel}}", fmt.Sprintf("%d", cfg.GzipCompLevel),
-		"{{OpenRestyResolverDirective}}", renderTemplateDirective(cfg.Resolvers != "", fmt.Sprintf("resolver %s;", cfg.Resolvers)),
-		"{{OpenRestyCacheBlock}}", renderOpenRestyCacheTemplateBlock(cfg),
-		"{{OpenRestyRouteConfigInclude}}", nginxRouteConfigPlaceholder,
-	)
-	return replacer.Replace(templateText)
-}
-
-func renderTemplateDirective(enabled bool, statement string) string {
-	if !enabled {
-		return ""
-	}
-	return fmt.Sprintf("    %s\n", statement)
-}
-
-func renderOpenRestyCacheTemplateBlock(cfg openRestyConfigSnapshot) string {
-	lines := make([]string, 0, 12)
-	lines = append(lines, renderOpenRestyLimitZoneBlock())
-	if !cfg.CacheEnabled {
-		lines = append(lines, renderOpenRestyObservabilityTemplateBlock())
-		return strings.Join(lines, "")
-	}
-	lines = append(lines, strings.Join([]string{
-		fmt.Sprintf("    proxy_cache_path %s levels=%s keys_zone=openflare_cache:10m inactive=%s max_size=%s;", cfg.CachePath, cfg.CacheLevels, cfg.CacheInactive, cfg.CacheMaxSize),
-		fmt.Sprintf("    proxy_cache_key \"%s\";", cfg.CacheKeyTemplate),
-		fmt.Sprintf("    proxy_cache_lock %s;", onOff(cfg.CacheLockEnabled)),
-		fmt.Sprintf("    proxy_cache_lock_timeout %s;", cfg.CacheLockTimeout),
-		fmt.Sprintf("    proxy_cache_use_stale %s;", cfg.CacheUseStale),
-		"",
-	}, "\n"))
-	lines = append(lines, renderOpenRestyObservabilityTemplateBlock())
-	return strings.Join(lines, "")
-}
-
-func renderOpenRestyLimitZoneBlock() string {
-	return strings.Join([]string{
-		"    limit_conn_zone $server_name zone=openflare_conn_per_server:10m;",
-		"    limit_conn_zone $binary_remote_addr zone=openflare_conn_per_ip:10m;",
-		"",
-	}, "\n")
-}
-
-func onOff(value bool) string {
-	if value {
-		return "on"
-	}
-	return "off"
-}
-
-const nginxPowStaticDirPlaceholder = "__OPENFLARE_POW_STATIC_DIR__"
-
-func renderAccessBlock(siteName string, powEnabled bool) string {
-	escapedSiteName := escapeNginxString(siteName)
-	if !powEnabled {
-		return fmt.Sprintf("    set $openflare_waf_site \"%s\";\n    access_by_lua_file %s/waf/check.lua;\n", escapedSiteName, nginxLuaDirPlaceholder)
-	}
-	return fmt.Sprintf(`    set $openflare_waf_site "%s";
-    access_by_lua_block {
-        package.path = "%s/?.lua;%s/?/init.lua;" .. package.path
-        require("waf.runtime").check()
-        if ngx.ctx.openflare_waf_blocked then
-            return
-        end
-        require("pow.runtime").check()
-    }
-`, escapedSiteName, nginxLuaDirPlaceholder, nginxLuaDirPlaceholder)
-}
-
-func renderBasicAuthBlock(enabled bool, username, password string) string {
-	if !enabled || username == "" || password == "" {
-		return ""
-	}
-	credentials := username + ":" + password
-	encoded := base64.StdEncoding.EncodeToString([]byte(credentials))
-	return fmt.Sprintf(`        rewrite_by_lua_block {
-            local auth = ngx.var.http_authorization
-            if auth ~= "Basic %s" then
-                ngx.header["WWW-Authenticate"] = 'Basic realm="Restricted"'
-                return ngx.exit(401)
-            end
-        }
-`, encoded)
-}
-
-func renderPowLocationBlocks(powEnabled bool) string {
-	if !powEnabled {
-		return ""
-	}
-	return fmt.Sprintf("\n    location = %spass-challenge {\n        content_by_lua_file %s/pow/verify.lua;\n    }\n\n    location = %smake-challenge {\n        content_by_lua_file %s/pow/challenge.lua;\n    }\n\n", anubisAPIPrefix, nginxLuaDirPlaceholder, anubisAPIPrefix, nginxLuaDirPlaceholder)
-}
-
-func renderPowStaticLocationBlock(powEnabled bool) string {
-	if !powEnabled {
-		return ""
-	}
-	return fmt.Sprintf("    location %s {\n        alias %s/;\n        types {\n            text/css css;\n            application/javascript js mjs;\n            application/json json;\n            image/webp webp;\n            font/woff2 woff2;\n        }\n    }\n\n", anubisStaticPrefix, nginxPowStaticDirPlaceholder)
-}
-
-const anubisStaticPrefix = "/.within.website/x/cmd/anubis/static/"
-const anubisAPIPrefix = "/.within.website/x/cmd/anubis/api/"
 
 func normalizeSnapshotCertificateIDs(primaryCertID *uint, certIDs []uint) ([]uint, *uint, error) {
 	candidates := make([]uint, 0, len(certIDs)+1)
@@ -1394,13 +1105,6 @@ func normalizeSnapshotDomainCertificateIDs(
 	return []uint{}, nil
 }
 
-func uintPointerEqual(left *uint, right *uint) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return *left == *right
-}
-
 func uintSliceEqual(left []uint, right []uint) bool {
 	if len(left) != len(right) {
 		return false
@@ -1411,30 +1115,6 @@ func uintSliceEqual(left []uint, right []uint) bool {
 		}
 	}
 	return true
-}
-
-func checksum(content string) string {
-	sum := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(sum[:])
-}
-
-func checksumBundle(mainConfig string, routeConfig string, supportFiles []SupportFile) string {
-	var builder strings.Builder
-	builder.WriteString(mainConfig)
-	builder.WriteString("\n--route-config--\n")
-	builder.WriteString(routeConfig)
-	builder.WriteString("\n--support-files--\n")
-	files := dedupeSupportFiles(supportFiles)
-	sort.Slice(files, func(i int, j int) bool {
-		return files[i].Path < files[j].Path
-	})
-	for _, file := range files {
-		builder.WriteString(file.Path)
-		builder.WriteString("\n")
-		builder.WriteString(file.Content)
-		builder.WriteString("\n")
-	}
-	return checksum(builder.String())
 }
 
 func nextVersionNumber(now time.Time) (string, error) {
@@ -1459,36 +1139,6 @@ func nextVersionNumber(now time.Time) (string, error) {
 	return fmt.Sprintf("%s-%03d", prefix, sequence+1), nil
 }
 
-func renderHTTPProxyServer(serverNames string, siteName string, originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, limitConfig routeLimitConfig, upstreamConfig routeUpstreamConfig, powEnabled bool, basicAuthEnabled bool, basicAuthUsername string, basicAuthPassword string, cfg openRestyConfigSnapshot) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s%s    location / {\n%s%s%s%s%s    }\n%s}\n\n", serverNames, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig), renderPowStaticLocationBlock(powEnabled))
-}
-
-func renderHTTPRedirectServer(serverNames string, siteName string) string {
-	_ = siteName
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    return 301 https://$host$request_uri;\n}\n\n", serverNames)
-}
-
-func renderHTTPSServer(serverNames string, siteName string, originURL string, originHost string, certificateID uint, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, limitConfig routeLimitConfig, upstreamConfig routeUpstreamConfig, powEnabled bool, basicAuthEnabled bool, basicAuthUsername string, basicAuthPassword string, cfg openRestyConfigSnapshot) string {
-	certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
-	keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-	return fmt.Sprintf("server {\n    listen 443 ssl;\n    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s%s    location / {\n%s%s%s%s%s    }\n%s}\n\n", serverNames, certPath, keyPath, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig), renderPowStaticLocationBlock(powEnabled))
-}
-
-func renderHTTPSServerWithCertificates(serverNames string, originURL string, originHost string, certificateIDs []uint, customHeaders []ProxyRouteCustomHeaderInput, cacheConfig routeCacheConfig, limitConfig routeLimitConfig, upstreamConfig routeUpstreamConfig, powEnabled bool, basicAuthEnabled bool, basicAuthUsername string, basicAuthPassword string, cfg openRestyConfigSnapshot) string {
-	var certificateBlock strings.Builder
-	for _, certificateID := range certificateIDs {
-		certPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateCertFileName(certificateID))
-		keyPath := fmt.Sprintf("%s/%s", nginxCertDirPlaceholder, certificateKeyFileName(certificateID))
-		certificateBlock.WriteString(fmt.Sprintf("    ssl_certificate %s;\n", certPath))
-		certificateBlock.WriteString(fmt.Sprintf("    ssl_certificate_key %s;\n", keyPath))
-	}
-	return fmt.Sprintf("server {\n    listen 443 ssl;\n    http2 on;\n    server_name %s;\n%s%s%s\n    location / {\n%s%s%s%s%s    }\n%s}\n\n", serverNames, certificateBlock.String(), renderAccessBlock(serverNames, powEnabled), renderPowLocationBlocks(powEnabled), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig), renderPowStaticLocationBlock(powEnabled))
-}
-
-func renderServerNames(domains []string) string {
-	return strings.Join(domains, " ")
-}
-
 func validateCertificateCoverage(certificate *model.TLSCertificate, domains []string) error {
 	if certificate == nil {
 		return errors.New("certificate is nil")
@@ -1505,36 +1155,6 @@ func validateCertificateCoverage(certificate *model.TLSCertificate, domains []st
 	return nil
 }
 
-func validateCertificateCoverageSet(certificates []*model.TLSCertificate, domains []string) error {
-	if len(certificates) == 0 {
-		return errors.New("certificate set is empty")
-	}
-	leaves := make([]interface{ VerifyHostname(string) error }, 0, len(certificates))
-	for _, certificate := range certificates {
-		if certificate == nil {
-			return errors.New("certificate is nil")
-		}
-		leaf, err := parseLeafCertificate(certificate.CertPEM)
-		if err != nil {
-			return err
-		}
-		leaves = append(leaves, leaf)
-	}
-	for _, domain := range domains {
-		covered := false
-		for _, leaf := range leaves {
-			if leaf.VerifyHostname(domain) == nil {
-				covered = true
-				break
-			}
-		}
-		if !covered {
-			return fmt.Errorf("certificate does not cover domain %s", domain)
-		}
-	}
-	return nil
-}
-
 func loadTLSCertificates(certIDs []uint) ([]*model.TLSCertificate, error) {
 	certificates := make([]*model.TLSCertificate, 0, len(certIDs))
 	for _, certID := range certIDs {
@@ -1545,274 +1165,6 @@ func loadTLSCertificates(certIDs []uint) ([]*model.TLSCertificate, error) {
 		certificates = append(certificates, certificate)
 	}
 	return certificates, nil
-}
-
-func renderConnectionUpgradeMap() string {
-	return "    map $http_upgrade $connection_upgrade {\n        default upgrade;\n        ''      \"\";\n    }\n\n"
-}
-
-func renderDefaultServerBlock() string {
-	return strings.Join([]string{
-		"    server {",
-		"        listen 80 default_server;",
-		"        server_name _;",
-		"",
-		"        return 404;",
-		"    }",
-		"",
-		"    server {",
-		"        listen 443 ssl default_server;",
-		"        server_name _;",
-		"",
-		"        ssl_reject_handshake on;",
-		"    }",
-		"",
-	}, "\n")
-}
-
-func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []ProxyRouteCustomHeaderInput, upstreamConfig routeUpstreamConfig) string {
-	var builder strings.Builder
-	if strings.TrimSpace(originHost) != "" {
-		builder.WriteString(fmt.Sprintf("        proxy_set_header Host %s;\n", quoteNginxHeaderValue(originHost)))
-	} else {
-		builder.WriteString("        proxy_set_header Host $host;\n")
-	}
-	if upstreamServerName := resolveUpstreamServerName(originURL, originHost); upstreamServerName != "" {
-		builder.WriteString("        proxy_ssl_server_name on;\n")
-		builder.WriteString(fmt.Sprintf("        proxy_ssl_name %s;\n", quoteNginxHeaderValue(upstreamServerName)))
-	}
-	builder.WriteString("        proxy_set_header X-Real-IP $remote_addr;\n")
-	builder.WriteString("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
-	builder.WriteString("        proxy_set_header X-Forwarded-Proto $scheme;\n")
-	if common.OpenRestyWebsocketEnabled {
-		builder.WriteString("        proxy_http_version 1.1;\n")
-		builder.WriteString("        proxy_set_header Connection $connection_upgrade;\n")
-		builder.WriteString("        proxy_set_header Upgrade $http_upgrade;\n")
-	} else if upstreamConfig.UsesNamedUpstream {
-		builder.WriteString("        proxy_http_version 1.1;\n")
-		builder.WriteString("        proxy_set_header Connection \"\";\n")
-	}
-	for _, header := range customHeaders {
-		builder.WriteString(fmt.Sprintf("        proxy_set_header %s %s;\n", header.Key, quoteNginxHeaderValue(header.Value)))
-	}
-	return builder.String()
-}
-
-func renderRouteCacheBlock(cacheConfig routeCacheConfig, cfg openRestyConfigSnapshot) string {
-	if !cfg.CacheEnabled || !cacheConfig.Enabled {
-		return ""
-	}
-	var builder strings.Builder
-	builder.WriteString("        set $openflare_skip_cache 0;\n")
-	builder.WriteString("        if ($request_method != GET) {\n            set $openflare_skip_cache 1;\n        }\n")
-	builder.WriteString("        if ($http_authorization != \"\") {\n            set $openflare_skip_cache 1;\n        }\n")
-	builder.WriteString("        if ($http_cookie ~* \"(session|sess|token|auth|jwt|logged_in|remember|laravel_session|connect\\\\.sid|_session)\") {\n            set $openflare_skip_cache 1;\n        }\n")
-	builder.WriteString("        if ($http_cache_control ~* \"(no-cache|no-store|private)\") {\n            set $openflare_skip_cache 1;\n        }\n")
-	if policyCondition := renderRouteCachePolicyCondition(cacheConfig); policyCondition != "" {
-		builder.WriteString(policyCondition)
-	}
-	builder.WriteString("        proxy_cache openflare_cache;\n")
-	builder.WriteString("        proxy_cache_methods GET;\n")
-	builder.WriteString("        proxy_cache_bypass $openflare_skip_cache;\n")
-	builder.WriteString("        proxy_no_cache $openflare_skip_cache;\n")
-	return builder.String()
-}
-
-func renderRouteLimitBlock(limitConfig routeLimitConfig) string {
-	if limitConfig.LimitConnPerServer <= 0 && limitConfig.LimitConnPerIP <= 0 && strings.TrimSpace(limitConfig.LimitRate) == "" {
-		return ""
-	}
-	var builder strings.Builder
-	if limitConfig.LimitConnPerServer > 0 {
-		builder.WriteString(fmt.Sprintf("        limit_conn openflare_conn_per_server %d;\n", limitConfig.LimitConnPerServer))
-	}
-	if limitConfig.LimitConnPerIP > 0 {
-		builder.WriteString(fmt.Sprintf("        limit_conn openflare_conn_per_ip %d;\n", limitConfig.LimitConnPerIP))
-	}
-	if strings.TrimSpace(limitConfig.LimitRate) != "" {
-		builder.WriteString(fmt.Sprintf("        limit_rate %s;\n", limitConfig.LimitRate))
-	}
-	return builder.String()
-}
-
-func renderRouteCachePolicyCondition(cacheConfig routeCacheConfig) string {
-	switch cacheConfig.Policy {
-	case proxyRouteCachePolicySuffix:
-		return fmt.Sprintf("        if ($uri !~* %s) {\n            set $openflare_skip_cache 1;\n        }\n", quoteNginxStringLiteral(buildSuffixMatchPattern(cacheConfig.Rules)))
-	case proxyRouteCachePolicyPathPrefix:
-		return fmt.Sprintf("        if ($uri !~ %s) {\n            set $openflare_skip_cache 1;\n        }\n", quoteNginxStringLiteral(buildPathPrefixMatchPattern(cacheConfig.Rules)))
-	case proxyRouteCachePolicyPathExact:
-		return fmt.Sprintf("        if ($uri !~ %s) {\n            set $openflare_skip_cache 1;\n        }\n", quoteNginxStringLiteral(buildPathExactMatchPattern(cacheConfig.Rules)))
-	default:
-		return ""
-	}
-}
-
-func buildSuffixMatchPattern(rules []string) string {
-	parts := make([]string, 0, len(rules))
-	for _, rule := range rules {
-		parts = append(parts, regexp.QuoteMeta(rule))
-	}
-	return fmt.Sprintf("\\.(?:%s)$", strings.Join(parts, "|"))
-}
-
-func buildPathPrefixMatchPattern(rules []string) string {
-	parts := make([]string, 0, len(rules))
-	for _, rule := range rules {
-		trimmed := strings.TrimRight(rule, "/")
-		if trimmed == "" {
-			trimmed = "/"
-		}
-		if trimmed == "/" {
-			parts = append(parts, "/")
-			continue
-		}
-		parts = append(parts, fmt.Sprintf("%s(?:/|$)", regexp.QuoteMeta(trimmed)))
-	}
-	return fmt.Sprintf("^(?:%s)", strings.Join(parts, "|"))
-}
-
-func buildPathExactMatchPattern(rules []string) string {
-	parts := make([]string, 0, len(rules))
-	for _, rule := range rules {
-		parts = append(parts, regexp.QuoteMeta(rule))
-	}
-	return fmt.Sprintf("^(?:%s)$", strings.Join(parts, "|"))
-}
-
-func renderProxyPassBlock(originURL string, upstreamConfig routeUpstreamConfig) string {
-	parsed, err := url.Parse(originURL)
-	if err != nil || parsed.Host == "" || parsed.Scheme == "" {
-		return fmt.Sprintf("        proxy_pass %s;\n", originURL)
-	}
-	if upstreamConfig.UsesNamedUpstream {
-		return fmt.Sprintf("        proxy_pass %s://%s%s;\n", upstreamConfig.Scheme, upstreamConfig.Name, upstreamConfig.ProxyPassURI)
-	}
-	return fmt.Sprintf("        proxy_pass %s;\n", originURL)
-}
-
-func buildRouteUpstreamConfig(route *model.ProxyRoute, upstreams []string) routeUpstreamConfig {
-	if len(upstreams) == 0 {
-		return routeUpstreamConfig{}
-	}
-	if len(upstreams) == 1 {
-		parsed, err := url.Parse(strings.TrimSpace(upstreams[0]))
-		if err != nil || parsed.Host == "" || parsed.Scheme == "" {
-			return routeUpstreamConfig{}
-		}
-		return routeUpstreamConfig{
-			Name:              buildRouteUpstreamName(route),
-			Scheme:            parsed.Scheme,
-			ProxyPassURI:      buildUpstreamProxyPassURI(parsed),
-			Servers:           []string{parsed.Host},
-			UsesNamedUpstream: true,
-		}
-	}
-	servers := make([]string, 0, len(upstreams))
-	var scheme string
-	for _, upstream := range upstreams {
-		parsed, err := url.Parse(strings.TrimSpace(upstream))
-		if err != nil || parsed.Host == "" || parsed.Scheme == "" {
-			return routeUpstreamConfig{}
-		}
-		if strings.TrimSpace(parsed.EscapedPath()) != "" && strings.TrimSpace(parsed.EscapedPath()) != "/" {
-			return routeUpstreamConfig{}
-		}
-		if parsed.RawQuery != "" {
-			return routeUpstreamConfig{}
-		}
-		if scheme == "" {
-			scheme = parsed.Scheme
-		} else if scheme != parsed.Scheme {
-			return routeUpstreamConfig{}
-		}
-		servers = append(servers, parsed.Host)
-	}
-	return routeUpstreamConfig{
-		Name:              buildRouteUpstreamName(route),
-		Scheme:            scheme,
-		Servers:           servers,
-		UsesNamedUpstream: true,
-	}
-}
-
-func buildUpstreamProxyPassURI(parsed *url.URL) string {
-	if parsed == nil {
-		return ""
-	}
-	path := parsed.EscapedPath()
-	if path == "/" {
-		path = ""
-	}
-	if parsed.RawQuery == "" {
-		return path
-	}
-	return fmt.Sprintf("%s?%s", path, parsed.RawQuery)
-}
-
-func buildRouteUpstreamName(route *model.ProxyRoute) string {
-	identity := strings.TrimSpace(route.SiteName)
-	if identity == "" {
-		identity = route.Domain
-	}
-	sanitized := strings.Map(func(r rune) rune {
-		switch {
-		case r >= 'a' && r <= 'z':
-			return r
-		case r >= 'A' && r <= 'Z':
-			return r + ('a' - 'A')
-		case r >= '0' && r <= '9':
-			return r
-		default:
-			return '_'
-		}
-	}, identity)
-	sanitized = strings.Trim(sanitized, "_")
-	if sanitized == "" {
-		sanitized = "backend"
-	}
-	return fmt.Sprintf("backend_%s_%d", sanitized, route.ID)
-}
-
-func renderNamedUpstreamBlock(upstreamConfig routeUpstreamConfig) string {
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("upstream %s {\n", upstreamConfig.Name))
-	for _, server := range upstreamConfig.Servers {
-		builder.WriteString(fmt.Sprintf("    server %s max_fails=3 fail_timeout=10s;\n", server))
-	}
-	builder.WriteString("    keepalive 128;\n}\n\n")
-	return builder.String()
-}
-
-func resolveUpstreamServerName(originURL string, originHost string) string {
-	parsed, err := url.Parse(originURL)
-	if err != nil || !strings.EqualFold(parsed.Scheme, "https") {
-		return ""
-	}
-	if strings.TrimSpace(originHost) != "" {
-		parsedHost, err := url.Parse("//" + originHost)
-		if err == nil && parsedHost.Hostname() != "" {
-			return parsedHost.Hostname()
-		}
-		return originHost
-	}
-	return parsed.Hostname()
-}
-
-func quoteNginxHeaderValue(value string) string {
-	return quoteNginxStringLiteral(value)
-}
-
-func quoteNginxStringLiteral(value string) string {
-	escaped := strings.ReplaceAll(value, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	return fmt.Sprintf(`"%s"`, escaped)
-}
-
-func escapeNginxString(value string) string {
-	escaped := strings.ReplaceAll(value, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	return escaped
 }
 
 func certificateCertFileName(id uint) string {
@@ -1840,121 +1192,4 @@ func dedupeSupportFiles(files []SupportFile) []SupportFile {
 		result = append(result, file)
 	}
 	return result
-}
-
-func renderPowConfigBundle(routes []*model.ProxyRoute, wafSnapshot snapshotWAFDocument) (string, []SupportFile, error) {
-	type domainEntry struct {
-		Domains []string             `json:"domains"`
-		Enabled bool                 `json:"enabled"`
-		Config  *ProxyRoutePoWConfig `json:"config"`
-	}
-	entries := make([]domainEntry, 0)
-	hasPow := false
-	for _, route := range routes {
-		powEnabled, powConfig := getPoWConfigForRoute(route.ID, wafSnapshot)
-		if route.PoWEnabled {
-			powEnabled = true
-			if decoded, err := decodeStoredPoWConfig(route.PoWEnabled, route.PoWConfig); err == nil {
-				powConfig = decoded
-			}
-		}
-		if !powEnabled {
-			continue
-		}
-		hasPow = true
-		domains, err := decodeStoredDomains(route.Domains, route.Domain)
-		if err != nil {
-			return "", nil, err
-		}
-		entries = append(entries, domainEntry{
-			Domains: domains,
-			Enabled: true,
-			Config:  powConfig,
-		})
-	}
-	if !hasPow {
-		return "{}", nil, nil
-	}
-	data, err := json.Marshal(entries)
-	if err != nil {
-		return "", nil, err
-	}
-	return string(data), nil, nil
-}
-
-func renderWAFConfigBundle(snapshot snapshotWAFDocument) (string, error) {
-	type wafRuntimeRuleGroup struct {
-		ID                uint     `json:"id"`
-		Name              string   `json:"name"`
-		IsGlobal          bool     `json:"is_global"`
-		BlockStatusCode   int      `json:"block_status_code"`
-		BlockResponseBody string   `json:"block_response_body"`
-		IPWhitelist       []string `json:"ip_whitelist"`
-		IPBlacklist       []string `json:"ip_blacklist"`
-		CountryWhitelist  []string `json:"country_whitelist"`
-		CountryBlacklist  []string `json:"country_blacklist"`
-		RegionWhitelist   []string `json:"region_whitelist"`
-		RegionBlacklist   []string `json:"region_blacklist"`
-	}
-	type wafRuntimeConfig struct {
-		DefaultBlockStatusCode int                   `json:"default_block_status_code"`
-		RuleGroups             []wafRuntimeRuleGroup `json:"rule_groups"`
-		SiteRuleGroups         map[string][]uint     `json:"site_rule_groups"`
-	}
-	groups := make([]wafRuntimeRuleGroup, 0, len(snapshot.RuleGroups))
-	globalGroupIDs := make([]uint, 0)
-	enabledGroupIDs := make(map[uint]struct{}, len(snapshot.RuleGroups))
-	for _, group := range snapshot.RuleGroups {
-		if !group.Enabled {
-			continue
-		}
-		statusCode := group.BlockStatusCode
-		if statusCode == 0 {
-			statusCode = defaultWAFBlockStatusCode
-		}
-		if group.IsGlobal {
-			globalGroupIDs = append(globalGroupIDs, group.ID)
-		}
-		enabledGroupIDs[group.ID] = struct{}{}
-		groups = append(groups, wafRuntimeRuleGroup{
-			ID:                group.ID,
-			Name:              group.Name,
-			IsGlobal:          group.IsGlobal,
-			BlockStatusCode:   statusCode,
-			BlockResponseBody: group.BlockResponseBody,
-			IPWhitelist:       group.IPWhitelist,
-			IPBlacklist:       group.IPBlacklist,
-			CountryWhitelist:  group.CountryWhitelist,
-			CountryBlacklist:  group.CountryBlacklist,
-			RegionWhitelist:   group.RegionWhitelist,
-			RegionBlacklist:   group.RegionBlacklist,
-		})
-	}
-	sort.Slice(groups, func(i, j int) bool {
-		if groups[i].IsGlobal != groups[j].IsGlobal {
-			return groups[i].IsGlobal
-		}
-		return groups[i].ID < groups[j].ID
-	})
-	sort.Slice(globalGroupIDs, func(i, j int) bool { return globalGroupIDs[i] < globalGroupIDs[j] })
-	siteRuleGroups := make(map[string][]uint, len(snapshot.Bindings))
-	for _, binding := range snapshot.Bindings {
-		ids := append([]uint{}, globalGroupIDs...)
-		for _, id := range binding.RuleGroupIDs {
-			if _, ok := enabledGroupIDs[id]; ok {
-				ids = append(ids, id)
-			}
-		}
-		siteRuleGroups[binding.SiteName] = uniqueUintIDs(ids)
-	}
-	runtimeConfig := wafRuntimeConfig{
-		DefaultBlockStatusCode: defaultWAFBlockStatusCode,
-		RuleGroups:             groups,
-		SiteRuleGroups:         siteRuleGroups,
-	}
-	data, err := json.Marshal(runtimeConfig)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }

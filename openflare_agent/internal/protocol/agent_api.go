@@ -165,13 +165,11 @@ type ApplyLogPayload struct {
 }
 
 type ActiveConfigResponse struct {
-	Version        string        `json:"version"`
-	Checksum       string        `json:"checksum"`
-	MainConfig     string        `json:"main_config"`
-	RouteConfig    string        `json:"route_config"`
-	RenderedConfig string        `json:"rendered_config"`
-	SupportFiles   []SupportFile `json:"support_files"`
-	CreatedAt      string        `json:"created_at"`
+	Version          string        `json:"version"`
+	Checksum         string        `json:"checksum"`
+	SourceConfigJSON string        `json:"source_config_json"`
+	SupportFiles     []SupportFile `json:"support_files"`
+	CreatedAt        string        `json:"created_at"`
 }
 
 type ActiveConfigMeta struct {

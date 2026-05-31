@@ -457,7 +457,7 @@ func TestPhase2AgentLifecycle(t *testing.T) {
 	activeConfigResp := performAgentJSONRequestWithToken(t, engine, createdNode.AgentToken, http.MethodGet, "/api/agent/config-versions/active", nil)
 	var activeConfig service.AgentConfigResponse
 	decodeResponseData(t, activeConfigResp, &activeConfig)
-	if activeConfig.Version == "" || activeConfig.RenderedConfig == "" || activeConfig.Checksum == "" {
+	if activeConfig.Version == "" || activeConfig.SourceConfigJSON == "" || activeConfig.Checksum == "" {
 		t.Fatal("expected active config response to contain version payload")
 	}
 

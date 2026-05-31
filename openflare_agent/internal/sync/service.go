@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
+	openrestyrender "openflare/utils/render/openresty"
 	"strings"
 
 	"openflare-agent/internal/nginx"
@@ -91,6 +93,14 @@ func (s *Service) sync(ctx context.Context, startup bool, target *protocol.Activ
 	}
 
 	if currentChecksum == target.Checksum {
+		if startup {
+			config, fetchErr := s.client.GetActiveConfig(ctx)
+			if fetchErr != nil {
+				slog.Error("fetch active config failed", "mode", mode, "error", fetchErr)
+				return fetchErr
+			}
+			return s.applyIfNeeded(ctx, mode, startup, snapshot, currentChecksum, target, config)
+		}
 		slog.Debug("local openresty config already up to date", "mode", mode, "version", target.Version)
 		shouldReport := shouldReportNoopApply(snapshot, target.Version, target.Checksum)
 		if startup {
@@ -152,11 +162,20 @@ func (s *Service) ForceSyncOnce(ctx context.Context, target *protocol.ActiveConf
 		clearBlockedTarget(snapshot)
 		_ = s.stateStore.Save(snapshot)
 	}
-	return s.SyncOnce(ctx, target)
+	currentChecksum, err := s.nginxManager.CurrentChecksum()
+	if err != nil {
+		return err
+	}
+	config, err := s.client.GetActiveConfig(ctx)
+	if err != nil {
+		slog.Error("fetch active config failed", "mode", "force", "error", err)
+		return err
+	}
+	return s.applyIfNeeded(ctx, "force", true, snapshot, currentChecksum, target, config)
 }
 
 func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, snapshot *state.Snapshot, currentChecksum string, target *protocol.ActiveConfigMeta, config *protocol.ActiveConfigResponse) error {
-	if currentChecksum == config.Checksum {
+	if currentChecksum == config.Checksum && !startup {
 		slog.Debug("local openresty config already up to date", "mode", mode, "version", config.Version)
 		shouldReport := shouldReportNoopApply(snapshot, config.Version, config.Checksum)
 		if startup {
@@ -172,11 +191,11 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 			snapshot.OpenrestyMessage = ""
 		}
 		if shouldReport {
-			routeConfig := config.RouteConfig
-			if routeConfig == "" {
-				routeConfig = config.RenderedConfig
+			rendered, renderErr := renderActiveConfig(config)
+			if renderErr != nil {
+				return renderErr
 			}
-			if err := s.reportNoopApply(ctx, snapshot.NodeID, config.Version, config.Checksum, checksumString(config.MainConfig), checksumString(routeConfig), len(config.SupportFiles)); err != nil {
+			if err := s.reportNoopApply(ctx, snapshot.NodeID, config.Version, config.Checksum, checksumString(rendered.mainConfig), checksumString(rendered.routeConfig), len(rendered.supportFiles)); err != nil {
 				return err
 			}
 		}
@@ -207,14 +226,14 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 		slog.Debug("skipping apply because state already records target version/checksum", "version", config.Version, "checksum", config.Checksum)
 		return s.stateStore.Save(snapshot)
 	}
-	routeConfig := config.RouteConfig
-	if routeConfig == "" {
-		routeConfig = config.RenderedConfig
+	rendered, err := renderActiveConfig(config)
+	if err != nil {
+		return err
 	}
-	mainConfigChecksum := checksumString(config.MainConfig)
-	routeConfigChecksum := checksumString(routeConfig)
+	mainConfigChecksum := checksumString(rendered.mainConfig)
+	routeConfigChecksum := checksumString(rendered.routeConfig)
 	slog.Info("applying new openresty config", "mode", mode, "from_version", snapshot.CurrentVersion, "to_version", config.Version, "old_checksum", currentChecksum, "new_checksum", config.Checksum)
-	outcome := s.nginxManager.Apply(ctx, config.MainConfig, routeConfig, config.SupportFiles)
+	outcome := s.nginxManager.Apply(ctx, rendered.mainConfig, rendered.routeConfig, rendered.supportFiles)
 	message := strings.TrimSpace(outcome.Message)
 	if outcome.Status == "" {
 		outcome.Status = nginx.ApplyStatusFatal
@@ -269,7 +288,7 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 		Checksum:            config.Checksum,
 		MainConfigChecksum:  mainConfigChecksum,
 		RouteConfigChecksum: routeConfigChecksum,
-		SupportFileCount:    len(config.SupportFiles),
+		SupportFileCount:    len(rendered.supportFiles),
 	}); err != nil {
 		slog.Error("report apply log failed", "version", config.Version, "result", reportResult, "error", err)
 		return err
@@ -280,6 +299,55 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 	}
 	slog.Debug("apply log reported", "version", config.Version, "result", reportResult)
 	return nil
+}
+
+type renderedActiveConfig struct {
+	mainConfig   string
+	routeConfig  string
+	supportFiles []protocol.SupportFile
+}
+
+func renderActiveConfig(config *protocol.ActiveConfigResponse) (*renderedActiveConfig, error) {
+	if config == nil {
+		return nil, errors.New("active config is nil")
+	}
+	sourceJSON := strings.TrimSpace(config.SourceConfigJSON)
+	if sourceJSON == "" {
+		return nil, errors.New("active config source_config_json is empty")
+	}
+	rendered, err := openrestyrender.RenderJSON(sourceJSON, toOpenRestySupportFiles(config.SupportFiles))
+	if err != nil {
+		return nil, err
+	}
+	files := fromOpenRestySupportFiles(rendered.SupportFiles)
+	files = append(files, protocol.SupportFile{Path: openrestyrender.SourceConfigFileName, Content: sourceJSON})
+	return &renderedActiveConfig{
+		mainConfig:   rendered.MainConfig,
+		routeConfig:  rendered.RouteConfig,
+		supportFiles: files,
+	}, nil
+}
+
+func toOpenRestySupportFiles(files []protocol.SupportFile) []openrestyrender.SupportFile {
+	if len(files) == 0 {
+		return nil
+	}
+	result := make([]openrestyrender.SupportFile, 0, len(files))
+	for _, file := range files {
+		result = append(result, openrestyrender.SupportFile{Path: file.Path, Content: file.Content})
+	}
+	return result
+}
+
+func fromOpenRestySupportFiles(files []openrestyrender.SupportFile) []protocol.SupportFile {
+	if len(files) == 0 {
+		return nil
+	}
+	result := make([]protocol.SupportFile, 0, len(files))
+	for _, file := range files {
+		result = append(result, protocol.SupportFile{Path: file.Path, Content: file.Content})
+	}
+	return result
 }
 
 func shouldReportNoopApply(snapshot *state.Snapshot, version string, checksum string) bool {

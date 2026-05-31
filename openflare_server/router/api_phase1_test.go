@@ -378,13 +378,13 @@ func TestPhase1HTTPSAndCertificateImportLifecycle(t *testing.T) {
 	agentResp := performAgentJSONRequestWithToken(t, engine, common.AgentToken, http.MethodGet, "/api/agent/config-versions/active", nil)
 	var activeConfig map[string]any
 	decodeResponseData(t, agentResp, &activeConfig)
-	mainConfig, ok := activeConfig["main_config"].(string)
-	if !ok || !strings.Contains(mainConfig, "include __OPENFLARE_ROUTE_CONFIG__;") {
-		t.Fatalf("expected active config to expose main_config, got %#v", activeConfig["main_config"])
+	sourceConfigJSON, ok := activeConfig["source_config_json"].(string)
+	if !ok || !strings.Contains(sourceConfigJSON, "secure.example.com") {
+		t.Fatalf("expected active config to expose source_config_json, got %#v", activeConfig["source_config_json"])
 	}
 	supportFiles, ok := activeConfig["support_files"].([]any)
-	if !ok || len(supportFiles) != 4 {
-		t.Fatalf("expected active config to expose 4 support files, got %#v", activeConfig["support_files"])
+	if !ok || len(supportFiles) != 2 {
+		t.Fatalf("expected active config to expose 2 certificate support files, got %#v", activeConfig["support_files"])
 	}
 }
 

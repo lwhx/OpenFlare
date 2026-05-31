@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	openrestyrender "openflare/utils/render/openresty"
+
 	"openflare-agent/internal/protocol"
 )
 
@@ -221,6 +223,9 @@ func (m *Manager) writeTargetFiles(mainConfig string, routeConfig string, suppor
 		return err
 	}
 	if err := m.writeWAFConfig(supportFiles); err != nil {
+		return err
+	}
+	if err := m.writeSourceConfig(supportFiles); err != nil {
 		return err
 	}
 	if err := m.ensureMimeTypes(); err != nil {
@@ -507,6 +512,8 @@ type backupState struct {
 	RouteData    []byte
 	Files        []protocol.SupportFile
 	PowConfig    *protocol.SupportFile
+	WAFConfig    *protocol.SupportFile
+	SourceConfig *protocol.SupportFile
 }
 
 type managedFile struct {
@@ -568,6 +575,16 @@ func (m *Manager) backup() (*backupState, error) {
 		return nil, err
 	}
 	state.PowConfig = powConfig
+	wafConfig, err := m.readRuntimeConfigFile("waf_config.json")
+	if err != nil {
+		return nil, err
+	}
+	state.WAFConfig = wafConfig
+	sourceConfig, err := m.readRuntimeConfigFile(openrestyrender.SourceConfigFileName)
+	if err != nil {
+		return nil, err
+	}
+	state.SourceConfig = sourceConfig
 	slog.Debug("backup captured", "main_exists", state.MainExisted, "route_exists", state.RouteExisted, "cert_files", len(state.Files))
 	return state, nil
 }
@@ -596,7 +613,13 @@ func (m *Manager) restore(state *backupState) error {
 			return err
 		}
 	}
-	return m.restorePowConfig(state)
+	if err := m.restoreRuntimeConfig(state.PowConfig, "pow_config.json"); err != nil {
+		return err
+	}
+	if err := m.restoreRuntimeConfig(state.WAFConfig, "waf_config.json"); err != nil {
+		return err
+	}
+	return m.restoreRuntimeConfig(state.SourceConfig, openrestyrender.SourceConfigFileName)
 }
 
 func (m *Manager) writeCertFiles(certFiles []protocol.SupportFile) error {
@@ -652,10 +675,30 @@ func (m *Manager) writeWAFConfig(supportFiles []protocol.SupportFile) error {
 	return nil
 }
 
+func (m *Manager) writeSourceConfig(supportFiles []protocol.SupportFile) error {
+	if m.RuntimeConfigDir == "" {
+		return nil
+	}
+	configPath := filepath.Join(m.RuntimeConfigDir, openrestyrender.SourceConfigFileName)
+	for _, file := range supportFiles {
+		if file.Path == openrestyrender.SourceConfigFileName {
+			if err := os.WriteFile(configPath, []byte(file.Content), 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", openrestyrender.SourceConfigFileName, err)
+			}
+			slog.Info("wrote openresty source config", "path", configPath, "size", len(file.Content))
+			return nil
+		}
+	}
+	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove %s: %w", openrestyrender.SourceConfigFileName, err)
+	}
+	return nil
+}
+
 func (m *Manager) writeManagedCertFiles(certFiles []protocol.SupportFile) error {
 	files := make([]managedFile, 0, len(certFiles))
 	for _, file := range certFiles {
-		if file.Path == "pow_config.json" || file.Path == "waf_config.json" {
+		if file.Path == "pow_config.json" || file.Path == "waf_config.json" || file.Path == openrestyrender.SourceConfigFileName {
 			continue
 		}
 		targetPath, err := m.certFileTargetPath(file.Path)
@@ -720,10 +763,14 @@ func (m *Manager) readCertFiles() ([]protocol.SupportFile, error) {
 }
 
 func (m *Manager) readPowConfigFile() (*protocol.SupportFile, error) {
+	return m.readRuntimeConfigFile("pow_config.json")
+}
+
+func (m *Manager) readRuntimeConfigFile(name string) (*protocol.SupportFile, error) {
 	if m.RuntimeConfigDir == "" {
 		return nil, nil
 	}
-	configPath := filepath.Join(m.RuntimeConfigDir, "pow_config.json")
+	configPath := filepath.Join(m.RuntimeConfigDir, name)
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -732,7 +779,7 @@ func (m *Manager) readPowConfigFile() (*protocol.SupportFile, error) {
 		return nil, err
 	}
 	return &protocol.SupportFile{
-		Path:    "pow_config.json",
+		Path:    name,
 		Content: string(data),
 	}, nil
 }
@@ -749,21 +796,28 @@ func (m *Manager) readManagedSupportFiles() ([]protocol.SupportFile, error) {
 	if powConfig != nil {
 		files = append(files, *powConfig)
 	}
+	wafConfig, err := m.readRuntimeConfigFile("waf_config.json")
+	if err != nil {
+		return nil, err
+	}
+	if wafConfig != nil {
+		files = append(files, *wafConfig)
+	}
 	return files, nil
 }
 
-func (m *Manager) restorePowConfig(state *backupState) error {
-	if state == nil || m.RuntimeConfigDir == "" {
+func (m *Manager) restoreRuntimeConfig(file *protocol.SupportFile, name string) error {
+	if m.RuntimeConfigDir == "" {
 		return nil
 	}
-	configPath := filepath.Join(m.RuntimeConfigDir, "pow_config.json")
-	if state.PowConfig == nil {
+	configPath := filepath.Join(m.RuntimeConfigDir, name)
+	if file == nil {
 		if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		return nil
 	}
-	return os.WriteFile(configPath, []byte(state.PowConfig.Content), 0o644)
+	return os.WriteFile(configPath, []byte(file.Content), 0o644)
 }
 
 func (m *Manager) writeSafeDefaultFallbackFiles() error {

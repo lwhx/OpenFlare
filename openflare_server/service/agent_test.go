@@ -33,18 +33,13 @@ func TestGetActiveConfigForAgentIncludesPoWConfig(t *testing.T) {
 		t.Fatalf("GetActiveConfigForAgent failed: %v", err)
 	}
 
-	foundPowConfig := false
 	for _, file := range activeConfig.SupportFiles {
-		if file.Path != "pow_config.json" {
-			continue
-		}
-		foundPowConfig = true
-		if file.Content == "" {
-			t.Fatal("expected pow_config.json content to be populated")
+		if file.Path == "pow_config.json" || file.Path == "waf_config.json" {
+			t.Fatalf("agent config should not receive rendered runtime config file %s", file.Path)
 		}
 	}
-	if !foundPowConfig {
-		t.Fatal("expected agent config to include pow_config.json support file")
+	if !strings.Contains(activeConfig.SourceConfigJSON, `"pow_enabled":true`) {
+		t.Fatal("expected agent config source json to include PoW source configuration")
 	}
 }
 
@@ -71,13 +66,12 @@ func TestGetActiveConfigForAgentIncludesWAFConfig(t *testing.T) {
 
 	for _, file := range activeConfig.SupportFiles {
 		if file.Path == "waf_config.json" {
-			if !strings.Contains(file.Content, `"rule_groups"`) {
-				t.Fatalf("expected waf_config.json content to include rule groups, got %s", file.Content)
-			}
-			return
+			t.Fatal("agent config should not receive rendered waf_config.json")
 		}
 	}
-	t.Fatal("expected agent config to include waf_config.json support file")
+	if !strings.Contains(activeConfig.SourceConfigJSON, `"waf"`) {
+		t.Fatal("expected agent config source json to include WAF source configuration")
+	}
 }
 
 func TestGetActiveConfigForAgentUsesTenMinutePoWSessionDefault(t *testing.T) {
@@ -105,13 +99,12 @@ func TestGetActiveConfigForAgentUsesTenMinutePoWSessionDefault(t *testing.T) {
 
 	for _, file := range activeConfig.SupportFiles {
 		if file.Path == "pow_config.json" {
-			if !strings.Contains(file.Content, `"session_ttl":600`) {
-				t.Fatalf("expected default PoW session TTL to be 600 seconds, got %s", file.Content)
-			}
-			return
+			t.Fatal("agent config should not receive rendered pow_config.json")
 		}
 	}
-	t.Fatal("expected agent config to include pow_config.json support file")
+	if !strings.Contains(activeConfig.SourceConfigJSON, `"session_ttl":600`) {
+		t.Fatalf("expected default PoW session TTL to be in source json, got %s", activeConfig.SourceConfigJSON)
+	}
 }
 
 func TestRegisterNodeWithAgentToken(t *testing.T) {
