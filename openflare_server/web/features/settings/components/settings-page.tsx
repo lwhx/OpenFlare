@@ -8,7 +8,6 @@ import { ErrorState } from '@/components/feedback/error-state';
 import { InlineMessage } from '@/components/feedback/inline-message';
 import { LoadingState } from '@/components/feedback/loading-state';
 import { AppModal } from '@/components/ui/app-modal';
-import { TurnstileWidget } from '@/components/forms/turnstile-widget';
 import { useAuth } from '@/components/providers/auth-provider';
 import { PageHeader } from '@/components/layout/page-header';
 import { AppCard } from '@/components/ui/app-card';
@@ -71,7 +70,6 @@ const defaultSystemFields = {
   EmailVerificationEnabled: false,
   GitHubOAuthEnabled: false,
   WeChatAuthEnabled: false,
-  TurnstileCheckEnabled: false,
   SMTPServer: '',
   SMTPPort: '587',
   SMTPAccount: '',
@@ -81,8 +79,6 @@ const defaultSystemFields = {
   WeChatServerAddress: '',
   WeChatServerToken: '',
   WeChatAccountQRCodeImageURL: '',
-  TurnstileSiteKey: '',
-  TurnstileSecretKey: '',
 };
 
 const defaultOperationFields = {
@@ -257,7 +253,6 @@ export function SettingsPage() {
   const [accessToken, setAccessToken] = useState('');
   const [emailAddress, setEmailAddress] = useState('');
   const [emailCode, setEmailCode] = useState('');
-  const [emailTurnstileToken, setEmailTurnstileToken] = useState('');
   const [authSourceModalOpen, setAuthSourceModalOpen] = useState(false);
   const [geoIPTestIP, setGeoIPTestIP] = useState('8.8.8.8');
   const [cleanupModalState, setCleanupModalState] =
@@ -325,8 +320,6 @@ export function SettingsPage() {
       GitHubClientId: publicStatus.github_client_id || previous.GitHubClientId,
       WeChatAccountQRCodeImageURL:
         publicStatus.wechat_qrcode || previous.WeChatAccountQRCodeImageURL,
-      TurnstileSiteKey:
-        publicStatus.turnstile_site_key || previous.TurnstileSiteKey,
     }));
     setOtherFields((previous) => ({
       ...previous,
@@ -364,7 +357,6 @@ export function SettingsPage() {
       ),
       GitHubOAuthEnabled: toBoolean(optionMap.GitHubOAuthEnabled, false),
       WeChatAuthEnabled: toBoolean(optionMap.WeChatAuthEnabled, false),
-      TurnstileCheckEnabled: toBoolean(optionMap.TurnstileCheckEnabled, false),
       SMTPServer: optionMap.SMTPServer ?? '',
       SMTPPort: optionMap.SMTPPort ?? '587',
       SMTPAccount: optionMap.SMTPAccount ?? '',
@@ -374,8 +366,6 @@ export function SettingsPage() {
       WeChatServerAddress: optionMap.WeChatServerAddress ?? '',
       WeChatServerToken: '',
       WeChatAccountQRCodeImageURL: optionMap.WeChatAccountQRCodeImageURL ?? '',
-      TurnstileSiteKey: optionMap.TurnstileSiteKey ?? '',
-      TurnstileSecretKey: '',
     });
 
     setOperationFields({
@@ -618,16 +608,8 @@ export function SettingsPage() {
       return;
     }
 
-    if (publicStatusQuery.data?.turnstile_check && !emailTurnstileToken) {
-      setFeedback({ tone: 'info', message: '请先完成人机验证。' });
-      return;
-    }
-
     void runBusyAction('email-send', async () => {
-      await sendEmailVerification(
-        emailAddress.trim(),
-        emailTurnstileToken || undefined,
-      );
+      await sendEmailVerification(emailAddress.trim());
       setFeedback({ tone: 'success', message: '验证码已发送，请检查邮箱。' });
     });
   };
@@ -974,21 +956,6 @@ export function SettingsPage() {
                       placeholder="请输入邮箱验证码"
                     />
                   </ResourceField>
-                  {publicStatus.turnstile_check ? (
-                    publicStatus.turnstile_site_key ? (
-                      <TurnstileWidget
-                        siteKey={publicStatus.turnstile_site_key}
-                        onVerify={(token) => setEmailTurnstileToken(token)}
-                        onExpire={() => setEmailTurnstileToken('')}
-                        onError={() => setEmailTurnstileToken('')}
-                      />
-                    ) : (
-                      <EmptyState
-                        title="Turnstile 配置不完整"
-                        description="当前系统已启用 Turnstile，但未配置 Site Key，邮箱绑定暂不可用。"
-                      />
-                    )
-                  ) : null}
                   <div className="flex flex-wrap gap-2">
                     <SecondaryButton
                       type="button"

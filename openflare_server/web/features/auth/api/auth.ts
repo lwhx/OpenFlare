@@ -21,31 +21,21 @@ export function logout() {
   return apiRequest<void>('/user/logout');
 }
 
-export function register(payload: RegisterPayload, turnstileToken?: string) {
-  const query = turnstileToken
-    ? `?turnstile=${encodeURIComponent(turnstileToken)}`
-    : '';
-
-  return apiRequest<void>(`/user/register${query}`, {
+export function register(payload: RegisterPayload) {
+  return apiRequest<void>('/user/register', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-export function sendEmailVerification(email: string, turnstileToken?: string) {
+export function sendEmailVerification(email: string) {
   const searchParams = new URLSearchParams({ email });
-  if (turnstileToken) {
-    searchParams.set('turnstile', turnstileToken);
-  }
 
   return apiRequest<void>(`/verification?${searchParams.toString()}`);
 }
 
-export function sendPasswordResetEmail(email: string, turnstileToken?: string) {
+export function sendPasswordResetEmail(email: string) {
   const searchParams = new URLSearchParams({ email });
-  if (turnstileToken) {
-    searchParams.set('turnstile', turnstileToken);
-  }
 
   return apiRequest<void>(`/reset_password?${searchParams.toString()}`);
 }

@@ -3,7 +3,6 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"openflare/common"
 	"openflare/model"
@@ -11,6 +10,8 @@ import (
 	"openflare/utils/mail"
 	"openflare/utils/security"
 	"openflare/utils/validation"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GetStatus godoc
@@ -39,8 +40,6 @@ func GetStatus(c *gin.Context) {
 			"wechat_qrcode":             common.WeChatAccountQRCodeImageURL,
 			"wechat_login":              common.WeChatAuthEnabled,
 			"server_address":            common.ServerAddress,
-			"turnstile_check":           common.TurnstileCheckEnabled,
-			"turnstile_site_key":        common.TurnstileSiteKey,
 			"register_enabled":          common.RegisterEnabled,
 			"password_register_enabled": common.PasswordRegisterEnabled,
 			"auth_sources":              authSources,

@@ -1,17 +1,15 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { InlineMessage } from '@/components/feedback/inline-message';
-import { TurnstileWidget } from '@/components/forms/turnstile-widget';
 import { AppCard } from '@/components/ui/app-card';
 import { sendPasswordResetEmail } from '@/features/auth/api/auth';
-import { getPublicStatus } from '@/features/auth/api/public';
 import {
   AuthButton,
   AuthFormField,
@@ -26,7 +24,6 @@ const resetRequestSchema = z.object({
 type ResetRequestFormValues = z.infer<typeof resetRequestSchema>;
 
 export function PasswordResetRequestForm() {
-  const [turnstileToken, setTurnstileToken] = useState('');
   const [message, setMessage] = useState<{
     tone: 'success' | 'danger' | 'info';
     text: string;
@@ -37,14 +34,9 @@ export function PasswordResetRequestForm() {
     defaultValues: { email: '' },
   });
 
-  const statusQuery = useQuery({
-    queryKey: ['public-status'],
-    queryFn: getPublicStatus,
-  });
-
   const mutation = useMutation({
     mutationFn: (values: ResetRequestFormValues) =>
-      sendPasswordResetEmail(values.email, turnstileToken || undefined),
+      sendPasswordResetEmail(values.email),
     onSuccess: () => {
       setMessage({ tone: 'success', text: '重置邮件发送成功，请检查邮箱。' });
       form.reset();
@@ -59,10 +51,6 @@ export function PasswordResetRequestForm() {
 
   const handleSubmit = form.handleSubmit((values) => {
     setMessage(null);
-    if (statusQuery.data?.turnstile_check && !turnstileToken) {
-      setMessage({ tone: 'info', text: '请先完成人机验证。' });
-      return;
-    }
     mutation.mutate(values);
   });
 
@@ -85,16 +73,6 @@ export function PasswordResetRequestForm() {
               </span>
             ) : null}
           </AuthFormField>
-
-          {statusQuery.data?.turnstile_check &&
-          statusQuery.data.turnstile_site_key ? (
-            <TurnstileWidget
-              siteKey={statusQuery.data.turnstile_site_key}
-              onVerify={(token) => setTurnstileToken(token)}
-              onExpire={() => setTurnstileToken('')}
-              onError={() => setTurnstileToken('')}
-            />
-          ) : null}
 
           {message ? (
             <InlineMessage tone={message.tone} message={message.text} />

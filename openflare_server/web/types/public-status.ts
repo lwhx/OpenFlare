@@ -19,8 +19,6 @@ export interface PublicStatus {
   wechat_qrcode: string;
   wechat_login: boolean;
   server_address: string;
-  turnstile_check: boolean;
-  turnstile_site_key: string;
   register_enabled: boolean;
   password_register_enabled: boolean;
   auth_sources: PublicAuthSource[];

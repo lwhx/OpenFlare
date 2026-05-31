@@ -3,7 +3,6 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"openflare/common"
 	"openflare/model"
@@ -13,6 +12,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -236,10 +237,7 @@ func validateOptionWithState(option model.Option, state map[string]string) error
 		if option.Value == "true" && strings.TrimSpace(state["WeChatServerAddress"]) == "" {
 			return fmt.Errorf("鏃犳硶鍚敤寰俊鐧诲綍锛岃鍏堝～鍏ュ井淇＄櫥褰曠浉鍏抽厤缃俊鎭紒")
 		}
-	case "TurnstileCheckEnabled":
-		if option.Value == "true" && strings.TrimSpace(state["TurnstileSiteKey"]) == "" {
-			return fmt.Errorf("鏃犳硶鍚敤 Turnstile 鏍￠獙锛岃鍏堝～鍏?Turnstile 鏍￠獙鐩稿叧閰嶇疆淇℃伅锛?")
-		}
+
 	}
 
 	if err := validateRateLimitOption(option.Key, option.Value); err != nil {
@@ -338,14 +336,6 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
-			})
-			return
-		}
-	case "TurnstileCheckEnabled":
-		if option.Value == "true" && common.TurnstileSiteKey == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
 			})
 			return
 		}

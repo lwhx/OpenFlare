@@ -30,7 +30,6 @@ var PasswordRegisterEnabled = true
 var EmailVerificationEnabled = false
 var GitHubOAuthEnabled = false
 var WeChatAuthEnabled = false
-var TurnstileCheckEnabled = false
 var RegisterEnabled = false
 
 var SMTPServer = ""
@@ -45,8 +44,6 @@ var WeChatServerAddress = ""
 var WeChatServerToken = ""
 var WeChatAccountQRCodeImageURL = ""
 
-var TurnstileSiteKey = ""
-var TurnstileSecretKey = ""
 var AgentToken = ""
 var AgentDiscoveryToken = ""
 var NodeOfflineThreshold = 2 * time.Minute
