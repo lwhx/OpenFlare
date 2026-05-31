@@ -183,6 +183,17 @@ Every time the database version number is upgraded, an explicit migration method
 
 Versions 1 through 7 are treated as the historical initial baseline and no longer keep per-version upgrade files. Starting from v8, database migrations must be placed under `openflare_server/model/migrate` and named after the target version, such as `v16.go`. Each version file registers its migration through `init()`, and the current database version is derived from the highest registered target version. Do not change the semantics of released v8+ migrations merely to reorganize files.
 
+When performing a database upgrade, complete the following steps:
+
+1. Decide whether a schema version bump is required: any addition, removal, or rename of tables, columns, indexes, constraints, column types, sharding rules, or persisted-data semantics must upgrade the version.
+2. Add `openflare_server/model/migrate/vN.go`, where `N` is the target version. The file header must include a comment explaining what this upgrade changes and why it is needed.
+3. Implement `VN()` in `vN.go`, and call `Register(VN())` from `init()`. `FromVersion` must be `N-1`, and `ToVersion` must be `N`.
+4. Implement the upgrade logic in `migrateVN`. Use `Context` to call shared capabilities such as `ApplyCurrentSchema`, historical backfills, and default-data initialization; complex data repairs must be explicit and must not rely on `AutoMigrate` alone.
+5. Implement post-upgrade validation in `validateVN`. Validation must cover at least the existence of new tables/columns/indexes, required default data, and required data backfills.
+6. If the migration needs new shared backfill or validation helpers, place them in `openflare_server/model/migrations.go` or another suitable model file, and expose them through `Context` to `model/migrate`; avoid reverse-importing `model` from the subpackage and creating an import cycle.
+7. Add migration tests covering at least upgrade from the `N-1` old database to `N`, including schema version, table/column structure, key data backfills, and validation results. The `model/migrate` registry test checks version continuity, but business-specific migrations still require tests.
+8. Update design/development docs; if management APIs, configuration fields, or user-visible behavior change, also update the relevant guides, configuration reference, and Swagger documents.
+
 After starting the new package, the database's current version must be checked first, and then upgraded step by step in order to the target version; skipping intermediate upgrade steps to directly write the target version is prohibited.
 
 An empty database initialization can directly establish the current version structure, but the same-version validation must still be executed after the initialization is completed, and the current database version must be persisted.

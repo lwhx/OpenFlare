@@ -1,3 +1,5 @@
+// v9 升级内容：为 proxy_routes 增加 PoW 防护配置字段。
+// 背景说明：反向代理站点需要支持 Proof-of-Work 抗机器人能力，因此在路由配置中持久化 PoW 开关与策略，并沿用 v8 的证书与站点字段回填。
 package migrate
 
 import "gorm.io/gorm"

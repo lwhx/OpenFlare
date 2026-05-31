@@ -1,3 +1,5 @@
+// v15 升级内容：为 nodes 增加 ip_manual_override 字段。
+// 背景说明：管理端手动指定节点 IP 后，Agent 心跳不应继续覆盖该值，因此需要在节点表中记录 IP 是否由管理端锁定。
 package migrate
 
 import (
