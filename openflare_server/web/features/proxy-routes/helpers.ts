@@ -300,11 +300,20 @@ export function buildPayloadFromRoute(
     basic_auth_enabled: route.basic_auth_enabled,
     basic_auth_username: route.basic_auth_username,
     basic_auth_password: route.basic_auth_password,
+    upstream_type: route.upstream_type,
+    tunnel_node_id: route.tunnel_node_id ?? route.tunnel_id ?? null,
+    tunnel_target_addr: route.tunnel_target_addr || '',
+    tunnel_target_protocol: route.tunnel_target_protocol || '',
     ...overrides,
   };
 }
 
 export function getUpstreamSummary(route: ProxyRouteItem) {
+  if (route.upstream_type === 'tunnel') {
+    const protocol = route.tunnel_target_protocol || 'http';
+    const target = route.tunnel_target_addr || '未配置目标';
+    return `Tunnel → ${protocol}://${target}`;
+  }
   if (route.upstream_list.length <= 1) {
     return route.origin_url;
   }

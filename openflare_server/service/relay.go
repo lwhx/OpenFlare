@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"openflare/common"
 	"openflare/model"
+	"strconv"
 	"strings"
 	"time"
 
@@ -369,10 +371,7 @@ func GetFlaredTunnelConfig(node *model.Node) (*FlaredTunnelConfigResponse, error
 	relays := make([]FlaredRelayInfo, 0, len(relayNodes))
 	for _, node := range relayNodes {
 		if node.RelayStatus == "healthy" || node.Status == NodeStatusOnline {
-			addr := strings.TrimSpace(node.RelayClientAccessAddr)
-			if addr == "" {
-				addr = fmt.Sprintf("%s:%d", strings.TrimSpace(node.IP), node.RelayBindPort)
-			}
+			addr := relayClientAddress(node)
 			relays = append(relays, FlaredRelayInfo{
 				RelayNodeID: node.NodeID,
 				Address:     addr,
@@ -411,6 +410,30 @@ func GetFlaredTunnelConfig(node *model.Node) (*FlaredTunnelConfigResponse, error
 		Relays:   relays,
 		Proxies:  proxies,
 	}, nil
+}
+
+func relayClientAddress(node *model.Node) string {
+	if node == nil {
+		return ""
+	}
+	port := node.RelayBindPort
+	if port <= 0 {
+		port = 7000
+	}
+	addr := strings.TrimSpace(node.RelayClientAccessAddr)
+	if addr == "" {
+		addr = strings.TrimSpace(node.IP)
+	}
+	if addr == "" {
+		return fmt.Sprintf("127.0.0.1:%d", port)
+	}
+	if _, _, err := net.SplitHostPort(addr); err == nil {
+		return addr
+	}
+	if strings.Contains(addr, ":") && strings.Count(addr, ":") > 1 {
+		return net.JoinHostPort(addr, strconv.Itoa(port))
+	}
+	return fmt.Sprintf("%s:%d", addr, port)
 }
 
 func parseTunnelTargetAddr(addr string) (string, int) {

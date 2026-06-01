@@ -89,6 +89,10 @@ type snapshotRoute struct {
 	BasicAuthUsername  string                        `json:"basic_auth_username,omitempty"`
 	BasicAuthPassword  string                        `json:"basic_auth_password,omitempty"`
 	Remark             string                        `json:"remark,omitempty"`
+	UpstreamType       string                        `json:"upstream_type,omitempty"`
+	TunnelNodeID       *uint                         `json:"tunnel_node_id,omitempty"`
+	TunnelTargetAddr   string                        `json:"tunnel_target_addr,omitempty"`
+	TunnelTargetProto  string                        `json:"tunnel_target_protocol,omitempty"`
 }
 
 type snapshotWAFRuleGroup struct {
@@ -500,9 +504,21 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 		if err != nil {
 			return nil, fmt.Errorf("路由 %s 自定义请求头无效", route.Domain)
 		}
+		upstreamType := normalizeUpstreamType(route.UpstreamType)
+		originURL := route.OriginURL
 		upstreams, err := decodeStoredUpstreams(route.Upstreams, route.OriginURL)
 		if err != nil {
 			return nil, fmt.Errorf("路由 %s 上游配置无效", route.Domain)
+		}
+		var tunnelNodeID *uint
+		var tunnelTargetAddr string
+		var tunnelTargetProtocol string
+		if upstreamType == "tunnel" {
+			originURL = resolveTunnelOpenRestyUpstreamURL()
+			upstreams = []string{originURL}
+			tunnelNodeID = route.TunnelNodeID
+			tunnelTargetAddr = strings.TrimSpace(route.TunnelTargetAddr)
+			tunnelTargetProtocol = normalizeTunnelTargetProtocol(route.TunnelTargetProtocol)
 		}
 		cacheRules, err := decodeStoredCacheRules(route.CacheRules)
 		if err != nil {
@@ -520,7 +536,7 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 			SiteName:           normalizeProxyRouteSiteNameInput(route, route.SiteName, domains[0]),
 			Domain:             domains[0],
 			Domains:            domains,
-			OriginURL:          route.OriginURL,
+			OriginURL:          originURL,
 			OriginHost:         route.OriginHost,
 			Upstreams:          upstreams,
 			Enabled:            route.Enabled,
@@ -542,9 +558,27 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 			BasicAuthUsername:  route.BasicAuthUsername,
 			BasicAuthPassword:  route.BasicAuthPassword,
 			Remark:             route.Remark,
+			UpstreamType:       upstreamType,
+			TunnelNodeID:       tunnelNodeID,
+			TunnelTargetAddr:   tunnelTargetAddr,
+			TunnelTargetProto:  tunnelTargetProtocol,
 		})
 	}
 	return items, nil
+}
+
+func resolveTunnelOpenRestyUpstreamURL() string {
+	port := 8080
+	relayNodes, err := model.ListNodesByType("tunnel_relay")
+	if err == nil {
+		for _, node := range relayNodes {
+			if node != nil && node.RelayVhostHTTPPort > 0 {
+				port = node.RelayVhostHTTPPort
+				break
+			}
+		}
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", port)
 }
 
 func buildSnapshotWAFDocument(routes []*model.ProxyRoute) (snapshotWAFDocument, error) {
@@ -778,6 +812,15 @@ func normalizeSnapshotRoutes(routes []snapshotRoute) []snapshotRoute {
 			routes[index].BasicAuthUsername = ""
 			routes[index].BasicAuthPassword = ""
 		}
+		routes[index].UpstreamType = normalizeUpstreamType(routes[index].UpstreamType)
+		if routes[index].UpstreamType == "tunnel" {
+			routes[index].TunnelTargetAddr = strings.TrimSpace(routes[index].TunnelTargetAddr)
+			routes[index].TunnelTargetProto = normalizeTunnelTargetProtocol(routes[index].TunnelTargetProto)
+		} else {
+			routes[index].TunnelNodeID = nil
+			routes[index].TunnelTargetAddr = ""
+			routes[index].TunnelTargetProto = ""
+		}
 	}
 	return routes
 }
@@ -803,7 +846,7 @@ func flattenSnapshotRoutesByDomain(routes []snapshotRoute) map[string]snapshotRo
 }
 
 func snapshotRouteConfigEqual(left snapshotRoute, right snapshotRoute) bool {
-	if left.SiteName != right.SiteName || left.Domain != right.Domain || left.OriginURL != right.OriginURL || left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP || left.LimitConnPerServer != right.LimitConnPerServer || left.LimitConnPerIP != right.LimitConnPerIP || left.LimitRate != right.LimitRate || left.CacheEnabled != right.CacheEnabled || left.CachePolicy != right.CachePolicy || left.PoWEnabled != right.PoWEnabled || left.BasicAuthEnabled != right.BasicAuthEnabled || left.BasicAuthUsername != right.BasicAuthUsername || left.BasicAuthPassword != right.BasicAuthPassword || !uintSliceEqual(left.CertIDs, right.CertIDs) || !uintSliceEqual(left.DomainCertIDs, right.DomainCertIDs) {
+	if left.SiteName != right.SiteName || left.Domain != right.Domain || left.OriginURL != right.OriginURL || left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP || left.LimitConnPerServer != right.LimitConnPerServer || left.LimitConnPerIP != right.LimitConnPerIP || left.LimitRate != right.LimitRate || left.CacheEnabled != right.CacheEnabled || left.CachePolicy != right.CachePolicy || left.PoWEnabled != right.PoWEnabled || left.BasicAuthEnabled != right.BasicAuthEnabled || left.BasicAuthUsername != right.BasicAuthUsername || left.BasicAuthPassword != right.BasicAuthPassword || left.UpstreamType != right.UpstreamType || !uintPtrEqual(left.TunnelNodeID, right.TunnelNodeID) || left.TunnelTargetAddr != right.TunnelTargetAddr || left.TunnelTargetProto != right.TunnelTargetProto || !uintSliceEqual(left.CertIDs, right.CertIDs) || !uintSliceEqual(left.DomainCertIDs, right.DomainCertIDs) {
 		return false
 	}
 	if len(left.Domains) != len(right.Domains) {
@@ -1163,6 +1206,13 @@ func uintSliceEqual(left []uint, right []uint) bool {
 		}
 	}
 	return true
+}
+
+func uintPtrEqual(left *uint, right *uint) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func nextVersionNumber(now time.Time) (string, error) {

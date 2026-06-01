@@ -54,6 +54,7 @@ export interface ProxyRouteItem {
   basic_auth_password: string;
   remark: string;
   upstream_type: 'direct' | 'tunnel';
+  tunnel_node_id?: number | null;
   tunnel_id?: number | null;
   tunnel_target_addr?: string;
   tunnel_target_protocol?: string;
@@ -93,6 +94,7 @@ export interface ProxyRouteMutationPayload {
   basic_auth_password?: string;
   remark: string;
   upstream_type?: 'direct' | 'tunnel';
+  tunnel_node_id?: number | null;
   tunnel_id?: number | null;
   tunnel_target_addr?: string;
   tunnel_target_protocol?: string;

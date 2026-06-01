@@ -367,9 +367,10 @@ export function NodesPage() {
                                                             )}
                                                         />
                                                     ) : node.node_type === 'tunnel_client' ? (
-                                                        <span className="text-sm text-[var(--foreground-secondary)]">
-                                -
-                              </span>
+                                                        <StatusBadge
+                                                            label={node.status === 'online' ? '运行中' : '未知'}
+                                                            variant={node.status === 'online' ? 'success' : 'warning'}
+                                                        />
                                                     ) : (
                                                         <StatusBadge
                                                             label={getOpenrestyStatusLabel(
@@ -383,16 +384,20 @@ export function NodesPage() {
                                                 </div>
                                             </td>
                                             <td className="px-3 py-4 text-[var(--foreground-secondary)]">
-                                                {node.current_version || '未应用'}
+                                                {node.current_version || (node.node_type === 'tunnel_relay' ? '实时配置' : '未应用')}
                                             </td>
                                             <td className="px-3 py-4">
                                                 <div className="space-y-2">
-                                                    <StatusBadge
-                                                        label={getApplyLabel(node.latest_apply_result)}
-                                                        variant={getApplyVariant(
-                                                            node.latest_apply_result,
-                                                        )}
-                                                    />
+                                                    {node.node_type === 'tunnel_relay' ? (
+                                                        <span className="text-sm text-[var(--foreground-secondary)]">—</span>
+                                                    ) : (
+                                                        <StatusBadge
+                                                            label={getApplyLabel(node.latest_apply_result)}
+                                                            variant={getApplyVariant(
+                                                                node.latest_apply_result,
+                                                            )}
+                                                        />
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-3 py-4 text-[var(--foreground-secondary)]">

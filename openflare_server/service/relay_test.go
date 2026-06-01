@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"openflare/model"
+	"strings"
 	"testing"
 	"time"
 
@@ -293,5 +294,82 @@ func TestGetFlaredTunnelConfigRequiresActiveVersion(t *testing.T) {
 		// We accept either wrapping the underlying error or surfacing a friendly message.
 		// Just ensure we surface a clear failure instead of a nil result.
 		t.Logf("GetFlaredTunnelConfig returned wrapped error: %v", err)
+	}
+}
+
+func TestTunnelRoutePublishAndFlaredConfigUseRelayPorts(t *testing.T) {
+	setupServiceTestDB(t)
+
+	relayNode := &model.Node{
+		NodeID:                "node-relay-ports",
+		Name:                  "relay-ports",
+		IP:                    "85.235.64.179",
+		AccessToken:           "relay-token-ports",
+		Status:                NodeStatusOnline,
+		NodeType:              "tunnel_relay",
+		RelayStatus:           "healthy",
+		RelayBindPort:         17000,
+		RelayVhostHTTPPort:    18080,
+		RelayAuthToken:        "relay-auth-token",
+		RelayClientAccessAddr: "de-e",
+	}
+	if err := relayNode.Insert(); err != nil {
+		t.Fatalf("failed to seed relay node: %v", err)
+	}
+	tunnelNode := &model.Node{
+		NodeID:      "node-flared-ports",
+		Name:        "flared-ports",
+		IP:          "",
+		AccessToken: "tunnel-token-ports",
+		Status:      NodeStatusOnline,
+		NodeType:    "tunnel_client",
+		Version:     "v0.2.0",
+	}
+	if err := tunnelNode.Insert(); err != nil {
+		t.Fatalf("failed to seed tunnel client node: %v", err)
+	}
+
+	route, err := CreateProxyRoute(ProxyRouteInput{
+		Domain:               "flared.example.com",
+		UpstreamType:         "tunnel",
+		TunnelID:             &tunnelNode.ID,
+		TunnelTargetAddr:     "10.0.0.8:8080",
+		TunnelTargetProtocol: "http",
+		Enabled:              true,
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyRoute failed: %v", err)
+	}
+	if route.TunnelNodeID == nil || *route.TunnelNodeID != tunnelNode.ID {
+		t.Fatalf("expected legacy tunnel_id to bind tunnel_node_id, got %+v", route.TunnelNodeID)
+	}
+
+	result, err := PublishConfigVersion("root", false)
+	if err != nil {
+		t.Fatalf("PublishConfigVersion failed: %v", err)
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "server 127.0.0.1:18080 max_fails=3 fail_timeout=10s;") {
+		t.Fatalf("expected rendered OpenResty upstream to use relay vhost port, got:\n%s", result.Version.RenderedConfig)
+	}
+
+	config, err := GetFlaredTunnelConfig(tunnelNode)
+	if err != nil {
+		t.Fatalf("GetFlaredTunnelConfig failed: %v", err)
+	}
+	if len(config.Relays) != 1 {
+		t.Fatalf("expected one relay, got %+v", config.Relays)
+	}
+	if config.Relays[0].Address != "de-e:17000" {
+		t.Fatalf("expected relay client address to include bind port, got %q", config.Relays[0].Address)
+	}
+	if len(config.Proxies) != 1 {
+		t.Fatalf("expected one proxy, got %+v", config.Proxies)
+	}
+	proxy := config.Proxies[0]
+	if proxy.LocalAddr != "10.0.0.8" || proxy.LocalPort != 8080 {
+		t.Fatalf("unexpected proxy target: %+v", proxy)
+	}
+	if len(proxy.CustomDomains) != 1 || proxy.CustomDomains[0] != "flared.example.com" {
+		t.Fatalf("unexpected proxy domains: %+v", proxy.CustomDomains)
 	}
 }

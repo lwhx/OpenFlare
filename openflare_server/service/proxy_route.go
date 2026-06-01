@@ -63,6 +63,7 @@ type ProxyRouteInput struct {
 	Remark               string                        `json:"remark"`
 	UpstreamType         string                        `json:"upstream_type"`
 	TunnelNodeID         *uint                         `json:"tunnel_node_id"`
+	TunnelID             *uint                         `json:"tunnel_id"`
 	TunnelTargetAddr     string                        `json:"tunnel_target_addr"`
 	TunnelTargetProtocol string                        `json:"tunnel_target_protocol"`
 }
@@ -102,6 +103,7 @@ type ProxyRouteView struct {
 	Remark               string                        `json:"remark"`
 	UpstreamType         string                        `json:"upstream_type"`
 	TunnelNodeID         *uint                         `json:"tunnel_node_id"`
+	TunnelID             *uint                         `json:"tunnel_id"`
 	TunnelTargetAddr     string                        `json:"tunnel_target_addr"`
 	TunnelTargetProtocol string                        `json:"tunnel_target_protocol"`
 	CreatedAt            time.Time                     `json:"created_at"`
@@ -327,7 +329,14 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	route.Remark = remark
 	route.UpstreamType = upstreamType
 	if upstreamType == "tunnel" {
-		route.TunnelNodeID = input.TunnelNodeID
+		tunnelNodeID, err := normalizeTunnelNodeID(input.TunnelNodeID, input.TunnelID)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateTunnelRouteInput(tunnelNodeID, input.TunnelTargetAddr, input.TunnelTargetProtocol); err != nil {
+			return nil, err
+		}
+		route.TunnelNodeID = tunnelNodeID
 		route.TunnelTargetAddr = strings.TrimSpace(input.TunnelTargetAddr)
 		route.TunnelTargetProtocol = normalizeTunnelTargetProtocol(input.TunnelTargetProtocol)
 	} else {
@@ -422,11 +431,47 @@ func buildProxyRouteView(route *model.ProxyRoute) (*ProxyRouteView, error) {
 		Remark:               route.Remark,
 		UpstreamType:         route.UpstreamType,
 		TunnelNodeID:         route.TunnelNodeID,
+		TunnelID:             route.TunnelNodeID,
 		TunnelTargetAddr:     route.TunnelTargetAddr,
 		TunnelTargetProtocol: route.TunnelTargetProtocol,
 		CreatedAt:            route.CreatedAt,
 		UpdatedAt:            route.UpdatedAt,
 	}, nil
+}
+
+func normalizeTunnelNodeID(tunnelNodeID *uint, legacyTunnelID *uint) (*uint, error) {
+	if tunnelNodeID != nil && *tunnelNodeID != 0 {
+		return tunnelNodeID, nil
+	}
+	if legacyTunnelID != nil && *legacyTunnelID != 0 {
+		return legacyTunnelID, nil
+	}
+	return nil, errors.New("tunnel_node_id is required for tunnel upstream")
+}
+
+func validateTunnelRouteInput(tunnelNodeID *uint, targetAddr string, targetProtocol string) error {
+	if tunnelNodeID == nil || *tunnelNodeID == 0 {
+		return errors.New("tunnel_node_id is required for tunnel upstream")
+	}
+	tunnelNode, err := model.GetNodeByID(*tunnelNodeID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("tunnel client node does not exist")
+		}
+		return err
+	}
+	if tunnelNode.NodeType != "tunnel_client" {
+		return errors.New("tunnel_node_id must reference a tunnel_client node")
+	}
+	if strings.TrimSpace(targetAddr) == "" {
+		return errors.New("tunnel_target_addr is required for tunnel upstream")
+	}
+	switch strings.ToLower(strings.TrimSpace(targetProtocol)) {
+	case "", "http", "https":
+		return nil
+	default:
+		return errors.New("tunnel_target_protocol must be http or https")
+	}
 }
 
 func normalizeProxyRouteSiteNameInput(route *model.ProxyRoute, raw string, primaryDomain string) string {

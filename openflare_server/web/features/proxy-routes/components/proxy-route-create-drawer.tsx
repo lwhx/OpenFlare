@@ -249,7 +249,7 @@ export function ProxyRouteCreateDrawer({
         basic_auth_enabled: false,
         remark: values.remark.trim(),
         upstream_type: values.upstream_type,
-        tunnel_id: values.upstream_type === 'tunnel' && values.tunnel_id ? Number(values.tunnel_id) : null,
+        tunnel_node_id: values.upstream_type === 'tunnel' && values.tunnel_id ? Number(values.tunnel_id) : null,
         tunnel_target_addr: values.upstream_type === 'tunnel' ? values.tunnel_target_addr : '',
         tunnel_target_protocol: values.upstream_type === 'tunnel' ? values.tunnel_target_protocol : '',
       });

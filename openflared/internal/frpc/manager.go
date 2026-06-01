@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -210,9 +211,17 @@ auth.token = "%s"
 }
 
 func parseAddr(addr string) (string, string) {
-	parts := strings.Split(addr, ":")
-	if len(parts) == 2 {
-		return parts[0], parts[1]
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return "127.0.0.1", "7000"
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err == nil {
+		return strings.Trim(host, "[]"), port
+	}
+	lastColon := strings.LastIndex(addr, ":")
+	if lastColon > 0 && strings.Count(addr, ":") == 1 {
+		return addr[:lastColon], addr[lastColon+1:]
 	}
 	return addr, "7000"
 }
