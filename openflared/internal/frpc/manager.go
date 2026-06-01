@@ -1,0 +1,255 @@
+package frpc
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"openflare-flared/internal/config"
+	"openflare/service"
+)
+
+type Manager struct {
+	cfg       *config.Config
+	processes map[string]*Process
+	mu        sync.RWMutex
+
+	currentVersion  string
+	currentChecksum string
+}
+
+type Process struct {
+	RelayID   string
+	Cmd       *exec.Cmd
+	Cancel    context.CancelFunc
+	Status    string
+	StartTime time.Time
+	LastError string
+}
+
+func NewManager(cfg *config.Config) *Manager {
+	return &Manager{
+		cfg:       cfg,
+		processes: make(map[string]*Process),
+	}
+}
+
+func (m *Manager) GetVersion() string {
+	cmd := exec.Command(m.cfg.FrpcPath, "-v")
+	out, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func (m *Manager) GetConnectedRelays() []service.FlaredConnectedRelay {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make([]service.FlaredConnectedRelay, 0, len(m.processes))
+	for relayID, proc := range m.processes {
+		result = append(result, service.FlaredConnectedRelay{
+			RelayNodeID: relayID,
+			Status:      proc.Status,
+		})
+	}
+	return result
+}
+
+func (m *Manager) GetCurrentConfigVersion() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.currentVersion
+}
+
+func (m *Manager) GetCurrentConfigChecksum() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.currentChecksum
+}
+
+func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTunnelConfigResponse) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if newConfig == nil {
+		return nil
+	}
+	if newConfig.Version == m.currentVersion && newConfig.Checksum == m.currentChecksum {
+		return nil
+	}
+
+	slog.Info("applying new tunnel config", "version", newConfig.Version)
+
+	if err := os.MkdirAll(m.cfg.DataDir, 0o755); err != nil {
+		return fmt.Errorf("create data dir failed: %w", err)
+	}
+
+	activeRelays := make(map[string]struct{})
+
+	for _, relay := range newConfig.Relays {
+		activeRelays[relay.RelayNodeID] = struct{}{}
+		tomlContent := buildFrpcToml(relay, newConfig.Proxies)
+		configPath := filepath.Join(m.cfg.DataDir, fmt.Sprintf("frpc_%s.toml", relay.RelayNodeID))
+
+		needsRestart := true
+		existingData, err := os.ReadFile(configPath)
+		if err == nil && string(existingData) == tomlContent {
+			needsRestart = false
+		}
+
+		if needsRestart {
+			if err := os.WriteFile(configPath, []byte(tomlContent), 0o644); err != nil {
+				slog.Error("failed to write frpc config", "relay_id", relay.RelayNodeID, "error", err)
+				continue
+			}
+			m.restartProcess(ctx, relay.RelayNodeID, configPath)
+		} else if _, ok := m.processes[relay.RelayNodeID]; !ok {
+			m.restartProcess(ctx, relay.RelayNodeID, configPath)
+		}
+	}
+
+	// Stop obsolete processes
+	for relayID, proc := range m.processes {
+		if _, ok := activeRelays[relayID]; !ok {
+			slog.Info("stopping obsolete frpc process", "relay_id", relayID)
+			proc.Cancel()
+			delete(m.processes, relayID)
+		}
+	}
+
+	m.currentVersion = newConfig.Version
+	m.currentChecksum = newConfig.Checksum
+
+	return m.saveState()
+}
+
+func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath string) {
+	if proc, ok := m.processes[relayID]; ok {
+		proc.Cancel()
+	}
+
+	procCtx, cancel := context.WithCancel(context.Background())
+	proc := &Process{
+		RelayID:   relayID,
+		Cancel:    cancel,
+		Status:    "starting",
+		StartTime: time.Now(),
+	}
+	m.processes[relayID] = proc
+
+	go func() {
+		for {
+			select {
+			case <-procCtx.Done():
+				return
+			default:
+			}
+
+			cmd := exec.CommandContext(procCtx, m.cfg.FrpcPath, "-c", configPath)
+			proc.Cmd = cmd
+			proc.Status = "running"
+
+			err := cmd.Run()
+			if err != nil {
+				if procCtx.Err() != nil {
+					return
+				}
+				proc.LastError = err.Error()
+				proc.Status = "error"
+				slog.Error("frpc process exited unexpectedly", "relay_id", relayID, "error", err)
+				time.Sleep(5 * time.Second) // backoff
+			} else {
+				proc.Status = "stopped"
+			}
+		}
+	}()
+}
+
+func buildFrpcToml(relay service.FlaredRelayInfo, proxies []service.FlaredProxyEntry) string {
+	var buf bytes.Buffer
+
+	host, port := parseAddr(relay.Address)
+
+	buf.WriteString(fmt.Sprintf(`serverAddr = "%s"
+serverPort = %s
+`, host, port))
+
+	if relay.AuthToken != "" {
+		buf.WriteString(fmt.Sprintf(`auth.method = "token"
+auth.token = "%s"
+`, relay.AuthToken))
+	}
+
+	if relay.ProxyURL != "" {
+		buf.WriteString(fmt.Sprintf(`transport.proxyURL = "%s"
+`, relay.ProxyURL))
+	}
+
+	buf.WriteString("\n")
+
+	for _, proxy := range proxies {
+		buf.WriteString(fmt.Sprintf("[[proxies]]\nname = \"%s\"\ntype = \"%s\"\nlocalIP = \"%s\"\nlocalPort = %d\n",
+			proxy.Name, proxy.Type, proxy.LocalAddr, proxy.LocalPort))
+		if len(proxy.CustomDomains) > 0 {
+			buf.WriteString(fmt.Sprintf("customDomains = [\"%s\"]\n", strings.Join(proxy.CustomDomains, "\", \"")))
+		}
+		buf.WriteString("\n")
+	}
+
+	return buf.String()
+}
+
+func parseAddr(addr string) (string, string) {
+	parts := strings.Split(addr, ":")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return addr, "7000"
+}
+
+// State persistence
+type ManagerState struct {
+	Version  string
+	Checksum string
+}
+
+func (m *Manager) saveState() error {
+	state := ManagerState{
+		Version:  m.currentVersion,
+		Checksum: m.currentChecksum,
+	}
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(m.cfg.StatePath, data, 0o644)
+}
+
+func (m *Manager) LoadState() error {
+	data, err := os.ReadFile(m.cfg.StatePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var state ManagerState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.currentVersion = state.Version
+	m.currentChecksum = state.Checksum
+	m.mu.Unlock()
+	return nil
+}
