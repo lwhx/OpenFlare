@@ -84,6 +84,8 @@ func (databaseSchemaMigrationContext) ValidateDatabaseSchemaVersion(db *gorm.DB,
 		return validateDatabaseSchemaV18(db, backend)
 	case 19:
 		return validateDatabaseSchemaV19(db, backend)
+	case 20:
+		return validateDatabaseSchemaV20(db, backend)
 	default:
 		return fmt.Errorf("database schema validation for v%d is not defined", version)
 	}
@@ -1221,6 +1223,19 @@ func validateDatabaseSchemaV19(db *gorm.DB, backend string) error {
 	}
 	if db.Migrator().HasColumn(&ProxyRoute{}, "tunnel_id") {
 		return fmt.Errorf("column proxy_routes.tunnel_id should be dropped in v19")
+	}
+	return nil
+}
+
+func validateDatabaseSchemaV20(db *gorm.DB, backend string) error {
+	if err := validateDatabaseSchemaV19(db, backend); err != nil {
+		return err
+	}
+	if !db.Migrator().HasColumn(&Node{}, "relay_frps_connections") {
+		return fmt.Errorf("column nodes.relay_frps_connections is missing")
+	}
+	if !db.Migrator().HasColumn(&Node{}, "relay_frps_proxy_count") {
+		return fmt.Errorf("column nodes.relay_frps_proxy_count is missing")
 	}
 	return nil
 }

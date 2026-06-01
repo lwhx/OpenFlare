@@ -46,7 +46,7 @@ func (s *Service) doHeartbeat(ctx context.Context) {
 	slog.Debug("sending flared heartbeat")
 
 	payload := service.FlaredHeartbeatPayload{
-		ClientVersion:   "0.1.0", // TODO dynamically inject build version
+		ClientVersion:   config.Version,
 		FrpVersion:      s.frpcManager.GetVersion(),
 		TunnelStatus:    "running", // TODO implement proper status tracking
 		ConnectedRelays: s.frpcManager.GetConnectedRelays(),

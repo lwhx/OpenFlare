@@ -1,4 +1,8 @@
+ARG VERSION=dev
+
 FROM golang:1.25-alpine AS builder
+
+ARG VERSION
 
 WORKDIR /build
 
@@ -8,7 +12,7 @@ RUN go mod download
 
 COPY openflare_server/ ../openflare_server/
 COPY openflared/ .
-RUN CGO_ENABLED=0 GOOS=linux go build -o flared ./cmd/flared
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w -X 'openflare-flared/internal/config.Version=$VERSION'" -o flared ./cmd/flared
 
 # Final runtime image
 FROM fatedier/frpc:v0.69.0

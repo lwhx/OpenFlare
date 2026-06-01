@@ -40,6 +40,8 @@ type Node struct {
 	RelayStatus           string `json:"relay_status" gorm:"size:16;not null;default:'unknown'"`
 	RelayFrpVersion       string `json:"relay_frp_version" gorm:"size:64"`
 	RelayVersion          string `json:"relay_version" gorm:"size:64"`
+	RelayFrpsConnections  int    `json:"relay_frps_connections" gorm:"not null;default:0"`
+	RelayFrpsProxyCount   int    `json:"relay_frps_proxy_count" gorm:"not null;default:0"`
 }
 
 func ListNodes() (nodes []*Node, err error) {

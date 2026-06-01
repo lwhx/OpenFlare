@@ -13,6 +13,10 @@ export interface NodeItem {
   relay_client_proxy_url: string;
   relay_auth_token: string;
   relay_status: string;
+  relay_frp_version: string;
+  relay_version: string;
+  relay_frps_connections: number;
+  relay_frps_proxy_count: number;
   geo_name: string;
   geo_latitude?: number | null;
   geo_longitude?: number | null;

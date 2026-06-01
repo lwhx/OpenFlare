@@ -24,6 +24,17 @@ type Manager struct {
 	activeConfig *service.RelayConfig
 	cmd          *exec.Cmd
 	status       string
+	lastError    string
+	generation   uint64
+	stopping     bool
+}
+
+type RuntimeStatus struct {
+	Status       string
+	LastError    string
+	Connections  int
+	ProxyCount   int
+	ProcessAlive bool
 }
 
 func NewManager(frpsPath string, dataDir string) *Manager {
@@ -54,6 +65,18 @@ func (m *Manager) GetStatus() string {
 	return m.status
 }
 
+func (m *Manager) GetRuntimeStatus() RuntimeStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return RuntimeStatus{
+		Status:       m.status,
+		LastError:    m.lastError,
+		Connections:  0,
+		ProxyCount:   0,
+		ProcessAlive: m.cmd != nil && m.cmd.Process != nil,
+	}
+}
+
 func (m *Manager) UpdateConfig(cfg *service.RelayConfig) {
 	if cfg == nil {
 		return
@@ -66,23 +89,35 @@ func (m *Manager) UpdateConfig(cfg *service.RelayConfig) {
 		m.activeConfig.BindPort == cfg.BindPort &&
 		m.activeConfig.VhostHTTPPort == cfg.VhostHTTPPort &&
 		m.activeConfig.AuthToken == cfg.AuthToken {
-		return // No change
+		if m.cmd == nil && !m.stopping {
+			slog.Warn("frps config unchanged but process is not running, restarting")
+			if err := m.restartProcess(); err != nil {
+				m.status = "unhealthy"
+				m.lastError = err.Error()
+				slog.Error("failed to restart frps with unchanged config", "error", err)
+			}
+		}
+		return
 	}
 
 	m.activeConfig = cfg
+	m.stopping = false
 	slog.Info("relay config updated, reloading frps")
 
 	if err := m.renderConfig(cfg); err != nil {
 		slog.Error("failed to render frps config", "error", err)
 		m.status = "unhealthy"
+		m.lastError = err.Error()
 		return
 	}
 
 	if err := m.restartProcess(); err != nil {
 		slog.Error("failed to restart frps", "error", err)
 		m.status = "unhealthy"
+		m.lastError = err.Error()
 	} else {
 		m.status = "healthy"
+		m.lastError = ""
 	}
 }
 
@@ -105,13 +140,17 @@ func (m *Manager) renderConfig(cfg *service.RelayConfig) error {
 }
 
 func (m *Manager) restartProcess() error {
+	m.generation++
+	generation := m.generation
 	if m.cmd != nil && m.cmd.Process != nil {
 		slog.Debug("stopping existing frps process")
 		_ = m.cmd.Process.Kill()
-		_ = m.cmd.Wait()
 		m.cmd = nil
 	}
+	return m.startProcessLocked(generation)
+}
 
+func (m *Manager) startProcessLocked(generation uint64) error {
 	cmd := exec.Command(m.frpsPath, "-c", m.configPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -121,8 +160,9 @@ func (m *Manager) restartProcess() error {
 	}
 
 	m.cmd = cmd
+	m.status = "healthy"
+	m.lastError = ""
 
-	// Start a goroutine to monitor process exit
 	go func(c *exec.Cmd) {
 		err := c.Wait()
 		slog.Warn("frps process exited", "error", err)
@@ -130,8 +170,29 @@ func (m *Manager) restartProcess() error {
 		if m.cmd == c {
 			m.cmd = nil
 			m.status = "unhealthy"
+			if err != nil {
+				m.lastError = err.Error()
+			} else {
+				m.lastError = "frps process exited"
+			}
 		}
+		shouldRestart := !m.stopping && m.generation == generation
 		m.mu.Unlock()
+		if !shouldRestart {
+			return
+		}
+		time.Sleep(2 * time.Second)
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if m.stopping || m.generation != generation {
+			return
+		}
+		slog.Warn("restarting frps after unexpected exit")
+		if err := m.startProcessLocked(generation); err != nil {
+			m.status = "unhealthy"
+			m.lastError = err.Error()
+			slog.Error("failed to auto restart frps", "error", err)
+		}
 	}(cmd)
 
 	return nil
@@ -140,9 +201,11 @@ func (m *Manager) restartProcess() error {
 func (m *Manager) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.stopping = true
+	m.generation++
 	if m.cmd != nil && m.cmd.Process != nil {
 		_ = m.cmd.Process.Kill()
-		_ = m.cmd.Wait()
 		m.cmd = nil
 	}
+	m.status = "unhealthy"
 }

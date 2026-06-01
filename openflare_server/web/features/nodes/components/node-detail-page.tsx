@@ -1252,7 +1252,7 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
             {node.node_type === 'tunnel_relay' ? (
               <div className="grid gap-6 xl:grid-cols-1">
                 <AppCard title="隧道运行状态" description="当前中继节点上活跃的代理通道。">
-                  {observability?.relay_dashboard?.proxies ? (
+                  {observability?.relay_dashboard?.proxies?.length ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm text-[var(--foreground-secondary)]">
                         <thead className="border-b border-[var(--border-default)]">
@@ -1507,8 +1507,17 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
 
               <AppCard title="版本信息">
                 <div className="space-y-2 text-sm text-[var(--foreground-secondary)]">
-                  <p>Agent：{node.agent_version || 'unknown'}</p>
-                  <p>Nginx：{node.nginx_version || 'unknown'}</p>
+                  {node.node_type === 'tunnel_relay' ? (
+                    <>
+                      <p>Relay：{node.relay_version || 'unknown'}</p>
+                      <p>frps：{node.relay_frp_version || 'unknown'}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>Agent：{node.agent_version || 'unknown'}</p>
+                      <p>Nginx：{node.nginx_version || 'unknown'}</p>
+                    </>
+                  )}
                   <p>当前配置：{node.current_version || '未应用'}</p>
                 </div>
               </AppCard>
@@ -1776,7 +1785,7 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                   </div>
                   <div>
                     <p className="font-medium text-[var(--foreground-primary)]">
-                      OpenResty 状态消息
+                      状态消息
                     </p>
                     <p className="mt-1 break-words whitespace-pre-wrap">
                       {node.openresty_message || '无'}

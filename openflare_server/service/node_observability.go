@@ -27,6 +27,7 @@ type NodeObservabilityView struct {
 	HealthEvents    []*model.NodeHealthEvent    `json:"health_events"`
 	Analytics       NodeObservabilityAnalytics  `json:"analytics"`
 	Trends          NodeObservabilityTrends     `json:"trends"`
+	RelayDashboard  *RelayDashboardSnapshot     `json:"relay_dashboard,omitempty"`
 }
 
 type NodeObservabilityAnalytics struct {
@@ -45,6 +46,25 @@ type NodeObservabilityTrends struct {
 type NodeHealthEventCleanupResult struct {
 	NodeID       string `json:"node_id"`
 	DeletedCount int64  `json:"deleted_count"`
+}
+
+type RelayDashboardSnapshot struct {
+	TotalProxies     int              `json:"total_proxies"`
+	OnlineProxies    int              `json:"online_proxies"`
+	OfflineProxies   int              `json:"offline_proxies"`
+	Proxies          []RelayProxyStat `json:"proxies"`
+	TotalConnections int              `json:"total_connections"`
+	ClientCounts     int              `json:"client_counts"`
+}
+
+type RelayProxyStat struct {
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	Status        string `json:"status"`
+	ClientVersion string `json:"client_version"`
+	LastStartTime string `json:"last_start_time"`
+	LastCloseTime string `json:"last_close_time"`
+	ClientAddr    string `json:"client_addr"`
 }
 
 func GetNodeObservability(id uint, query NodeObservabilityQuery) (*NodeObservabilityView, error) {
@@ -90,7 +110,7 @@ func GetNodeObservability(id uint, query NodeObservabilityQuery) (*NodeObservabi
 		return nil, err
 	}
 
-	return &NodeObservabilityView{
+	view := &NodeObservabilityView{
 		NodeID:          node.NodeID,
 		Profile:         profile,
 		MetricSnapshots: snapshots,
@@ -107,7 +127,40 @@ func GetNodeObservability(id uint, query NodeObservabilityQuery) (*NodeObservabi
 			Network24h:  buildNetworkTrendPoints(now, trendSnapshots),
 			DiskIO24h:   buildDiskIOTrendPoints(now, trendSnapshots),
 		},
-	}, nil
+	}
+	if node.NodeType == "tunnel_relay" {
+		view.RelayDashboard = buildRelayDashboardSnapshot(node)
+	}
+	return view, nil
+}
+
+func buildRelayDashboardSnapshot(node *model.Node) *RelayDashboardSnapshot {
+	if node == nil {
+		return nil
+	}
+	totalProxies := node.RelayFrpsProxyCount
+	if totalProxies < 0 {
+		totalProxies = 0
+	}
+	onlineProxies := totalProxies
+	if node.RelayStatus != "healthy" {
+		onlineProxies = 0
+	}
+	return &RelayDashboardSnapshot{
+		TotalProxies:     totalProxies,
+		OnlineProxies:    onlineProxies,
+		OfflineProxies:   totalProxies - onlineProxies,
+		Proxies:          []RelayProxyStat{},
+		TotalConnections: maxInt(node.RelayFrpsConnections, 0),
+		ClientCounts:     0,
+	}
+}
+
+func maxInt(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func CleanupNodeHealthEvents(id uint) (*NodeHealthEventCleanupResult, error) {

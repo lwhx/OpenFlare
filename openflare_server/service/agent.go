@@ -172,6 +172,8 @@ type NodeView struct {
 	RelayStatus           string `json:"relay_status"`
 	RelayFrpVersion       string `json:"relay_frp_version"`
 	RelayVersion          string `json:"relay_version"`
+	RelayFrpsConnections  int    `json:"relay_frps_connections"`
+	RelayFrpsProxyCount   int    `json:"relay_frps_proxy_count"`
 }
 
 func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*HeartbeatResponse, error) {

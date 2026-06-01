@@ -1,4 +1,8 @@
+ARG VERSION=dev
+
 FROM golang:1.25-alpine AS builder
+
+ARG VERSION
 
 WORKDIR /build
 
@@ -7,7 +11,7 @@ COPY openflare_server /openflare_server
 COPY openflare_relay /openflare_relay
 
 WORKDIR /openflare_relay
-RUN CGO_ENABLED=0 GOOS=linux go build -o openflare-relay ./cmd/relay
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w -X 'openflare-relay/internal/config.Version=$VERSION'" -o openflare-relay ./cmd/relay
 
 # Final runtime image
 FROM fatedier/frps:v0.69.0

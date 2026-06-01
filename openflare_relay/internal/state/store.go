@@ -13,7 +13,11 @@ type Store struct {
 }
 
 type State struct {
-	LastAuthToken string `json:"last_auth_token"`
+	LastAuthToken          string `json:"last_auth_token"`
+	LastProfileFingerprint string `json:"last_profile_fingerprint"`
+	LastCPUStatTotal       uint64 `json:"last_cpu_stat_total"`
+	LastCPUStatIdle        uint64 `json:"last_cpu_stat_idle"`
+	LastMetricAtUnix       int64  `json:"last_metric_at_unix"`
 }
 
 func NewStore(path string) *Store {

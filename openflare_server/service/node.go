@@ -355,6 +355,8 @@ func buildNodeView(node *model.Node) *NodeView {
 	view.RelayStatus = node.RelayStatus
 	view.RelayFrpVersion = node.RelayFrpVersion
 	view.RelayVersion = node.RelayVersion
+	view.RelayFrpsConnections = node.RelayFrpsConnections
+	view.RelayFrpsProxyCount = node.RelayFrpsProxyCount
 	return view
 }
 

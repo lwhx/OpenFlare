@@ -57,7 +57,7 @@ func main() {
 		FrpsManager:      frpsManager,
 		HttpClient:       httpClient,
 		WebSocketService: wsClient,
-		HeartbeatService: heartbeat.New(httpClient, frpsManager, cfg),
+		HeartbeatService: heartbeat.New(httpClient, frpsManager, cfg, stateStore),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

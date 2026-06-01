@@ -8,6 +8,8 @@ import (
 	"openflare-relay/internal/config"
 	"openflare-relay/internal/frps"
 	"openflare-relay/internal/httpclient"
+	"openflare-relay/internal/observability"
+	"openflare-relay/internal/state"
 	"openflare/service"
 )
 
@@ -15,13 +17,15 @@ type Service struct {
 	client      *httpclient.Client
 	frpsManager *frps.Manager
 	config      *config.Config
+	stateStore  *state.Store
 }
 
-func New(client *httpclient.Client, manager *frps.Manager, cfg *config.Config) *Service {
+func New(client *httpclient.Client, manager *frps.Manager, cfg *config.Config, stateStore *state.Store) *Service {
 	return &Service{
 		client:      client,
 		frpsManager: manager,
 		config:      cfg,
+		stateStore:  stateStore,
 	}
 }
 
@@ -45,12 +49,18 @@ func (s *Service) Run(ctx context.Context) {
 func (s *Service) doHeartbeat(ctx context.Context) {
 	slog.Debug("sending heartbeat")
 
+	runtimeStatus := s.frpsManager.GetRuntimeStatus()
 	payload := service.RelayHeartbeatPayload{
-		RelayVersion:   "0.1.0", // TODO dynamically inject build version
+		RelayVersion:   config.Version,
 		FrpVersion:     s.frpsManager.GetVersion(),
-		RelayStatus:    s.frpsManager.GetStatus(),
-		FrpsConnCount:  0,
-		FrpsProxyCount: 0,
+		RelayStatus:    runtimeStatus.Status,
+		FrpsConnCount:  runtimeStatus.Connections,
+		FrpsProxyCount: runtimeStatus.ProxyCount,
+		Name:           s.config.NodeName,
+		IP:             s.config.NodeIP,
+		Profile:        observability.BuildProfile(s.config, s.stateStore),
+		Snapshot:       observability.BuildSnapshot(s.config, s.stateStore),
+		HealthEvents:   observability.BuildHealthEvents(runtimeStatus),
 	}
 
 	resp, err := s.client.Heartbeat(ctx, payload)

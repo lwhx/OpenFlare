@@ -344,7 +344,9 @@ export function NodesPage() {
                           />
                         </td>
                         <td className="px-3 py-4 text-sm text-[var(--foreground-secondary)]">
-                          {node.agent_version || 'unknown'}
+                          {node.node_type === 'tunnel_relay'
+                            ? node.relay_version || node.agent_version || 'unknown'
+                            : node.agent_version || 'unknown'}
                         </td>
                         <td className="px-3 py-4">
                           <div className="space-y-2">

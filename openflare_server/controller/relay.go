@@ -26,6 +26,7 @@ func RelayHeartbeat(c *gin.Context) {
 	if !bindJSON(c, &payload) {
 		return
 	}
+	payload.IP = service.ResolveReportedNodeIP(payload.IP, c.Request.RemoteAddr)
 	authNode, ok := c.Get("relay_node")
 	if !ok {
 		respondUnauthorized(c, "无权进行此操作")
