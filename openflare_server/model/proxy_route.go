@@ -31,7 +31,7 @@ type ProxyRoute struct {
 	BasicAuthPassword    string    `json:"basic_auth_password" gorm:"size:255;not null;default:''"`
 	Remark               string    `json:"remark" gorm:"size:255"`
 	UpstreamType         string    `json:"upstream_type" gorm:"size:32;not null;default:'direct'"`
-	TunnelID             *uint     `json:"tunnel_id" gorm:"index"`
+	TunnelNodeID         *uint     `json:"tunnel_node_id" gorm:"index"`
 	TunnelTargetAddr     string    `json:"tunnel_target_addr" gorm:"size:512"`
 	TunnelTargetProtocol string    `json:"tunnel_target_protocol" gorm:"size:16"`
 	CreatedAt            time.Time `json:"created_at"`
@@ -92,7 +92,7 @@ func (route *ProxyRoute) Update() error {
 		"basic_auth_password":    route.BasicAuthPassword,
 		"remark":                 route.Remark,
 		"upstream_type":          route.UpstreamType,
-		"tunnel_id":              route.TunnelID,
+		"tunnel_node_id":         route.TunnelNodeID,
 		"tunnel_target_addr":     route.TunnelTargetAddr,
 		"tunnel_target_protocol": route.TunnelTargetProtocol,
 	}).Error

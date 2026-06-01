@@ -34,7 +34,7 @@ func registeredModels() []any {
 		&ProxyRoute{},
 		&ConfigVersion{},
 		&Node{},
-		&Tunnel{},
+
 		&NodeSystemProfile{},
 		&ApplyLog{},
 		&NodeMetricSnapshot{},

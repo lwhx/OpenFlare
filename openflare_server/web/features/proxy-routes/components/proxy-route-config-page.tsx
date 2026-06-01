@@ -23,7 +23,7 @@ import {
   getWAFSiteRuleGroups,
   replaceWAFSiteRuleGroups,
 } from '@/features/waf/api/waf';
-import { getTunnels } from '@/features/tunnels/api/tunnels';
+import { getNodes } from '@/features/nodes/api/nodes';
 import {
   buildDomainRowsFromRoute,
   DomainListInput,
@@ -549,9 +549,11 @@ function ReverseProxySection({
   onSave: SaveHandler;
 }) {
   const tunnelsQuery = useQuery({
-    queryKey: ['tunnels'],
-    queryFn: getTunnels,
+    queryKey: ['nodes'],
+    queryFn: getNodes,
   });
+  
+  const tunnelClients = (tunnelsQuery.data ?? []).filter((node) => node.node_type === 'tunnel_client');
 
   const form = useForm<ReverseProxyValues>({
     resolver: zodResolver(reverseProxySchema),
@@ -689,7 +691,7 @@ function ReverseProxySection({
                 className="block w-full rounded-xl border border-[var(--border-default)] bg-[var(--control-background)] px-4 py-2.5 text-sm text-[var(--foreground-primary)] placeholder-[var(--foreground-muted)] outline-none transition focus:border-[var(--border-strong)] focus:ring-1 focus:ring-[var(--border-strong)]"
               >
                 <option value="">请选择...</option>
-                {(tunnelsQuery.data ?? []).map((tunnel) => (
+                {(tunnelClients).map((tunnel) => (
                   <option key={tunnel.id} value={tunnel.id}>
                     {tunnel.name} ({tunnel.status === 'online' ? '在线' : '离线'})
                   </option>

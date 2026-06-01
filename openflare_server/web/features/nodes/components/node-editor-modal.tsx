@@ -37,7 +37,7 @@ type RegionOption = {
 
 const nodeEditorSchema = z
   .object({
-    type: z.enum(['edge_node', 'tunnel_relay']),
+    type: z.enum(['edge_node', 'tunnel_relay', 'tunnel_client']),
     name: z
       .string()
       .trim()
@@ -48,6 +48,7 @@ const nodeEditorSchema = z
     auto_update_enabled: z.boolean(),
     relay_bind_port: z.string().trim(),
     relay_client_access_addr: z.string().trim(),
+    relay_agent_access_addr: z.string().trim(),
     relay_client_proxy_url: z.string().trim(),
     geo_manual_override: z.boolean(),
     geo_region: z.string(),
@@ -129,6 +130,7 @@ const defaultValues: NodeEditorValues = {
   auto_update_enabled: false,
   relay_bind_port: '7000',
   relay_client_access_addr: '',
+  relay_agent_access_addr: '',
   relay_client_proxy_url: '',
   geo_manual_override: false,
   geo_region: '',
@@ -218,6 +220,7 @@ function buildFormValues(node?: Partial<NodeItem> | null): NodeEditorValues {
     auto_update_enabled: node.auto_update_enabled ?? false,
     relay_bind_port: String(node.relay_bind_port ?? 7000),
     relay_client_access_addr: node.relay_client_access_addr ?? '',
+    relay_agent_access_addr: node.relay_agent_access_addr ?? '',
     relay_client_proxy_url: node.relay_client_proxy_url ?? '',
     geo_manual_override: node.geo_manual_override ?? false,
     geo_region: node.geo_manual_override ? (node.geo_name ?? '') : '',
@@ -242,6 +245,7 @@ function toPayload(values: NodeEditorValues): NodeMutationPayload {
     auto_update_enabled: values.auto_update_enabled,
     relay_bind_port: values.type === 'tunnel_relay' ? Number(values.relay_bind_port) : undefined,
     relay_client_access_addr: values.type === 'tunnel_relay' ? values.relay_client_access_addr.trim() : undefined,
+    relay_agent_access_addr: values.type === 'tunnel_relay' ? values.relay_agent_access_addr.trim() : undefined,
     relay_client_proxy_url: values.type === 'tunnel_relay' ? values.relay_client_proxy_url.trim() : undefined,
   };
 
@@ -353,6 +357,7 @@ export function NodeEditorModal({
           <ResourceSelect {...form.register('type')} disabled={!!node}>
             <option value="edge_node">边缘节点 (Edge Node)</option>
             <option value="tunnel_relay">隧道中继节点 (Tunnel Relay)</option>
+            <option value="tunnel_client">隧道客户端 (Tunnel Client)</option>
           </ResourceSelect>
         </ResourceField>
 
@@ -384,6 +389,14 @@ export function NodeEditorModal({
               error={form.formState.errors.relay_client_access_addr?.message}
             >
               <ResourceInput placeholder="例如: relay.example.com:7000" {...form.register('relay_client_access_addr')} />
+            </ResourceField>
+
+            <ResourceField
+              label="边缘节点接入地址 (Edge Node Access Addr)"
+              hint="可选，用于 Edge Node 转发请求。默认与 Client Access Addr 或 IP + 绑定端口一致。"
+              error={form.formState.errors.relay_agent_access_addr?.message}
+            >
+              <ResourceInput placeholder="例如: 10.0.0.1:7000" {...form.register('relay_agent_access_addr')} />
             </ResourceField>
 
             <ResourceField

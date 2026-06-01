@@ -1164,7 +1164,7 @@ func validateDatabaseSchemaV16(db *gorm.DB, backend string) error {
 	if err := validateDatabaseSchemaV15(db, backend); err != nil {
 		return err
 	}
-	if !db.Migrator().HasTable(&Tunnel{}) {
+	if !db.Migrator().HasTable("tunnels") {
 		return fmt.Errorf("table tunnels is missing")
 	}
 	if !db.Migrator().HasColumn(&Node{}, "node_type") {

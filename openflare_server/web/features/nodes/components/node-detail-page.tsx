@@ -746,39 +746,77 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                     : '当前没有活动中的健康事件'
                 }
               />
-              <SummaryStat
-                label="当前窗口请求"
-                value={
-                  trafficSummary
-                    ? trafficSummary.request_count.toLocaleString('zh-CN')
-                    : '—'
-                }
-                hint={
-                  trafficSummary
-                    ? `QPS ${trafficSummary.estimated_qps.toFixed(1)} · 错误率 ${trafficSummary.error_rate_percent.toFixed(1)}%`
-                    : '当前没有可展示的请求窗口摘要'
-                }
-              />
-              <SummaryStat
-                label="容量压力"
-                value={
-                  healthSummary?.has_capacity_risk ? '需要关注' : '正常范围'
-                }
-                hint={
-                  latestMetricSnapshot
-                    ? `CPU ${formatPercent(latestMetricSnapshot.cpu_usage_percent)} · 存储 ${formatPercent(storageUsageRatio)}`
-                    : '当前没有资源快照'
-                }
-              />
-              <SummaryStat
-                label="来源信号"
-                value={topSourceCountry?.key ?? '—'}
-                hint={
-                  topSourceCountry
-                    ? `${topSourceCountry.value.toLocaleString('zh-CN')} 次请求`
-                    : '当前没有来源分布数据'
-                }
-              />
+              {node.node_type === 'tunnel_relay' ? (
+                <>
+                  <SummaryStat
+                    label="隧道总数"
+                    value={
+                      observability?.relay_dashboard
+                        ? `${observability.relay_dashboard.total_proxies}`
+                        : '—'
+                    }
+                    hint={
+                      observability?.relay_dashboard
+                        ? `${observability.relay_dashboard.online_proxies} 个在线，${observability.relay_dashboard.offline_proxies} 个离线`
+                        : '暂无隧道统计'
+                    }
+                  />
+                  <SummaryStat
+                    label="当前连接数"
+                    value={
+                      observability?.relay_dashboard
+                        ? `${observability.relay_dashboard.total_connections}`
+                        : '—'
+                    }
+                    hint="隧道网络承载的活动连接总数"
+                  />
+                  <SummaryStat
+                    label="活动客户端"
+                    value={
+                      observability?.relay_dashboard
+                        ? `${observability.relay_dashboard.client_counts}`
+                        : '—'
+                    }
+                    hint="已连接并活跃的客户端数量"
+                  />
+                </>
+              ) : (
+                <>
+                  <SummaryStat
+                    label="当前窗口请求"
+                    value={
+                      trafficSummary
+                        ? trafficSummary.request_count.toLocaleString('zh-CN')
+                        : '—'
+                    }
+                    hint={
+                      trafficSummary
+                        ? `QPS ${trafficSummary.estimated_qps.toFixed(1)} · 错误率 ${trafficSummary.error_rate_percent.toFixed(1)}%`
+                        : '当前没有可展示的请求窗口摘要'
+                    }
+                  />
+                  <SummaryStat
+                    label="容量压力"
+                    value={
+                      healthSummary?.has_capacity_risk ? '需要关注' : '正常范围'
+                    }
+                    hint={
+                      latestMetricSnapshot
+                        ? `CPU ${formatPercent(latestMetricSnapshot.cpu_usage_percent)} · 存储 ${formatPercent(storageUsageRatio)}`
+                        : '当前没有资源快照'
+                    }
+                  />
+                  <SummaryStat
+                    label="来源信号"
+                    value={topSourceCountry?.key ?? '—'}
+                    hint={
+                      topSourceCountry
+                        ? `${topSourceCountry.value.toLocaleString('zh-CN')} 次请求`
+                        : '当前没有来源分布数据'
+                    }
+                  />
+                </>
+              )}
             </div>
 
             <div className="grid gap-6 xl:grid-cols-3">
@@ -940,7 +978,8 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                 )}
               </AppCard>
 
-              <AppCard title="网络流量">
+              {node.node_type === 'edge_node' ? (
+                <AppCard title="网络流量">
                 {observabilityQuery.isLoading ? (
                   <LoadingState />
                 ) : observabilityQuery.isError ? (
@@ -1054,9 +1093,12 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                   />
                 )}
               </AppCard>
+            ) : null}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-2">
+            {node.node_type === 'edge_node' ? (
+              <>
+              <div className="grid gap-6 xl:grid-cols-2">
               <AppCard
                 title="24 小时请求趋势"
                 description="按小时聚合该节点的请求量和错误量。"
@@ -1202,12 +1244,64 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                     },
                   ]}
                 />
-              </AppCard>
-            </div>
+                </AppCard>
+              </div>
+              </>
+            ) : null}
+
+            {node.node_type === 'tunnel_relay' ? (
+              <div className="grid gap-6 xl:grid-cols-1">
+                <AppCard title="隧道运行状态" description="当前中继节点上活跃的代理通道。">
+                  {observability?.relay_dashboard?.proxies ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-[var(--foreground-secondary)]">
+                        <thead className="border-b border-[var(--border-default)]">
+                          <tr>
+                            <th className="px-4 py-3 font-medium">代理名称</th>
+                            <th className="px-4 py-3 font-medium">类型</th>
+                            <th className="px-4 py-3 font-medium">状态</th>
+                            <th className="px-4 py-3 font-medium">客户端地址</th>
+                            <th className="px-4 py-3 font-medium">最近连接</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border-default)]">
+                          {observability.relay_dashboard.proxies.map((proxy) => (
+                            <tr key={proxy.name}>
+                              <td className="px-4 py-3 font-medium text-[var(--foreground-primary)]">
+                                {proxy.name}
+                              </td>
+                              <td className="px-4 py-3">{proxy.type}</td>
+                              <td className="px-4 py-3">
+                                <StatusBadge
+                                  label={proxy.status === 'online' ? '在线' : '离线'}
+                                  variant={proxy.status === 'online' ? 'success' : 'info'}
+                                />
+                              </td>
+                              <td className="px-4 py-3">{proxy.client_addr}</td>
+                              <td className="px-4 py-3">
+                                {isMeaningfulTime(proxy.last_start_time)
+                                  ? formatRelativeTime(proxy.last_start_time)
+                                  : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <EmptyState
+                      title="暂无通道信息"
+                      description="当前节点未上报映射通道状态，或尚未有客户端连接。"
+                    />
+                  )}
+                </AppCard>
+              </div>
+            ) : null}
 
             <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-              <AppCard
-                title="请求结构分布"
+              {node.node_type === 'edge_node' ? (
+                <AppCard
+                  title="请求结构分布"
                 description="聚合最近 24 小时窗口上报，帮助判断错误集中在哪些状态码、流量集中在哪些域名。"
               >
                 <div className="mb-6 grid gap-4 md:grid-cols-3">
@@ -1273,6 +1367,7 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                   </div>
                 </div>
               </AppCard>
+              ) : null}
 
               <AppCard
                 title="健康事件时间线"
@@ -1519,8 +1614,9 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
               )}
             </AppCard>
 
-            <AppCard
-              title="OpenResty 健康与控制"
+            {node.node_type === 'edge_node' ? (
+              <AppCard
+                title="OpenResty 健康与控制"
               description="OpenResty 当前健康状态。"
               action={
                 <div className="flex flex-wrap gap-3">
@@ -1569,6 +1665,7 @@ export function NodeDetailPage({ nodeId }: { nodeId: string }) {
                 </div>
               </div>
             </AppCard>
+            ) : null}
 
             <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <AppCard

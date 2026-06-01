@@ -20,7 +20,7 @@ import {
   parseOriginUrls,
   validateDomains,
 } from '@/features/proxy-routes/helpers';
-import { getTunnels } from '@/features/tunnels/api/tunnels';
+import { getNodes } from '@/features/nodes/api/nodes';
 import type { ProxyRouteItem } from '@/features/proxy-routes/types';
 import { getTlsCertificates } from '@/features/tls-certificates/api/tls-certificates';
 import {
@@ -173,10 +173,11 @@ export function ProxyRouteCreateDrawer({
     enabled: open,
   });
   const tunnelsQuery = useQuery({
-    queryKey: ['tunnels'],
-    queryFn: getTunnels,
+    queryKey: ['nodes'],
+    queryFn: getNodes,
     enabled: open,
   });
+  const tunnelClients = (tunnelsQuery.data ?? []).filter((node) => node.node_type === 'tunnel_client');
 
   const combinedDomainSuggestions = useMemo(
     () => [
@@ -387,7 +388,7 @@ export function ProxyRouteCreateDrawer({
                 className="block w-full rounded-xl border border-[var(--border-default)] bg-[var(--control-background)] px-4 py-2.5 text-sm text-[var(--foreground-primary)] placeholder-[var(--foreground-muted)] outline-none transition focus:border-[var(--border-strong)] focus:ring-1 focus:ring-[var(--border-strong)]"
               >
                 <option value="">请选择...</option>
-                {(tunnelsQuery.data ?? []).map((tunnel) => (
+                {(tunnelClients).map((tunnel) => (
                   <option key={tunnel.id} value={tunnel.id}>
                     {tunnel.name} ({tunnel.status === 'online' ? '在线' : '离线'})
                   </option>

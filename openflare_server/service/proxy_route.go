@@ -62,7 +62,7 @@ type ProxyRouteInput struct {
 	BasicAuthPassword    string                        `json:"basic_auth_password"`
 	Remark               string                        `json:"remark"`
 	UpstreamType         string                        `json:"upstream_type"`
-	TunnelID             *uint                         `json:"tunnel_id"`
+	TunnelNodeID         *uint                         `json:"tunnel_node_id"`
 	TunnelTargetAddr     string                        `json:"tunnel_target_addr"`
 	TunnelTargetProtocol string                        `json:"tunnel_target_protocol"`
 }
@@ -101,7 +101,7 @@ type ProxyRouteView struct {
 	BasicAuthPassword    string                        `json:"basic_auth_password"`
 	Remark               string                        `json:"remark"`
 	UpstreamType         string                        `json:"upstream_type"`
-	TunnelID             *uint                         `json:"tunnel_id"`
+	TunnelNodeID         *uint                         `json:"tunnel_node_id"`
 	TunnelTargetAddr     string                        `json:"tunnel_target_addr"`
 	TunnelTargetProtocol string                        `json:"tunnel_target_protocol"`
 	CreatedAt            time.Time                     `json:"created_at"`
@@ -327,11 +327,11 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	route.Remark = remark
 	route.UpstreamType = upstreamType
 	if upstreamType == "tunnel" {
-		route.TunnelID = input.TunnelID
+		route.TunnelNodeID = input.TunnelNodeID
 		route.TunnelTargetAddr = strings.TrimSpace(input.TunnelTargetAddr)
 		route.TunnelTargetProtocol = normalizeTunnelTargetProtocol(input.TunnelTargetProtocol)
 	} else {
-		route.TunnelID = nil
+		route.TunnelNodeID = nil
 		route.TunnelTargetAddr = ""
 		route.TunnelTargetProtocol = ""
 	}
@@ -421,7 +421,7 @@ func buildProxyRouteView(route *model.ProxyRoute) (*ProxyRouteView, error) {
 		BasicAuthPassword:    route.BasicAuthPassword,
 		Remark:               route.Remark,
 		UpstreamType:         route.UpstreamType,
-		TunnelID:             route.TunnelID,
+		TunnelNodeID:         route.TunnelNodeID,
 		TunnelTargetAddr:     route.TunnelTargetAddr,
 		TunnelTargetProtocol: route.TunnelTargetProtocol,
 		CreatedAt:            route.CreatedAt,

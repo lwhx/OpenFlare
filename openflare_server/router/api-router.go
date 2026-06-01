@@ -198,16 +198,7 @@ func SetApiRouter(router *gin.Engine) {
 			applyLogRoute.GET("/", controller.GetApplyLogs)
 			applyLogRoute.POST("/cleanup", controller.CleanupApplyLogs)
 		}
-		tunnelRoute := apiRouter.Group("/tunnels")
-		tunnelRoute.Use(middleware.AdminAuth())
-		{
-			tunnelRoute.GET("/", controller.GetTunnels)
-			tunnelRoute.GET("/:id", controller.GetTunnel)
-			tunnelRoute.POST("/", controller.CreateTunnel)
-			tunnelRoute.POST("/:id/update", controller.UpdateTunnel)
-			tunnelRoute.POST("/:id/delete", controller.DeleteTunnel)
-			tunnelRoute.POST("/:id/rotate-token", controller.RotateTunnelToken)
-		}
+
 		accessLogRoute := apiRouter.Group("/access-logs")
 		accessLogRoute.Use(middleware.AdminAuth())
 		{
@@ -240,13 +231,6 @@ func SetApiRouter(router *gin.Engine) {
 			relayRoute.POST("/heartbeat", controller.RelayHeartbeat)
 			relayRoute.GET("/ws", controller.RelayWebSocket)
 		}
-		flaredRoute := apiRouter.Group("/flared")
-		flaredRoute.Use(middleware.TunnelAuth())
-		{
-			flaredRoute.POST("/heartbeat", controller.FlaredHeartbeat)
-			flaredRoute.GET("/config/active", controller.FlaredGetActiveConfig)
-			flaredRoute.POST("/apply-log", controller.FlaredReportApplyLog)
-			flaredRoute.GET("/ws", controller.FlaredWebSocket)
-		}
+
 	}
 }

@@ -3,12 +3,13 @@ import type { ReleaseChannel } from '@/features/update/types';
 export interface NodeItem {
   id: number;
   node_id: string;
-  node_type: 'edge_node' | 'tunnel_relay';
+  node_type: 'edge_node' | 'tunnel_relay' | 'tunnel_client';
   name: string;
   ip: string;
   ip_manual_override: boolean;
   relay_bind_port: number;
   relay_client_access_addr: string;
+  relay_agent_access_addr: string;
   relay_client_proxy_url: string;
   relay_auth_token: string;
   relay_status: string;
@@ -46,12 +47,13 @@ export interface NodeBootstrapToken {
 }
 
 export interface NodeMutationPayload {
-  node_type: 'edge_node' | 'tunnel_relay';
+  node_type: 'edge_node' | 'tunnel_relay' | 'tunnel_client';
   name: string;
   ip: string;
   ip_manual_override: boolean;
   relay_bind_port?: number;
   relay_client_access_addr?: string;
+  relay_agent_access_addr?: string;
   relay_client_proxy_url?: string;
   auto_update_enabled: boolean;
   geo_name: string;
@@ -207,6 +209,25 @@ export interface NodeHealthEvent {
   resolved_at?: string | null;
 }
 
+export interface RelayProxyStat {
+  name: string;
+  type: string;
+  status: 'online' | 'offline';
+  client_version: string;
+  last_start_time: string;
+  last_close_time: string;
+  client_addr: string;
+}
+
+export interface RelayDashboardSnapshot {
+  total_proxies: number;
+  online_proxies: number;
+  offline_proxies: number;
+  proxies: RelayProxyStat[];
+  total_connections: number;
+  client_counts: number;
+}
+
 export interface NodeObservability {
   node_id: string;
   profile: NodeSystemProfile | null;
@@ -215,4 +236,5 @@ export interface NodeObservability {
   health_events: NodeHealthEvent[];
   analytics: NodeObservabilityAnalytics;
   trends: NodeObservabilityTrends;
+  relay_dashboard?: RelayDashboardSnapshot | null;
 }

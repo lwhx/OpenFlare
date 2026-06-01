@@ -89,6 +89,23 @@ func AgentHeartbeat(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/agent/config-versions/active [get]
 func AgentGetActiveConfig(c *gin.Context) {
+	authNode, ok := c.Get("node")
+	if !ok {
+		respondUnauthorized(c, "Node object missing from context")
+		return
+	}
+	node := authNode.(*model.Node)
+
+	if node.NodeType == "tunnel_client" {
+		config, err := service.GetFlaredTunnelConfig(node)
+		if err != nil {
+			respondFailure(c, "无法生成隧道配置: "+err.Error())
+			return
+		}
+		respondSuccess(c, config)
+		return
+	}
+
 	config, err := service.GetActiveConfigForAgent()
 	if err != nil {
 		respondFailure(c, "当前没有激活版本")

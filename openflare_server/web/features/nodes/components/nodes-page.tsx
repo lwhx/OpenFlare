@@ -296,7 +296,7 @@ export function NodesPage() {
                       <th className="px-3 py-3 font-medium">节点</th>
                       <th className="px-3 py-3 font-medium">状态</th>
                       <th className="px-3 py-3 font-medium">
-                        Agent / OpenResty
+                        Version
                       </th>
                       <th className="px-3 py-3 font-medium">运行健康</th>
                       <th className="px-3 py-3 font-medium">当前版本</th>
@@ -317,6 +317,10 @@ export function NodesPage() {
                               {node.node_type === 'tunnel_relay' ? (
                                 <span className="rounded-full border border-blue-500/20 bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                                   Relay
+                                </span>
+                              ) : node.node_type === 'tunnel_client' ? (
+                                <span className="rounded-full border border-purple-500/20 bg-purple-50 px-2 py-0.5 text-xs text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                  Client
                                 </span>
                               ) : (
                                 <span className="rounded-full border border-gray-500/20 bg-gray-50 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800/50 dark:text-gray-300">
@@ -339,9 +343,8 @@ export function NodesPage() {
                             variant={getNodeStatusVariant(node.status)}
                           />
                         </td>
-                        <td className="px-3 py-4 text-[var(--foreground-secondary)]">
-                          {node.agent_version || 'unknown'} /{' '}
-                          {node.nginx_version || 'unknown'}
+                        <td className="px-3 py-4 text-sm text-[var(--foreground-secondary)]">
+                          {node.agent_version || 'unknown'}
                         </td>
                         <td className="px-3 py-4">
                           <div className="space-y-2">
@@ -350,6 +353,8 @@ export function NodesPage() {
                                 label={getRelayStatusLabel(node.relay_status)}
                                 variant={getRelayStatusVariant(node.relay_status)}
                               />
+                            ) : node.node_type === 'tunnel_client' ? (
+                              <span className="text-sm text-[var(--foreground-secondary)]">-</span>
                             ) : (
                               <StatusBadge
                                 label={getOpenrestyStatusLabel(

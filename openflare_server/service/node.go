@@ -634,6 +634,8 @@ func normalizeNodeType(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "tunnel_relay":
 		return "tunnel_relay"
+	case "tunnel_client":
+		return "tunnel_client"
 	default:
 		return "edge_node"
 	}

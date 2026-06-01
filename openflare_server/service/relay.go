@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"openflare/common"
@@ -162,42 +161,10 @@ type FlaredProxyEntry struct {
 	CustomDomains []string `json:"custom_domains"`
 }
 
-// HeartbeatFlared processes an OpenFlared client heartbeat.
-func HeartbeatFlared(tunnel *model.Tunnel, payload FlaredHeartbeatPayload) (*FlaredHeartbeatResponse, error) {
-	if tunnel == nil {
-		return nil, fmt.Errorf("tunnel is nil")
-	}
-	slog.Debug("flared heartbeat received", "tunnel_id", tunnel.TunnelID)
-
-	now := time.Now()
-	tunnel.ClientVersion = strings.TrimSpace(payload.ClientVersion)
-	tunnel.FrpVersion = strings.TrimSpace(payload.FrpVersion)
-	tunnel.Status = "online"
-	tunnel.LastSeenAt = now
-	tunnel.CurrentVersion = strings.TrimSpace(payload.CurrentVersion)
-	tunnel.CurrentChecksum = strings.TrimSpace(payload.CurrentChecksum)
-
-	relaysJSON, err := json.Marshal(payload.ConnectedRelays)
-	if err == nil {
-		tunnel.ConnectedRelays = string(relaysJSON)
-	}
-
-	if err := tunnel.Update(); err != nil {
-		return nil, fmt.Errorf("update tunnel heartbeat: %w", err)
-	}
-
-	activeConfig, _ := GetActiveConfigMetaForAgent()
-
-	return &FlaredHeartbeatResponse{
-		ActiveConfig:   activeConfig,
-		TunnelSettings: buildRelaySettings(),
-	}, nil
-}
-
 // GetFlaredTunnelConfig builds the full tunnel routing config for an OpenFlared client.
-func GetFlaredTunnelConfig(tunnel *model.Tunnel) (*FlaredTunnelConfigResponse, error) {
-	if tunnel == nil {
-		return nil, fmt.Errorf("tunnel is nil")
+func GetFlaredTunnelConfig(node *model.Node) (*FlaredTunnelConfigResponse, error) {
+	if node == nil {
+		return nil, fmt.Errorf("node is nil")
 	}
 
 	activeVersion, err := model.GetActiveConfigVersion()
@@ -237,7 +204,7 @@ func GetFlaredTunnelConfig(tunnel *model.Tunnel) (*FlaredTunnelConfigResponse, e
 	// Build proxy entries from routes
 	proxies := make([]FlaredProxyEntry, 0)
 	for _, route := range routes {
-		if route.UpstreamType != "tunnel" || route.TunnelID == nil || *route.TunnelID != tunnel.ID {
+		if route.UpstreamType != "tunnel" || route.TunnelNodeID == nil || *route.TunnelNodeID != node.ID {
 			continue
 		}
 		if !route.Enabled {
@@ -249,7 +216,7 @@ func GetFlaredTunnelConfig(tunnel *model.Tunnel) (*FlaredTunnelConfigResponse, e
 		}
 		localAddr, localPort := parseTunnelTargetAddr(route.TunnelTargetAddr)
 		proxies = append(proxies, FlaredProxyEntry{
-			Name:          fmt.Sprintf("%s-%s", tunnel.TunnelID, sanitizeProxyName(domains[0])),
+			Name:          fmt.Sprintf("%s-%s", node.NodeID, sanitizeProxyName(domains[0])),
 			Type:          "http",
 			LocalAddr:     localAddr,
 			LocalPort:     localPort,
