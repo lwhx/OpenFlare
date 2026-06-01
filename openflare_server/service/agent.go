@@ -465,6 +465,9 @@ func computeNodeStatus(node *model.Node) string {
 	if node == nil {
 		return NodeStatusOffline
 	}
+	if node.NodeType == "tunnel_relay" && IsRelayWSConnected(node.NodeID) {
+		return NodeStatusOnline
+	}
 	if IsAgentWSConnected(node.NodeID) {
 		return NodeStatusOnline
 	}

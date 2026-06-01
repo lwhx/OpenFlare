@@ -359,11 +359,14 @@ func buildNodeView(node *model.Node) *NodeView {
 }
 
 func nodeViewLastSeenAt(node *model.Node) any {
-	if node != nil && IsAgentWSConnected(node.NodeID) {
-		return AgentWSConnectedLastSeenValue
-	}
 	if node == nil {
 		return time.Time{}
+	}
+	if node.NodeType == "tunnel_relay" && IsRelayWSConnected(node.NodeID) {
+		return RelayWSConnectedLastSeenValue
+	}
+	if IsAgentWSConnected(node.NodeID) {
+		return AgentWSConnectedLastSeenValue
 	}
 	return node.LastSeenAt
 }

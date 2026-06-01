@@ -1,5 +1,9 @@
 package service
 
+const (
+	RelayWSConnectedLastSeenValue = "__OPENFLARE_WS_CONNECTED__"
+)
+
 var DefaultRelayWSHub = NewWSHub("relay")
 
 func RegisterRelayWSClient(nodeID string) *WSClient {
