@@ -142,6 +142,16 @@ type NodeView struct {
 	LatestApplyAt             *time.Time `json:"latest_apply_at"`
 	CreatedAt                 time.Time  `json:"created_at"`
 	UpdatedAt                 time.Time  `json:"updated_at"`
+	// TunnelRelay fields
+	NodeType              string `json:"node_type"`
+	RelayBindPort         int    `json:"relay_bind_port"`
+	RelayVhostHTTPPort    int    `json:"relay_vhost_http_port"`
+	RelayAgentAccessAddr  string `json:"relay_agent_access_addr"`
+	RelayClientAccessAddr string `json:"relay_client_access_addr"`
+	RelayClientProxyURL   string `json:"relay_client_proxy_url"`
+	RelayStatus           string `json:"relay_status"`
+	RelayFrpVersion       string `json:"relay_frp_version"`
+	RelayVersion          string `json:"relay_version"`
 }
 
 func HeartbeatNode(node *model.Node, payload AgentNodePayload) (*HeartbeatResponse, error) {

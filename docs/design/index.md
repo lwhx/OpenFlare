@@ -31,12 +31,15 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 | 节点管理 | 节点状态、令牌体系、部署与更新链路 |
 | 管理端前端 | 基于 Next.js 的正式管理端 |
 | 认证源登录 | 支持以认证源形式配置 GitHub 与标准 OIDC 登录入口，并允许第三方账号绑定已有本地用户 |
+| 内网穿透 | 通过 TunnelRelay 节点与 OpenFlared 客户端，将内网 HTTP 服务安全暴露到公网，复用 Agent 的 HTTPS/WAF 能力 |
 
 默认工作方式：
 
 * 所有节点消费同一份全局激活版本。
 * Server 保存配置与状态，不直接 SSH 管理节点。
 * Agent 是节点侧唯一受控落地入口。
+* TunnelRelay 节点同时运行 Agent（OpenResty）和 Relay（frps），提供内网穿透中继。
+* OpenFlared 客户端在内网运行，管理 frpc 进程连接 Relay，将流量转发到内网服务。
 
 ## 典型使用场景
 
@@ -48,6 +51,7 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 | 快速回滚 | 重新激活旧版本，让 Agent 拉取并应用 |
 | 证书托管 | 为不同域名绑定 TLS 证书 |
 | 基础观测 | 查看节点状态、请求聚合、访问分析和健康事件 |
+| 内网穿透 | 通过 Tunnel 将无法直接公网访问的内网 HTTP 服务暴露到互联网，享有 HTTPS、WAF 等全部防护能力 |
 
 
 ## 网站配置约束
@@ -71,13 +75,45 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 
 上游约束：
 
-* `proxy_routes` 至少包含一个上游地址。
+* `proxy_routes` 至少包含一个上游地址（直连类型），或关联一个 Tunnel（内网穿透类型）。
+* `proxy_routes.upstream_type` 区分上游类型：`direct`（默认，直连）或 `tunnel`（内网穿透）。
 * 为兼容历史数据保留 `origin_url` 主上游字段，也允许在同一规则内补充多个上游做负载均衡。
 * 上游统一渲染为带 keepalive 的 named `upstream`。
 * 单上游可附带 base path 或 query 并在 `proxy_pass` 中追加。
 * 多上游限定为纯 `scheme://host[:port]`。
 * `proxy_routes.origin_host` 为可选字段，用于回源时覆盖 `Host` 请求头。
-* 所有上游地址都必须为合法 `http://` 或 `https://`。
+* 所有直连类型上游地址都必须为合法 `http://` 或 `https://`。
+* 内网穿透类型上游必须关联 `tunnel_id`，并指定内网目标地址与协议。
+
+## 内网穿透约束
+
+OpenFlare 通过 TunnelRelay 节点与 OpenFlared 客户端实现内网穿透，底层基于 frp 构建。
+
+节点类型：
+
+* `nodes.node_type` 区分节点类型：`edge_node`（边缘节点，默认）和 `tunnel_relay`（隧道中继）。
+* TunnelRelay 节点同时运行 Agent（管理 OpenResty）和 Relay（管理 frps），共享同一个 `agent_token`。
+* Agent 负责 HTTPS 终结、WAF 防护等，Relay 负责隧道流量中继。
+
+Tunnel 实体：
+
+* `tunnels` 表存储内网穿透客户端注册信息，与 `nodes` 体系独立。
+* 每个 Tunnel 拥有唯一的 `tunnel_id`（格式 `tun-<32hex>`）和 `tunnel_token`。
+* OpenFlared 客户端使用 `tunnel_token` 认证，通过 `/api/flared/*` 端点通信。
+
+流量路径：
+
+* 数据面：浏览器 → Agent（OpenResty，TLS/WAF）→ Relay（frps，HTTP Vhost 路由）→ 隧道 → Client（frpc）→ 内网服务。
+* frps 使用 HTTP Vhost 单端口复用，通过 Host 头将请求路由到对应 frpc，无需为每个隧道分配端口。
+* Relay 配置（frps 端口、认证 Token）通过心跳下发，相对静态。
+* Tunnel 路由配置（frpc 代理定义）随发布流程版本化同步。
+
+当前阶段约束：
+
+* 仅支持 HTTP 协议隧道流量，保留未来 TCP 隧道扩展性。
+* Tunnel 类型上游的域名 DNS 应仅解析到 TunnelRelay 节点，EdgeNode 上对应请求会因 frps 不可达返回 502。
+* 一个 OpenFlared 客户端可连接多个 Relay（每个 Relay 对应一个 frpc 进程）。
+
 
 ## HTTPS 约束
 

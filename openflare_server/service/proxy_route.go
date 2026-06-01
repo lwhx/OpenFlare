@@ -31,73 +31,81 @@ type ProxyRouteCustomHeaderInput struct {
 }
 
 type ProxyRouteInput struct {
-	SiteName           string                        `json:"site_name"`
-	Domain             string                        `json:"domain"`
-	Domains            []string                      `json:"domains"`
-	OriginID           *uint                         `json:"origin_id"`
-	OriginURL          string                        `json:"origin_url"`
-	OriginScheme       string                        `json:"origin_scheme"`
-	OriginAddress      string                        `json:"origin_address"`
-	OriginPort         string                        `json:"origin_port"`
-	OriginURI          string                        `json:"origin_uri"`
-	OriginHost         string                        `json:"origin_host"`
-	Upstreams          []string                      `json:"upstreams"`
-	Enabled            bool                          `json:"enabled"`
-	EnableHTTPS        bool                          `json:"enable_https"`
-	CertID             *uint                         `json:"cert_id"`
-	CertIDs            []uint                        `json:"cert_ids"`
-	DomainCertIDs      []uint                        `json:"domain_cert_ids"`
-	RedirectHTTP       bool                          `json:"redirect_http"`
-	LimitConnPerServer int                           `json:"limit_conn_per_server"`
-	LimitConnPerIP     int                           `json:"limit_conn_per_ip"`
-	LimitRate          string                        `json:"limit_rate"`
-	CacheEnabled       bool                          `json:"cache_enabled"`
-	CachePolicy        string                        `json:"cache_policy"`
-	CacheRules         []string                      `json:"cache_rules"`
-	CustomHeaders      []ProxyRouteCustomHeaderInput `json:"custom_headers"`
-	PoWEnabled         bool                          `json:"pow_enabled"`
-	PoWConfig          string                        `json:"pow_config"`
-	BasicAuthEnabled   bool                          `json:"basic_auth_enabled"`
-	BasicAuthUsername  string                        `json:"basic_auth_username"`
-	BasicAuthPassword  string                        `json:"basic_auth_password"`
-	Remark             string                        `json:"remark"`
+	SiteName             string                        `json:"site_name"`
+	Domain               string                        `json:"domain"`
+	Domains              []string                      `json:"domains"`
+	OriginID             *uint                         `json:"origin_id"`
+	OriginURL            string                        `json:"origin_url"`
+	OriginScheme         string                        `json:"origin_scheme"`
+	OriginAddress        string                        `json:"origin_address"`
+	OriginPort           string                        `json:"origin_port"`
+	OriginURI            string                        `json:"origin_uri"`
+	OriginHost           string                        `json:"origin_host"`
+	Upstreams            []string                      `json:"upstreams"`
+	Enabled              bool                          `json:"enabled"`
+	EnableHTTPS          bool                          `json:"enable_https"`
+	CertID               *uint                         `json:"cert_id"`
+	CertIDs              []uint                        `json:"cert_ids"`
+	DomainCertIDs        []uint                        `json:"domain_cert_ids"`
+	RedirectHTTP         bool                          `json:"redirect_http"`
+	LimitConnPerServer   int                           `json:"limit_conn_per_server"`
+	LimitConnPerIP       int                           `json:"limit_conn_per_ip"`
+	LimitRate            string                        `json:"limit_rate"`
+	CacheEnabled         bool                          `json:"cache_enabled"`
+	CachePolicy          string                        `json:"cache_policy"`
+	CacheRules           []string                      `json:"cache_rules"`
+	CustomHeaders        []ProxyRouteCustomHeaderInput `json:"custom_headers"`
+	PoWEnabled           bool                          `json:"pow_enabled"`
+	PoWConfig            string                        `json:"pow_config"`
+	BasicAuthEnabled     bool                          `json:"basic_auth_enabled"`
+	BasicAuthUsername    string                        `json:"basic_auth_username"`
+	BasicAuthPassword    string                        `json:"basic_auth_password"`
+	Remark               string                        `json:"remark"`
+	UpstreamType         string                        `json:"upstream_type"`
+	TunnelID             *uint                         `json:"tunnel_id"`
+	TunnelTargetAddr     string                        `json:"tunnel_target_addr"`
+	TunnelTargetProtocol string                        `json:"tunnel_target_protocol"`
 }
 
 type ProxyRouteView struct {
-	ID                 uint                          `json:"id"`
-	SiteName           string                        `json:"site_name"`
-	Domain             string                        `json:"domain"`
-	Domains            []string                      `json:"domains"`
-	PrimaryDomain      string                        `json:"primary_domain"`
-	DomainCount        int                           `json:"domain_count"`
-	OriginID           *uint                         `json:"origin_id"`
-	OriginURL          string                        `json:"origin_url"`
-	OriginHost         string                        `json:"origin_host"`
-	Upstreams          string                        `json:"upstreams"`
-	UpstreamList       []string                      `json:"upstream_list"`
-	Enabled            bool                          `json:"enabled"`
-	EnableHTTPS        bool                          `json:"enable_https"`
-	CertID             *uint                         `json:"cert_id"`
-	CertIDs            []uint                        `json:"cert_ids"`
-	DomainCertIDs      []uint                        `json:"domain_cert_ids"`
-	RedirectHTTP       bool                          `json:"redirect_http"`
-	LimitConnPerServer int                           `json:"limit_conn_per_server"`
-	LimitConnPerIP     int                           `json:"limit_conn_per_ip"`
-	LimitRate          string                        `json:"limit_rate"`
-	CacheEnabled       bool                          `json:"cache_enabled"`
-	CachePolicy        string                        `json:"cache_policy"`
-	CacheRules         string                        `json:"cache_rules"`
-	CacheRuleList      []string                      `json:"cache_rule_list"`
-	CustomHeaders      string                        `json:"custom_headers"`
-	CustomHeaderList   []ProxyRouteCustomHeaderInput `json:"custom_header_list"`
-	PoWEnabled         bool                          `json:"pow_enabled"`
-	PoWConfig          *ProxyRoutePoWConfig          `json:"pow_config"`
-	BasicAuthEnabled   bool                          `json:"basic_auth_enabled"`
-	BasicAuthUsername  string                        `json:"basic_auth_username"`
-	BasicAuthPassword  string                        `json:"basic_auth_password"`
-	Remark             string                        `json:"remark"`
-	CreatedAt          time.Time                     `json:"created_at"`
-	UpdatedAt          time.Time                     `json:"updated_at"`
+	ID                   uint                          `json:"id"`
+	SiteName             string                        `json:"site_name"`
+	Domain               string                        `json:"domain"`
+	Domains              []string                      `json:"domains"`
+	PrimaryDomain        string                        `json:"primary_domain"`
+	DomainCount          int                           `json:"domain_count"`
+	OriginID             *uint                         `json:"origin_id"`
+	OriginURL            string                        `json:"origin_url"`
+	OriginHost           string                        `json:"origin_host"`
+	Upstreams            string                        `json:"upstreams"`
+	UpstreamList         []string                      `json:"upstream_list"`
+	Enabled              bool                          `json:"enabled"`
+	EnableHTTPS          bool                          `json:"enable_https"`
+	CertID               *uint                         `json:"cert_id"`
+	CertIDs              []uint                        `json:"cert_ids"`
+	DomainCertIDs        []uint                        `json:"domain_cert_ids"`
+	RedirectHTTP         bool                          `json:"redirect_http"`
+	LimitConnPerServer   int                           `json:"limit_conn_per_server"`
+	LimitConnPerIP       int                           `json:"limit_conn_per_ip"`
+	LimitRate            string                        `json:"limit_rate"`
+	CacheEnabled         bool                          `json:"cache_enabled"`
+	CachePolicy          string                        `json:"cache_policy"`
+	CacheRules           string                        `json:"cache_rules"`
+	CacheRuleList        []string                      `json:"cache_rule_list"`
+	CustomHeaders        string                        `json:"custom_headers"`
+	CustomHeaderList     []ProxyRouteCustomHeaderInput `json:"custom_header_list"`
+	PoWEnabled           bool                          `json:"pow_enabled"`
+	PoWConfig            *ProxyRoutePoWConfig          `json:"pow_config"`
+	BasicAuthEnabled     bool                          `json:"basic_auth_enabled"`
+	BasicAuthUsername    string                        `json:"basic_auth_username"`
+	BasicAuthPassword    string                        `json:"basic_auth_password"`
+	Remark               string                        `json:"remark"`
+	UpstreamType         string                        `json:"upstream_type"`
+	TunnelID             *uint                         `json:"tunnel_id"`
+	TunnelTargetAddr     string                        `json:"tunnel_target_addr"`
+	TunnelTargetProtocol string                        `json:"tunnel_target_protocol"`
+	CreatedAt            time.Time                     `json:"created_at"`
+	UpdatedAt            time.Time                     `json:"updated_at"`
 }
 
 func ListProxyRoutes() ([]*ProxyRouteView, error) {
@@ -164,16 +172,27 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	domain := domains[0]
 	siteName := normalizeProxyRouteSiteNameInput(route, input.SiteName, domain)
 
-	originURL, originID, err := resolveProxyRoutePrimaryOrigin(input)
-	if err != nil {
-		return nil, err
+	upstreamType := normalizeUpstreamType(input.UpstreamType)
+	var originURL string
+	var originID *uint
+	var upstreams []string
+
+	if upstreamType == "tunnel" {
+		// Tunnel type: origin URL is auto-filled during config rendering
+		originURL = "http://127.0.0.1"
+		upstreams = []string{originURL}
+	} else {
+		originURL, originID, err = resolveProxyRoutePrimaryOrigin(input)
+		if err != nil {
+			return nil, err
+		}
+		upstreams, err = normalizeUpstreams(originURL, input.Upstreams)
+		if err != nil {
+			return nil, err
+		}
 	}
 	originHost := strings.TrimSpace(input.OriginHost)
 	remark := strings.TrimSpace(input.Remark)
-	upstreams, err := normalizeUpstreams(originURL, input.Upstreams)
-	if err != nil {
-		return nil, err
-	}
 	cachePolicy := strings.TrimSpace(input.CachePolicy)
 	cacheRules, err := normalizeCacheRules(input.CacheEnabled, cachePolicy, input.CacheRules)
 	if err != nil {
@@ -306,6 +325,16 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 	route.BasicAuthUsername = input.BasicAuthUsername
 	route.BasicAuthPassword = input.BasicAuthPassword
 	route.Remark = remark
+	route.UpstreamType = upstreamType
+	if upstreamType == "tunnel" {
+		route.TunnelID = input.TunnelID
+		route.TunnelTargetAddr = strings.TrimSpace(input.TunnelTargetAddr)
+		route.TunnelTargetProtocol = normalizeTunnelTargetProtocol(input.TunnelTargetProtocol)
+	} else {
+		route.TunnelID = nil
+		route.TunnelTargetAddr = ""
+		route.TunnelTargetProtocol = ""
+	}
 	return route, nil
 }
 
@@ -359,40 +388,44 @@ func buildProxyRouteView(route *model.ProxyRoute) (*ProxyRouteView, error) {
 	}
 	primaryDomain := domains[0]
 	return &ProxyRouteView{
-		ID:                 route.ID,
-		SiteName:           normalizeProxyRouteSiteNameInput(route, route.SiteName, primaryDomain),
-		Domain:             primaryDomain,
-		Domains:            domains,
-		PrimaryDomain:      primaryDomain,
-		DomainCount:        len(domains),
-		OriginID:           route.OriginID,
-		OriginURL:          route.OriginURL,
-		OriginHost:         route.OriginHost,
-		Upstreams:          route.Upstreams,
-		UpstreamList:       upstreams,
-		Enabled:            route.Enabled,
-		EnableHTTPS:        route.EnableHTTPS,
-		CertID:             certID,
-		CertIDs:            certIDs,
-		DomainCertIDs:      domainCertIDs,
-		RedirectHTTP:       route.RedirectHTTP,
-		LimitConnPerServer: route.LimitConnPerServer,
-		LimitConnPerIP:     route.LimitConnPerIP,
-		LimitRate:          route.LimitRate,
-		CacheEnabled:       route.CacheEnabled,
-		CachePolicy:        route.CachePolicy,
-		CacheRules:         route.CacheRules,
-		CacheRuleList:      cacheRules,
-		CustomHeaders:      route.CustomHeaders,
-		CustomHeaderList:   customHeaders,
-		PoWEnabled:         route.PoWEnabled,
-		PoWConfig:          powConfig,
-		BasicAuthEnabled:   route.BasicAuthEnabled,
-		BasicAuthUsername:  route.BasicAuthUsername,
-		BasicAuthPassword:  route.BasicAuthPassword,
-		Remark:             route.Remark,
-		CreatedAt:          route.CreatedAt,
-		UpdatedAt:          route.UpdatedAt,
+		ID:                   route.ID,
+		SiteName:             normalizeProxyRouteSiteNameInput(route, route.SiteName, primaryDomain),
+		Domain:               primaryDomain,
+		Domains:              domains,
+		PrimaryDomain:        primaryDomain,
+		DomainCount:          len(domains),
+		OriginID:             route.OriginID,
+		OriginURL:            route.OriginURL,
+		OriginHost:           route.OriginHost,
+		Upstreams:            route.Upstreams,
+		UpstreamList:         upstreams,
+		Enabled:              route.Enabled,
+		EnableHTTPS:          route.EnableHTTPS,
+		CertID:               certID,
+		CertIDs:              certIDs,
+		DomainCertIDs:        domainCertIDs,
+		RedirectHTTP:         route.RedirectHTTP,
+		LimitConnPerServer:   route.LimitConnPerServer,
+		LimitConnPerIP:       route.LimitConnPerIP,
+		LimitRate:            route.LimitRate,
+		CacheEnabled:         route.CacheEnabled,
+		CachePolicy:          route.CachePolicy,
+		CacheRules:           route.CacheRules,
+		CacheRuleList:        cacheRules,
+		CustomHeaders:        route.CustomHeaders,
+		CustomHeaderList:     customHeaders,
+		PoWEnabled:           route.PoWEnabled,
+		PoWConfig:            powConfig,
+		BasicAuthEnabled:     route.BasicAuthEnabled,
+		BasicAuthUsername:    route.BasicAuthUsername,
+		BasicAuthPassword:    route.BasicAuthPassword,
+		Remark:               route.Remark,
+		UpstreamType:         route.UpstreamType,
+		TunnelID:             route.TunnelID,
+		TunnelTargetAddr:     route.TunnelTargetAddr,
+		TunnelTargetProtocol: route.TunnelTargetProtocol,
+		CreatedAt:            route.CreatedAt,
+		UpdatedAt:            route.UpdatedAt,
 	}, nil
 }
 
@@ -1207,4 +1240,22 @@ func decodeStoredPoWConfig(enabled bool, raw string) (*ProxyRoutePoWConfig, erro
 		return nil, errors.New("pow_config 格式无效")
 	}
 	return &cfg, nil
+}
+
+func normalizeUpstreamType(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "tunnel":
+		return "tunnel"
+	default:
+		return "direct"
+	}
+}
+
+func normalizeTunnelTargetProtocol(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "https":
+		return "https"
+	default:
+		return "http"
+	}
 }

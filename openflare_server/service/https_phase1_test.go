@@ -61,7 +61,7 @@ func TestCreateTLSCertificateAndRenderHTTPSConfig(t *testing.T) {
 	if !strings.Contains(result.Version.MainConfig, "error_log __OPENFLARE_ERROR_LOG__ warn;") {
 		t.Fatal("expected main config to include managed error log placeholder")
 	}
-	if !strings.Contains(result.Version.MainConfig, "log_by_lua_file __OPENFLARE_LUA_DIR__/log.lua;") {
+	if !strings.Contains(result.Version.MainConfig, "log_by_lua_file __OPENFLARE_LUA_DIR__/observability/log.lua;") {
 		t.Fatal("expected main config to include managed openresty lua log hook")
 	}
 	if !strings.Contains(result.Version.MainConfig, "listen __OPENFLARE_OBSERVABILITY_LISTEN__;") {
@@ -893,7 +893,7 @@ func TestPreviewAndDiffConfigVersion(t *testing.T) {
 	if !strings.Contains(preview.MainConfig, "include __OPENFLARE_ROUTE_CONFIG__;") {
 		t.Fatal("expected preview main config to include managed route config placeholder")
 	}
-	if !strings.Contains(preview.MainConfig, "log_by_lua_file __OPENFLARE_LUA_DIR__/log.lua;") {
+	if !strings.Contains(preview.MainConfig, "log_by_lua_file __OPENFLARE_LUA_DIR__/observability/log.lua;") {
 		t.Fatal("expected preview main config to include managed openresty lua log hook")
 	}
 	if !strings.Contains(preview.RenderedConfig, `proxy_set_header X-Release "candidate";`) {

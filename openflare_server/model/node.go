@@ -28,6 +28,18 @@ type Node struct {
 	LastError                 string    `json:"last_error" gorm:"type:text"`
 	CreatedAt                 time.Time `json:"created_at"`
 	UpdatedAt                 time.Time `json:"updated_at"`
+	// Node type: edge_node (default) | tunnel_relay
+	NodeType string `json:"node_type" gorm:"size:32;not null;default:'edge_node'"`
+	// TunnelRelay specific fields
+	RelayBindPort         int    `json:"relay_bind_port" gorm:"not null;default:0"`
+	RelayVhostHTTPPort    int    `json:"relay_vhost_http_port" gorm:"not null;default:0"`
+	RelayAuthToken        string `json:"-" gorm:"size:128"`
+	RelayAgentAccessAddr  string `json:"relay_agent_access_addr" gorm:"size:255"`
+	RelayClientAccessAddr string `json:"relay_client_access_addr" gorm:"size:255"`
+	RelayClientProxyURL   string `json:"relay_client_proxy_url" gorm:"size:512"`
+	RelayStatus           string `json:"relay_status" gorm:"size:16;not null;default:'unknown'"`
+	RelayFrpVersion       string `json:"relay_frp_version" gorm:"size:64"`
+	RelayVersion          string `json:"relay_version" gorm:"size:64"`
 }
 
 func ListNodes() (nodes []*Node, err error) {
@@ -71,4 +83,9 @@ func (node *Node) Update() error {
 
 func (node *Node) Delete() error {
 	return DB.Delete(node).Error
+}
+
+func ListNodesByType(nodeType string) (nodes []*Node, err error) {
+	err = DB.Where("node_type = ?", nodeType).Order("id desc").Find(&nodes).Error
+	return nodes, err
 }

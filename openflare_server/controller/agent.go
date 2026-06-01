@@ -191,31 +191,26 @@ func agentWSReadTimeout() time.Duration {
 	return timeout
 }
 
-func streamAgentWSMessages(c *gin.Context, conn *websocket.Conn, client *service.AgentWSClient) {
-	pingTicker := time.NewTicker(30 * time.Second)
-	defer pingTicker.Stop()
+func agentWSWriteTimeout() time.Duration {
+	return 10 * time.Second
+}
+
+func streamAgentWSMessages(c *gin.Context, conn *websocket.Conn, client *service.WSClient) {
 	for {
 		select {
-		case message := <-client.Messages():
-			slog.Debug("agent ws sending message", "node_id", client.NodeID(), "type", message.Type)
-			if err := websocket.JSON.Send(conn, message); err != nil {
-				slog.Debug("agent ws send failed", "node_id", client.NodeID(), "type", message.Type, "error", err)
-				client.Close()
-				return
-			}
-		case <-pingTicker.C:
-			message := service.AgentWSOutboundMessage{Type: service.AgentWSMessageTypePing}
-			slog.Debug("agent ws sending ping", "node_id", client.NodeID())
-			if err := websocket.JSON.Send(conn, message); err != nil {
-				slog.Debug("agent ws ping failed", "node_id", client.NodeID(), "error", err)
-				client.Close()
-				return
-			}
+		case <-c.Request.Context().Done():
+			return
 		case <-client.Done():
 			return
-		case <-c.Request.Context().Done():
-			client.Close()
-			return
+		case message, ok := <-client.Messages():
+			if !ok {
+				return
+			}
+			_ = conn.SetWriteDeadline(time.Now().Add(agentWSWriteTimeout()))
+			if err := websocket.JSON.Send(conn, message); err != nil {
+				slog.Debug("agent ws send failed", "node_id", client.ID(), "error", err)
+				return
+			}
 		}
 	}
 }

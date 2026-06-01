@@ -24,6 +24,13 @@ type NodeInput struct {
 	GeoLatitude       *float64 `json:"geo_latitude"`
 	GeoLongitude      *float64 `json:"geo_longitude"`
 	GeoManualOverride bool     `json:"geo_manual_override"`
+	// TunnelRelay fields
+	NodeType              string `json:"node_type"`
+	RelayBindPort         int    `json:"relay_bind_port"`
+	RelayVhostHTTPPort    int    `json:"relay_vhost_http_port"`
+	RelayAgentAccessAddr  string `json:"relay_agent_access_addr"`
+	RelayClientAccessAddr string `json:"relay_client_access_addr"`
+	RelayClientProxyURL   string `json:"relay_client_proxy_url"`
 }
 
 type NodeAgentUpdateInput struct {
@@ -73,6 +80,7 @@ func CreateNode(input NodeInput) (*NodeView, error) {
 		NginxVersion:      "",
 		Status:            NodeStatusPending,
 		AutoUpdateEnabled: input.AutoUpdateEnabled,
+		NodeType:          normalizeNodeType(input.NodeType),
 	}
 	node.NodeID, err = newServerNodeID()
 	if err != nil {
@@ -81,6 +89,17 @@ func CreateNode(input NodeInput) (*NodeView, error) {
 	node.AgentToken, err = newRandomToken()
 	if err != nil {
 		return nil, err
+	}
+	if node.NodeType == "tunnel_relay" {
+		node.RelayBindPort = normalizeRelayPort(input.RelayBindPort, 7000)
+		node.RelayVhostHTTPPort = normalizeRelayPort(input.RelayVhostHTTPPort, 8080)
+		node.RelayAuthToken, err = newRandomToken()
+		if err != nil {
+			return nil, err
+		}
+		node.RelayAgentAccessAddr = strings.TrimSpace(input.RelayAgentAccessAddr)
+		node.RelayClientAccessAddr = strings.TrimSpace(input.RelayClientAccessAddr)
+		node.RelayClientProxyURL = strings.TrimSpace(input.RelayClientProxyURL)
 	}
 	if !node.GeoManualOverride {
 		applyGeoInfoFromIP(node, node.IP)
@@ -114,6 +133,17 @@ func UpdateNode(id uint, input NodeInput) (*NodeView, error) {
 	node.GeoLongitude = geoLongitude
 	node.GeoManualOverride = geoManualOverride
 	node.AutoUpdateEnabled = input.AutoUpdateEnabled
+	if node.NodeType == "tunnel_relay" {
+		node.RelayAgentAccessAddr = strings.TrimSpace(input.RelayAgentAccessAddr)
+		node.RelayClientAccessAddr = strings.TrimSpace(input.RelayClientAccessAddr)
+		node.RelayClientProxyURL = strings.TrimSpace(input.RelayClientProxyURL)
+		if input.RelayBindPort > 0 {
+			node.RelayBindPort = input.RelayBindPort
+		}
+		if input.RelayVhostHTTPPort > 0 {
+			node.RelayVhostHTTPPort = input.RelayVhostHTTPPort
+		}
+	}
 	if !node.GeoManualOverride {
 		applyGeoInfoFromIP(node, strings.TrimSpace(node.IP))
 	}
@@ -313,6 +343,18 @@ func buildNodeView(node *model.Node) *NodeView {
 	if view.UpdateChannel == "" {
 		view.UpdateChannel = ReleaseChannelStable.String()
 	}
+	view.NodeType = node.NodeType
+	if view.NodeType == "" {
+		view.NodeType = "edge_node"
+	}
+	view.RelayBindPort = node.RelayBindPort
+	view.RelayVhostHTTPPort = node.RelayVhostHTTPPort
+	view.RelayAgentAccessAddr = node.RelayAgentAccessAddr
+	view.RelayClientAccessAddr = node.RelayClientAccessAddr
+	view.RelayClientProxyURL = node.RelayClientProxyURL
+	view.RelayStatus = node.RelayStatus
+	view.RelayFrpVersion = node.RelayFrpVersion
+	view.RelayVersion = node.RelayVersion
 	return view
 }
 
@@ -586,4 +628,20 @@ func newServerNodeID() (string, error) {
 		return "", err
 	}
 	return "node-" + token, nil
+}
+
+func normalizeNodeType(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "tunnel_relay":
+		return "tunnel_relay"
+	default:
+		return "edge_node"
+	}
+}
+
+func normalizeRelayPort(port int, defaultPort int) int {
+	if port <= 0 || port > 65535 {
+		return defaultPort
+	}
+	return port
 }
