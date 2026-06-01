@@ -18,6 +18,9 @@ func V8() Migration {
 }
 
 func migrateV8(ctx Context, db *gorm.DB, backend string) error {
+	if err := ctx.ApplyCurrentSchema(db, backend); err != nil {
+		return err
+	}
 	if err := ctx.BackfillOriginsFromProxyRoutes(db); err != nil {
 		return err
 	}

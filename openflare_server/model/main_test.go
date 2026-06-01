@@ -190,7 +190,7 @@ func TestRegisterShardingAutoMigratesShardTables(t *testing.T) {
 	}
 }
 
-func TestUpgradeDatabaseSchemaV15ToV16AddsWAFIPGroups(t *testing.T) {
+func TestUpgradeDatabaseSchemaV15ToV16AppliesCompressedReleaseSchema(t *testing.T) {
 	db := openBareTestSQLiteDB(t, "v16.db")
 	if err := registerSharding(db, "sqlite"); err != nil {
 		t.Fatalf("register sharding: %v", err)
@@ -215,6 +215,21 @@ func TestUpgradeDatabaseSchemaV15ToV16AddsWAFIPGroups(t *testing.T) {
 	}
 	if !db.Migrator().HasColumn(&WAFRuleGroup{}, "ip_whitelist_groups") {
 		t.Fatal("expected waf_rule_groups.ip_whitelist_groups column")
+	}
+	if !db.Migrator().HasColumn(&Node{}, "access_token") {
+		t.Fatal("expected nodes.access_token column")
+	}
+	if !db.Migrator().HasColumn(&Node{}, "version") {
+		t.Fatal("expected nodes.version column")
+	}
+	if !db.Migrator().HasColumn(&Node{}, "ext_version") {
+		t.Fatal("expected nodes.ext_version column")
+	}
+	if !db.Migrator().HasColumn(&ProxyRoute{}, "tunnel_node_id") {
+		t.Fatal("expected proxy_routes.tunnel_node_id column")
+	}
+	if db.Migrator().HasTable("tunnels") {
+		t.Fatal("expected pre-release tunnels table to be absent")
 	}
 	version, ok, err := loadDatabaseSchemaVersion(db)
 	if err != nil {
@@ -522,8 +537,8 @@ func TestEnsureDatabaseSchemaUpToDateAddsNodeIPManualOverride(t *testing.T) {
 	}
 }
 
-func TestEnsureDatabaseSchemaUpToDateV21BackfillsNodeColumnsWhenNewColumnsAlreadyExist(t *testing.T) {
-	db := openBareTestSQLiteDB(t, "node-v21-existing-target-columns.db")
+func TestEnsureDatabaseSchemaUpToDateV16BackfillsNodeColumnsWhenNewColumnsAlreadyExist(t *testing.T) {
+	db := openBareTestSQLiteDB(t, "node-v16-existing-target-columns.db")
 	if err := registerSharding(db, "sqlite"); err != nil {
 		t.Fatalf("register sharding: %v", err)
 	}
@@ -553,10 +568,10 @@ func TestEnsureDatabaseSchemaUpToDateV21BackfillsNodeColumnsWhenNewColumnsAlread
 			agent_token, agent_version, nginx_version,
 			status, last_seen_at, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, "node-v21", "Node v21", "127.0.0.1", "", "", "", "legacy-token", "v2.0.0", "openresty/1.25.3", "offline", now, now, now).Error; err != nil {
+	`, "node-v16", "Node v16", "127.0.0.1", "", "", "", "legacy-token", "v2.0.0", "openresty/1.25.3", "offline", now, now, now).Error; err != nil {
 		t.Fatalf("seed node with legacy columns: %v", err)
 	}
-	if err := saveDatabaseSchemaVersion(db, 20); err != nil {
+	if err := saveDatabaseSchemaVersion(db, 15); err != nil {
 		t.Fatalf("save schema version: %v", err)
 	}
 
@@ -565,7 +580,7 @@ func TestEnsureDatabaseSchemaUpToDateV21BackfillsNodeColumnsWhenNewColumnsAlread
 	}
 
 	var node Node
-	if err := db.Where("node_id = ?", "node-v21").First(&node).Error; err != nil {
+	if err := db.Where("node_id = ?", "node-v16").First(&node).Error; err != nil {
 		t.Fatalf("query migrated node: %v", err)
 	}
 	if node.AccessToken != "legacy-token" {

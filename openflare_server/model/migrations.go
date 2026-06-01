@@ -82,16 +82,6 @@ func (databaseSchemaMigrationContext) ValidateDatabaseSchemaVersion(db *gorm.DB,
 		return validateDatabaseSchemaV15(db, backend)
 	case 16:
 		return validateDatabaseSchemaV16(db, backend)
-	case 17:
-		return validateDatabaseSchemaV17(db, backend)
-	case 18:
-		return validateDatabaseSchemaV18(db, backend)
-	case 19:
-		return validateDatabaseSchemaV19(db, backend)
-	case 20:
-		return validateDatabaseSchemaV20(db, backend)
-	case 21:
-		return validateDatabaseSchemaV21(db, backend)
 	default:
 		return fmt.Errorf("database schema validation for v%d is not defined", version)
 	}
@@ -1190,26 +1180,46 @@ func validateDatabaseSchemaV16(db *gorm.DB, backend string) error {
 	if err := validateDatabaseSchemaV15(db, backend); err != nil {
 		return err
 	}
-	if !db.Migrator().HasColumn(&ProxyRoute{}, "tunnel_node_id") {
-		if !db.Migrator().HasTable("tunnels") {
-			return fmt.Errorf("table tunnels is missing")
-		}
-		if !db.Migrator().HasColumn(&ProxyRoute{}, "tunnel_id") {
-			return fmt.Errorf("column proxy_routes.tunnel_id is missing")
-		}
+	if !db.Migrator().HasColumn(&Node{}, "access_token") {
+		return fmt.Errorf("column nodes.access_token is missing")
+	}
+	if !db.Migrator().HasColumn(&Node{}, "version") {
+		return fmt.Errorf("column nodes.version is missing")
+	}
+	if !db.Migrator().HasColumn(&Node{}, "ext_version") {
+		return fmt.Errorf("column nodes.ext_version is missing")
 	}
 	if !db.Migrator().HasColumn(&Node{}, "node_type") {
 		return fmt.Errorf("column nodes.node_type is missing")
 	}
-	if !db.Migrator().HasColumn(&ProxyRoute{}, "upstream_type") {
-		return fmt.Errorf("column proxy_routes.upstream_type is missing")
+	for _, column := range []string{
+		"relay_bind_port",
+		"relay_vhost_http_port",
+		"relay_auth_token",
+		"relay_agent_access_addr",
+		"relay_client_access_addr",
+		"relay_client_proxy_url",
+		"relay_status",
+	} {
+		if !db.Migrator().HasColumn(&Node{}, column) {
+			return fmt.Errorf("column nodes.%s is missing", column)
+		}
 	}
-	return nil
-}
-
-func validateDatabaseSchemaV17(db *gorm.DB, backend string) error {
-	if err := validateDatabaseSchemaV16(db, backend); err != nil {
-		return err
+	for _, column := range []string{
+		"upstream_type",
+		"tunnel_node_id",
+		"tunnel_target_addr",
+		"tunnel_target_protocol",
+	} {
+		if !db.Migrator().HasColumn(&ProxyRoute{}, column) {
+			return fmt.Errorf("column proxy_routes.%s is missing", column)
+		}
+	}
+	if db.Migrator().HasTable("tunnels") {
+		return fmt.Errorf("table tunnels should not exist in v16")
+	}
+	if db.Migrator().HasColumn(&ProxyRoute{}, "tunnel_id") {
+		return fmt.Errorf("column proxy_routes.tunnel_id should not exist in v16")
 	}
 	if !db.Migrator().HasTable(&WAFIPGroup{}) {
 		return fmt.Errorf("table waf_ip_groups is missing")
@@ -1220,44 +1230,8 @@ func validateDatabaseSchemaV17(db *gorm.DB, backend string) error {
 	if !db.Migrator().HasColumn(&WAFRuleGroup{}, "ip_blacklist_groups") {
 		return fmt.Errorf("column waf_rule_groups.ip_blacklist_groups is missing")
 	}
-	return nil
-}
-
-func validateDatabaseSchemaV18(db *gorm.DB, backend string) error {
-	if err := validateDatabaseSchemaV17(db, backend); err != nil {
-		return err
-	}
 	if !db.Migrator().HasColumn(&WAFIPGroup{}, "ext_ips") {
 		return fmt.Errorf("column waf_ip_groups.ext_ips is missing")
-	}
-	return nil
-}
-
-func validateDatabaseSchemaV19(db *gorm.DB, backend string) error {
-	if err := validateDatabaseSchemaV18(db, backend); err != nil {
-		return err
-	}
-	if db.Migrator().HasTable("tunnels") {
-		return fmt.Errorf("table tunnels should be dropped in v19")
-	}
-	if !db.Migrator().HasColumn(&ProxyRoute{}, "tunnel_node_id") {
-		return fmt.Errorf("column proxy_routes.tunnel_node_id is missing")
-	}
-	if db.Migrator().HasColumn(&ProxyRoute{}, "tunnel_id") {
-		return fmt.Errorf("column proxy_routes.tunnel_id should be dropped in v19")
-	}
-	return nil
-}
-
-func validateDatabaseSchemaV20(db *gorm.DB, backend string) error {
-	if err := validateDatabaseSchemaV19(db, backend); err != nil {
-		return err
-	}
-	if !db.Migrator().HasColumn(&Node{}, "relay_frps_connections") {
-		return fmt.Errorf("column nodes.relay_frps_connections is missing")
-	}
-	if !db.Migrator().HasColumn(&Node{}, "relay_frps_proxy_count") {
-		return fmt.Errorf("column nodes.relay_frps_proxy_count is missing")
 	}
 	return nil
 }
@@ -1390,22 +1364,6 @@ func initializeFreshDatabaseSchema(db *gorm.DB, backend string) error {
 		return err
 	}
 	return saveDatabaseSchemaVersion(db, currentDatabaseSchemaVersion)
-}
-
-func validateDatabaseSchemaV21(db *gorm.DB, backend string) error {
-	if err := validateDatabaseSchemaV19(db, backend); err != nil {
-		return err
-	}
-	if !db.Migrator().HasColumn(&Node{}, "access_token") {
-		return fmt.Errorf("column nodes.access_token is missing")
-	}
-	if !db.Migrator().HasColumn(&Node{}, "version") {
-		return fmt.Errorf("column nodes.version is missing")
-	}
-	if !db.Migrator().HasColumn(&Node{}, "ext_version") {
-		return fmt.Errorf("column nodes.ext_version is missing")
-	}
-	return nil
 }
 
 func ensureDatabaseSchemaUpToDate(db *gorm.DB, backend string) error {

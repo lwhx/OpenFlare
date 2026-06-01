@@ -30,6 +30,14 @@ func (nodeV15) TableName() string {
 }
 
 func migrateV15(ctx Context, db *gorm.DB, backend string) error {
+	if db == nil {
+		return fmt.Errorf("database handle is nil")
+	}
+	if !db.Migrator().HasColumn(&nodeV15{}, "ip_manual_override") {
+		if err := db.Migrator().AddColumn(&nodeV15{}, "IPManualOverride"); err != nil {
+			return fmt.Errorf("add nodes.ip_manual_override: %w", err)
+		}
+	}
 	return nil
 }
 
