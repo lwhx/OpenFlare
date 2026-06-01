@@ -125,24 +125,30 @@ Agent 上报应用结果
 
 ### Relay 同步流
 
+Relay（OpenFlareRelay 进程）运行在 TunnelRelay 节点上，与 Agent 共享同一 `agent_token`：
+
 ```text
-Relay HTTP heartbeat -> Server 返回 frps 配置
-Relay 生成 frps.toml 并启动/重启 frps
-Relay 定期上报 frps 状态
+Relay HTTP heartbeat -> Server 返回 frps 基础配置 (bindPort, vhostHTTPPort, auth_token)
+Relay 生成 frps.toml 并启动或更新 frps 进程
+Relay 定期上报 frps 健康状态与连接统计
+Relay 尝试升级 WebSocket 连接以支持实时配置推送
 ```
 
-Relay 使用与 Agent 相同的 `agent_token` 认证（同一节点），通过 `/api/relay/*` 端点通信。frps 配置相对静态（端口、认证 Token），通过心跳下发，不纳入版本化发布流。
+frps 配置相对静态（端口、认证 Token），通过心跳下发，**不纳入版本化发布流**。Relay 需要监听 frps 进程异常并自动恢复。认证方式：`X-Agent-Token` + API 路径前缀 `/api/relay/*`，Server 通过 `node_type = tunnel_relay` 区分。
 
 ### OpenFlared 同步流
 
+OpenFlared（客户端）运行在内网服务器，使用独立的 `tunnel_token` 认证：
+
 ```text
-Client HTTP heartbeat -> Server 返回 tunnel 配置版本摘要
-Client 发现新版本 -> 拉取 tunnel 路由配置（relay 列表 + proxy 定义）
-Client 为每个 Relay 生成 frpc.toml 并启动/重载 frpc 进程
-Client 上报应用结果
+Client HTTP heartbeat -> Server 返回 tunnel 配置版本摘要 (version, checksum)
+Client 发现新版本 -> 拉取完整 tunnel 路由配置 (relay 列表 + frpc proxy 定义)
+Client 为每个 Relay 生成独立的 frpc.toml 配置文件
+Client 为新 Relay 启动 frpc 进程，或为已有 Relay 执行热重载 (frpc reload)
+Client 上报应用结果 (成功/失败原因)
 ```
 
-OpenFlared 使用独立的 `tunnel_token` 认证，通过 `/api/flared/*` 端点通信。Tunnel 路由配置随发布流程版本化同步，配置变更时优先使用 `frpc reload` 热重载。
+OpenFlared 通过 `/api/flared/*` 端点与 Server 通信，认证使用 `X-Tunnel-Token`。Tunnel 路由配置随发布流程版本化同步，所有配置变更通过单一版本号关联并一致性发布到 Agent 和 Client。
 
 **WebSocket 升级流程**（可选，通过 `AgentWebsocketUpgradeEnabled` 选项控制）：
 

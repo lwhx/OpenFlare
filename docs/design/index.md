@@ -87,32 +87,72 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 
 ## 内网穿透约束
 
-OpenFlare 通过 TunnelRelay 节点与 OpenFlared 客户端实现内网穿透，底层基于 frp 构建。
+OpenFlare 通过 TunnelRelay 节点与 OpenFlared 客户端实现内网穿透，底层基于 frp（快速反向代理）构建。
 
-节点类型：
+### 节点与组件模型
+
+**节点类型**：
 
 * `nodes.node_type` 区分节点类型：`edge_node`（边缘节点，默认）和 `tunnel_relay`（隧道中继）。
-* TunnelRelay 节点同时运行 Agent（管理 OpenResty）和 Relay（管理 frps），共享同一个 `agent_token`。
-* Agent 负责 HTTPS 终结、WAF 防护等，Relay 负责隧道流量中继。
+* TunnelRelay 节点同时运行 Agent（OpenResty）和 Relay（frps 管理器），共享同一个 `agent_token`。
+  - Agent 负责 HTTPS 终结、WAF 防护、缓存与流量限制等。
+  - Relay 管理 frps 进程，为内网客户端提供隧道中继服务。
+* TunnelRelay 节点新增字段：`node_type`、`relay_bind_port`（frpc 连接端口，默认 7000）、`relay_vhost_http_port`（HTTP Vhost 端口，默认 8080）、`relay_auth_token`（自动生成）、`relay_status` 等。
 
-Tunnel 实体：
+**Tunnel 客户端**：
 
-* `tunnels` 表存储内网穿透客户端注册信息，与 `nodes` 体系独立。
-* 每个 Tunnel 拥有唯一的 `tunnel_id`（格式 `tun-<32hex>`）和 `tunnel_token`。
-* OpenFlared 客户端使用 `tunnel_token` 认证，通过 `/api/flared/*` 端点通信。
+* `tunnels` 表独立存储内网穿透客户端注册信息，与 `nodes` 体系无关。
+* 每个 Tunnel 拥有唯一的 `tunnel_id`（格式 `tun-<32hex>`）和 `tunnel_token`（客户端认证凭据）。
+* OpenFlared 客户端运行在内网，不对外暴露，使用 `tunnel_token` 认证，通过 `/api/flared/*` 端点与 Server 通信。
+* 一个 OpenFlared 客户端可同时连接多个 Relay（为高可用）。
 
-流量路径：
+### 上游类型扩展
 
-* 数据面：浏览器 → Agent（OpenResty，TLS/WAF）→ Relay（frps，HTTP Vhost 路由）→ 隧道 → Client（frpc）→ 内网服务。
-* frps 使用 HTTP Vhost 单端口复用，通过 Host 头将请求路由到对应 frpc，无需为每个隧道分配端口。
-* Relay 配置（frps 端口、认证 Token）通过心跳下发，相对静态。
-* Tunnel 路由配置（frpc 代理定义）随发布流程版本化同步。
+`proxy_routes` 的上游配置分为两种类型，通过 `upstream_type` 字段区分：
 
-当前阶段约束：
+* **直连上游（`direct`，默认）**：直接将流量转发到源站地址，行为与现有完全一致。
+* **内网穿透上游（`tunnel`）**：通过 TunnelRelay 节点将流量转发到内网服务。
+  - 必须指定 `tunnel_id`（关联 `tunnels` 表）。
+  - 必须指定 `tunnel_target_addr`（内网目标地址，如 `192.168.1.100:8080`）和 `tunnel_target_protocol`（`http` 或 `https`）。
+  - 发布时，Server 自动将上游地址替换为 `http://127.0.0.1:{relay_vhost_http_port}`。
 
-* 仅支持 HTTP 协议隧道流量，保留未来 TCP 隧道扩展性。
-* Tunnel 类型上游的域名 DNS 应仅解析到 TunnelRelay 节点，EdgeNode 上对应请求会因 frps 不可达返回 502。
-* 一个 OpenFlared 客户端可连接多个 Relay（每个 Relay 对应一个 frpc 进程）。
+### 流量路径与协议
+
+**完整数据面流量路径**：
+
+```
+浏览器 → OpenResty (Agent, TLS/WAF)         [TunnelRelay 节点]
+       ↓
+     frps (Relay, HTTP Vhost 路由)          [TunnelRelay 节点, 127.0.0.1:{vhost_port}]
+       ↓
+   frp 隧道协议 (Host 头路由)
+       ↓
+     frpc (Client, 多进程)                  [内网服务器]
+       ↓
+   内网服务 (192.168.x.x:port)
+```
+
+**关键特性**：
+
+* frps 使用 HTTP Vhost 单端口复用机制，所有 HTTP 隧道共享一个 `vhost_port`，通过 Host 头自动路由到对应 frpc。
+* Agent 保留原始 `Host` 请求头，frps 依据此头进行虚拟主机匹配。
+* 每个隧道对应一条 `proxy_routes`，可绑定多个域名。
+* OpenFlared 客户端为每个连接的 Relay 管理一个独立的 frpc 进程，通过单一 frp 隧道传输多个 HTTP 代理定义。
+
+### 配置同步模型
+
+发布流程同时生成两类配置版本数据，统一使用 `config_version` 版本号关联：
+
+* **Agent 侧配置**：OpenResty 主配置 + 路由配置 + WAF 规则。包含 tunnel 上游时，自动渲染为 `http://127.0.0.1:{vhost_port}` 上游。
+* **Tunnel 侧配置**：Relay 列表 + frpc 代理定义。随发布流程版本化，变更时优先使用 `frpc reload` 热重载。
+* **Relay 配置**：通过心跳响应下发，相对静态，不纳入版本化流程。
+
+### 当前阶段约束
+
+* 仅支持 HTTP 协议隧道流量，保留未来 TCP/UDP 隧道扩展性。
+* Tunnel 类型上游的域名 DNS 应仅解析到 TunnelRelay 节点；EdgeNode 上对应请求会因 frps 不可达返回 502。
+* frp 版本使用 v0.61+（或更新稳定版），frp 二进制由部署脚本或 Docker 镜像提供。
+* 暂不支持 TCP/UDP 端口分配；HTTP 单端口复用已满足 MVP 需求。
 
 
 ## HTTPS 约束
