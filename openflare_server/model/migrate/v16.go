@@ -1,6 +1,3 @@
-// v16 升级内容：新增 Tunnel 隧道表，为 nodes 增加 TunnelRelay 相关字段，为 proxy_routes 增加隧道上游支持字段。
-// 背景说明：引入 Tunnel 组件后，边缘节点可通过隧道中继回源，需要区分节点类型（edge_node/relay_node）、记录中继绑定端口，
-// 并在代理路由中支持 tunnel 上游类型以替代直连回源，同时需要独立的 tunnels 表管理隧道实例。
 package migrate
 
 import (

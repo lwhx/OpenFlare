@@ -38,6 +38,8 @@ export const emptyDraft: WAFRuleGroupPayload = {
   block_response_body: '',
   ip_whitelist: [],
   ip_blacklist: [],
+  ip_whitelist_group_ids: [],
+  ip_blacklist_group_ids: [],
   country_whitelist: [],
   country_blacklist: [],
   region_whitelist: [],
@@ -52,6 +54,7 @@ export const defaultRuleModalState: RuleModalState = {
   listType: 'whitelist',
   dimension: 'ip',
   ipValue: '',
+  ipGroupIDs: [],
   countryValues: [],
 };
 
@@ -104,6 +107,8 @@ export function buildDraft(group: WAFRuleGroup | null): WAFRuleGroupPayload {
     block_response_body: group.block_response_body ?? '',
     ip_whitelist: group.ip_whitelist ?? [],
     ip_blacklist: group.ip_blacklist ?? [],
+    ip_whitelist_group_ids: group.ip_whitelist_group_ids ?? [],
+    ip_blacklist_group_ids: group.ip_blacklist_group_ids ?? [],
     country_whitelist: group.country_whitelist ?? [],
     country_blacklist: group.country_blacklist ?? [],
     region_whitelist: group.region_whitelist ?? [],
@@ -118,6 +123,8 @@ export function countRuleEntries(group: RuleListRenderable) {
   return (
     group.ip_whitelist.length +
     group.ip_blacklist.length +
+    group.ip_whitelist_group_ids.length +
+    group.ip_blacklist_group_ids.length +
     group.country_whitelist.length +
     group.country_blacklist.length +
     group.region_whitelist.length +
@@ -166,6 +173,11 @@ export function getListFieldKey(
   if (dimension === 'ip') {
     return listType === 'whitelist' ? 'ip_whitelist' : 'ip_blacklist';
   }
+  if (dimension === 'ip_group') {
+    return listType === 'whitelist'
+      ? 'ip_whitelist_group_ids'
+      : 'ip_blacklist_group_ids';
+  }
   return listType === 'whitelist' ? 'country_whitelist' : 'country_blacklist';
 }
 
@@ -179,6 +191,20 @@ export function updateDraftList(
       return { ...draft, ip_whitelist: updater(draft.ip_whitelist) };
     case 'ip_blacklist':
       return { ...draft, ip_blacklist: updater(draft.ip_blacklist) };
+    case 'ip_whitelist_group_ids':
+      return {
+        ...draft,
+        ip_whitelist_group_ids: updater(
+          draft.ip_whitelist_group_ids.map(String),
+        ).map(Number),
+      };
+    case 'ip_blacklist_group_ids':
+      return {
+        ...draft,
+        ip_blacklist_group_ids: updater(
+          draft.ip_blacklist_group_ids.map(String),
+        ).map(Number),
+      };
     case 'country_whitelist':
       return { ...draft, country_whitelist: updater(draft.country_whitelist) };
     case 'country_blacklist':

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { AppModal } from '@/components/ui/app-modal';
+import type { WAFIPGroup } from '@/features/waf/types';
 import {
   PrimaryButton,
   ResourceField,
@@ -9,11 +10,17 @@ import {
 } from '@/features/shared/components/resource-primitives';
 import { cn } from '@/lib/utils/cn';
 import { normalizeItems } from './helpers';
-import type { CountryOption, RuleListType, RuleDimension, RuleModalState } from './types';
+import type {
+  CountryOption,
+  RuleListType,
+  RuleDimension,
+  RuleModalState,
+} from './types';
 
 export function RuleEntryModal({
   state,
   countryOptions,
+  ipGroups,
   pending,
   onClose,
   onChange,
@@ -21,6 +28,7 @@ export function RuleEntryModal({
 }: {
   state: RuleModalState;
   countryOptions: CountryOption[];
+  ipGroups: WAFIPGroup[];
   pending: boolean;
   onClose: () => void;
   onChange: (patch: Partial<RuleModalState>) => void;
@@ -38,6 +46,10 @@ export function RuleEntryModal({
   const selectedCountrySet = useMemo(
     () => new Set(state.countryValues),
     [state.countryValues],
+  );
+  const selectedIPGroupSet = useMemo(
+    () => new Set(state.ipGroupIDs),
+    [state.ipGroupIDs],
   );
 
   const filteredCountries = useMemo(() => {
@@ -71,9 +83,20 @@ export function RuleEntryModal({
   };
 
   const clearCountries = () => onChange({ countryValues: [] });
+  const toggleIPGroup = (id: number) => {
+    const values = selectedIPGroupSet.has(id)
+      ? state.ipGroupIDs.filter((item) => item !== id)
+      : [...state.ipGroupIDs, id].sort((left, right) => left - right);
+    onChange({ ipGroupIDs: values });
+  };
 
   const typeLabel = state.listType === 'blacklist' ? '黑名单' : '白名单';
-  const dimensionLabel = state.dimension === 'ip' ? 'IP' : '地域';
+  const dimensionLabel =
+    state.dimension === 'ip'
+      ? 'IP'
+      : state.dimension === 'ip_group'
+        ? 'IP 组'
+        : '地域';
 
   return (
     <AppModal
@@ -120,9 +143,10 @@ export function RuleEntryModal({
             </div>
           </ResourceField>
           <ResourceField label="维度" container="div">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {[
                 { value: 'ip', label: 'IP' },
+                { value: 'ip_group', label: 'IP 组' },
                 { value: 'country', label: '地域' },
               ].map((option) => (
                 <button
@@ -156,6 +180,60 @@ export function RuleEntryModal({
               onChange={(event) => onChange({ ipValue: event.target.value })}
             />
           </ResourceField>
+        ) : state.dimension === 'ip_group' ? (
+          <div className="rounded-[26px] border border-[var(--border-default)] bg-[var(--surface-elevated)] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--foreground-primary)]">
+                  选择 IP 组
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-[var(--foreground-secondary)]">
+                  被引用的 IP 组会在发布配置时展开到 WAF 运行时名单。
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--border-default)] px-2.5 py-1 text-xs font-medium text-[var(--foreground-secondary)]">
+                已选 {state.ipGroupIDs.length}
+              </span>
+            </div>
+            <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
+              {ipGroups.length > 0 ? (
+                ipGroups.map((group) => {
+                  const selected = selectedIPGroupSet.has(group.id);
+                  return (
+                    <label
+                      key={group.id}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition',
+                        selected
+                          ? 'border-[var(--border-strong)] bg-[var(--accent-soft)]'
+                          : 'border-[var(--border-default)] bg-[var(--surface-panel)] hover:bg-[var(--surface-muted)]',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleIPGroup(group.id)}
+                        className="h-4 w-4 rounded border-[var(--border-default)] accent-[var(--brand-primary)]"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-[var(--foreground-primary)]">
+                          {group.name}
+                        </span>
+                        <span className="mt-1 block text-xs text-[var(--foreground-secondary)]">
+                          {group.type} · {group.ip_list.length} 条 ·{' '}
+                          {group.enabled ? '启用' : '停用'}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-[var(--foreground-muted)]">
+                  暂无 IP 组，请先进入 IP 组管理页面创建。
+                </p>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center gap-3 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-3">

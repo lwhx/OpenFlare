@@ -100,12 +100,22 @@ type snapshotWAFRuleGroup struct {
 	BlockResponseBody string               `json:"block_response_body,omitempty"`
 	IPWhitelist       []string             `json:"ip_whitelist,omitempty"`
 	IPBlacklist       []string             `json:"ip_blacklist,omitempty"`
+	IPWhitelistGroups []uint               `json:"ip_whitelist_group_ids,omitempty"`
+	IPBlacklistGroups []uint               `json:"ip_blacklist_group_ids,omitempty"`
 	CountryWhitelist  []string             `json:"country_whitelist,omitempty"`
 	CountryBlacklist  []string             `json:"country_blacklist,omitempty"`
 	RegionWhitelist   []string             `json:"region_whitelist,omitempty"`
 	RegionBlacklist   []string             `json:"region_blacklist,omitempty"`
 	PoWEnabled        bool                 `json:"pow_enabled,omitempty"`
 	PoWConfig         *ProxyRoutePoWConfig `json:"pow_config,omitempty"`
+}
+
+type snapshotWAFIPGroup struct {
+	ID      uint     `json:"id"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Enabled bool     `json:"enabled"`
+	IPList  []string `json:"ip_list,omitempty"`
 }
 
 type snapshotWAFBinding struct {
@@ -116,6 +126,7 @@ type snapshotWAFBinding struct {
 
 type snapshotWAFDocument struct {
 	RuleGroups []snapshotWAFRuleGroup `json:"rule_groups"`
+	IPGroups   []snapshotWAFIPGroup   `json:"ip_groups,omitempty"`
 	Bindings   []snapshotWAFBinding   `json:"bindings"`
 }
 
@@ -556,6 +567,8 @@ func buildSnapshotWAFDocument(routes []*model.ProxyRoute) (snapshotWAFDocument, 
 			BlockResponseBody: view.BlockResponseBody,
 			IPWhitelist:       view.IPWhitelist,
 			IPBlacklist:       view.IPBlacklist,
+			IPWhitelistGroups: view.IPWhitelistGroups,
+			IPBlacklistGroups: view.IPBlacklistGroups,
 			CountryWhitelist:  view.CountryWhitelist,
 			CountryBlacklist:  view.CountryBlacklist,
 			RegionWhitelist:   view.RegionWhitelist,
@@ -563,6 +576,10 @@ func buildSnapshotWAFDocument(routes []*model.ProxyRoute) (snapshotWAFDocument, 
 			PoWEnabled:        view.PoWEnabled,
 			PoWConfig:         view.PoWConfig,
 		})
+	}
+	ipGroups, err := buildSnapshotWAFIPGroups(ruleGroups)
+	if err != nil {
+		return snapshotWAFDocument{}, err
 	}
 	enabledRouteIDs := make(map[uint]string, len(routes))
 	for _, route := range routes {
@@ -601,7 +618,54 @@ func buildSnapshotWAFDocument(routes []*model.ProxyRoute) (snapshotWAFDocument, 
 		}
 		return bindings[i].SiteName < bindings[j].SiteName
 	})
-	return snapshotWAFDocument{RuleGroups: ruleGroups, Bindings: bindings}, nil
+	return snapshotWAFDocument{RuleGroups: ruleGroups, IPGroups: ipGroups, Bindings: bindings}, nil
+}
+
+func buildSnapshotWAFIPGroups(ruleGroups []snapshotWAFRuleGroup) ([]snapshotWAFIPGroup, error) {
+	idSet := make(map[uint]struct{})
+	for _, group := range ruleGroups {
+		for _, id := range group.IPWhitelistGroups {
+			idSet[id] = struct{}{}
+		}
+		for _, id := range group.IPBlacklistGroups {
+			idSet[id] = struct{}{}
+		}
+	}
+	if len(idSet) == 0 {
+		return []snapshotWAFIPGroup{}, nil
+	}
+	ids := make([]uint, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	groups, err := model.ListWAFIPGroupsByIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+	groupByID := make(map[uint]*model.WAFIPGroup, len(groups))
+	for _, group := range groups {
+		groupByID[group.ID] = group
+	}
+	snapshots := make([]snapshotWAFIPGroup, 0, len(ids))
+	for _, id := range ids {
+		group := groupByID[id]
+		if group == nil {
+			return nil, fmt.Errorf("IP 组 %d 不存在", id)
+		}
+		ips, err := decodeStringList(group.IPList)
+		if err != nil {
+			return nil, fmt.Errorf("IP 组 %s 列表无效: %w", group.Name, err)
+		}
+		snapshots = append(snapshots, snapshotWAFIPGroup{
+			ID:      group.ID,
+			Name:    group.Name,
+			Type:    group.Type,
+			Enabled: group.Enabled,
+			IPList:  ips,
+		})
+	}
+	return snapshots, nil
 }
 
 func mustDecodeSnapshotCertIDs(route *model.ProxyRoute) []uint {

@@ -3,13 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Globe2,
-  Plus,
-  Save,
-  ShieldCheck,
-  Trash2,
-} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Globe2, Network, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
 
 import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
@@ -30,11 +25,16 @@ import {
 import {
   createWAFRuleGroup,
   deleteWAFRuleGroup,
+  getWAFIPGroups,
   getWAFRuleGroups,
   replaceWAFRuleGroupSites,
   updateWAFRuleGroup,
 } from '@/features/waf/api/waf';
-import type { WAFRuleGroup, WAFRuleGroupPayload } from '@/features/waf/types';
+import type {
+  WAFIPGroup,
+  WAFRuleGroup,
+  WAFRuleGroupPayload,
+} from '@/features/waf/types';
 import { cn } from '@/lib/utils/cn';
 
 import { RuleEntryModal } from './rule-entry-modal';
@@ -56,9 +56,15 @@ import {
   textToList,
   updateDraftList,
 } from './helpers';
-import type { FeedbackState, ListFieldKey, RuleModalState, WAFTab } from './types';
+import type {
+  FeedbackState,
+  ListFieldKey,
+  RuleModalState,
+  WAFTab,
+} from './types';
 
 export function WAFPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedID, setSelectedID] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<WAFTab>('basic');
@@ -73,12 +79,20 @@ export function WAFPage() {
     queryKey: ['waf', 'rule-groups'],
     queryFn: getWAFRuleGroups,
   });
+  const ipGroupsQuery = useQuery({
+    queryKey: ['waf', 'ip-groups'],
+    queryFn: getWAFIPGroups,
+  });
   const routesQuery = useQuery({
     queryKey: ['proxy-routes'],
     queryFn: getProxyRoutes,
   });
 
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data]);
+  const ipGroups = useMemo(
+    () => ipGroupsQuery.data ?? [],
+    [ipGroupsQuery.data],
+  );
   const routes = useMemo(() => routesQuery.data ?? [], [routesQuery.data]);
   const countryOptions = useMemo(() => buildCountryOptions(), []);
   const countryLabelMap = useMemo(
@@ -106,6 +120,7 @@ export function WAFPage() {
   const invalidate = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['waf', 'rule-groups'] }),
+      queryClient.invalidateQueries({ queryKey: ['waf', 'ip-groups'] }),
       queryClient.invalidateQueries({ queryKey: ['config-versions', 'diff'] }),
     ]);
   };
@@ -152,7 +167,11 @@ export function WAFPage() {
     },
   });
 
-  if (groupsQuery.isLoading || routesQuery.isLoading) {
+  if (
+    groupsQuery.isLoading ||
+    routesQuery.isLoading ||
+    ipGroupsQuery.isLoading
+  ) {
     return <LoadingState />;
   }
   if (groupsQuery.isError) {
@@ -168,6 +187,14 @@ export function WAFPage() {
       <ErrorState
         title="网站列表加载失败"
         description={getErrorMessage(routesQuery.error)}
+      />
+    );
+  }
+  if (ipGroupsQuery.isError) {
+    return (
+      <ErrorState
+        title="IP 组加载失败"
+        description={getErrorMessage(ipGroupsQuery.error)}
       />
     );
   }
@@ -189,6 +216,13 @@ export function WAFPage() {
             routes.find((route) => route.id === id)?.site_name ?? `网站 #${id}`,
         )
         .sort((left, right) => left.localeCompare(right));
+  const ipGroupByID = new Map(ipGroups.map((group) => [group.id, group]));
+  const whitelistGroupItems = draft.ip_whitelist_group_ids
+    .map((id) => ipGroupByID.get(id))
+    .filter((group): group is WAFIPGroup => Boolean(group));
+  const blacklistGroupItems = draft.ip_blacklist_group_ids
+    .map((id) => ipGroupByID.get(id))
+    .filter((group): group is WAFIPGroup => Boolean(group));
 
   const openRuleModal = () => {
     setRuleModal({ ...defaultRuleModalState, open: true });
@@ -202,7 +236,9 @@ export function WAFPage() {
     const values =
       ruleModal.dimension === 'ip'
         ? textToList(ruleModal.ipValue)
-        : normalizeItems(ruleModal.countryValues);
+        : ruleModal.dimension === 'ip_group'
+          ? ruleModal.ipGroupIDs.map(String)
+          : normalizeItems(ruleModal.countryValues);
 
     if (values.length === 0) {
       setFeedback({
@@ -210,7 +246,9 @@ export function WAFPage() {
         message:
           ruleModal.dimension === 'ip'
             ? '请先输入 IP 或 IP 段。'
-            : '请先选择地域。',
+            : ruleModal.dimension === 'ip_group'
+              ? '请先选择 IP 组。'
+              : '请先选择地域。',
       });
       return;
     }
@@ -233,6 +271,13 @@ export function WAFPage() {
     setDraft((current) =>
       updateDraftList(current, key, (items) =>
         items.filter((item) => item !== value),
+      ),
+    );
+  };
+  const removeRuleGroup = (key: ListFieldKey, id: number) => {
+    setDraft((current) =>
+      updateDraftList(current, key, (items) =>
+        items.filter((item) => item !== String(id)),
       ),
     );
   };
@@ -271,17 +316,26 @@ export function WAFPage() {
           title="WAF"
           description="按规则组维护 WAF 与 PoW 防护规则，全局规则组始终应用到所有网站。"
           action={
-            <PrimaryButton
-              type="button"
-              onClick={() => {
-                setSelectedID(0);
-                setActiveTab('basic');
-                setDraft({ ...emptyDraft, name: '自定义规则组' });
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              新建规则组
-            </PrimaryButton>
+            <div className="flex flex-wrap gap-3">
+              <SecondaryButton
+                type="button"
+                onClick={() => router.push('/waf/ip-groups')}
+              >
+                <Network className="mr-2 h-4 w-4" />
+                管理 IP 组
+              </SecondaryButton>
+              <PrimaryButton
+                type="button"
+                onClick={() => {
+                  setSelectedID(0);
+                  setActiveTab('basic');
+                  setDraft({ ...emptyDraft, name: '自定义规则组' });
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                新建规则组
+              </PrimaryButton>
+            </div>
           }
         />
 
@@ -487,17 +541,25 @@ export function WAFPage() {
                       title="IP 白名单"
                       description="命中后直接放行，不再继续判断黑名单。"
                       items={draft.ip_whitelist}
+                      groupItems={whitelistGroupItems}
                       tone="whitelist"
                       emptyText="暂无 IP 白名单规则。"
                       onRemove={(item) => removeRuleItem('ip_whitelist', item)}
+                      onRemoveGroup={(id) =>
+                        removeRuleGroup('ip_whitelist_group_ids', id)
+                      }
                     />
                     <RuleListSection
                       title="IP 黑名单"
                       description="未命中白名单时，命中这些 IP / IP 段将被拦截。"
                       items={draft.ip_blacklist}
+                      groupItems={blacklistGroupItems}
                       tone="blacklist"
                       emptyText="暂无 IP 黑名单规则。"
                       onRemove={(item) => removeRuleItem('ip_blacklist', item)}
+                      onRemoveGroup={(id) =>
+                        removeRuleGroup('ip_blacklist_group_ids', id)
+                      }
                     />
                     <RuleListSection
                       title="地域白名单"
@@ -646,6 +708,7 @@ export function WAFPage() {
       <RuleEntryModal
         state={ruleModal}
         countryOptions={countryOptions}
+        ipGroups={ipGroups}
         pending={saveMutation.isPending}
         onClose={closeRuleModal}
         onChange={(patch) =>

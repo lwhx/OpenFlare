@@ -2,6 +2,8 @@ package service
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -126,5 +128,140 @@ func TestPublishConfigVersionIncludesWAFSnapshotAndRuntimeConfig(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected waf_config.json support file, got %#v", files)
+	}
+}
+
+func TestWAFIPGroupCRUDAndRuleGroupReference(t *testing.T) {
+	setupServiceTestDB(t)
+
+	ipGroup, err := CreateWAFIPGroup(WAFIPGroupInput{
+		Name:    "bad actors",
+		Type:    WAFIPGroupTypeManual,
+		Enabled: true,
+		IPList:  []string{"203.0.113.10", "203.0.113.10", "198.51.100.0/24"},
+	})
+	if err != nil {
+		t.Fatalf("CreateWAFIPGroup failed: %v", err)
+	}
+	if len(ipGroup.IPList) != 2 {
+		t.Fatalf("unexpected normalized IP group list: %#v", ipGroup.IPList)
+	}
+
+	group, err := CreateWAFRuleGroup(WAFRuleGroupInput{
+		Name:              "referenced",
+		Enabled:           true,
+		BlockStatusCode:   403,
+		IPBlacklistGroups: []uint{ipGroup.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateWAFRuleGroup failed: %v", err)
+	}
+	if len(group.IPBlacklistGroups) != 1 || group.IPBlacklistGroups[0] != ipGroup.ID {
+		t.Fatalf("unexpected blacklist group refs: %#v", group.IPBlacklistGroups)
+	}
+	if err = DeleteWAFIPGroup(ipGroup.ID); err == nil {
+		t.Fatal("expected referenced IP group delete to be rejected")
+	}
+}
+
+func TestWAFIPGroupSubscriptionParsers(t *testing.T) {
+	textItems, err := parseWAFIPGroupSubscription([]byte("# comment\n203.0.113.10\n\n198.51.100.0/24\n"), "text", "")
+	if err != nil {
+		t.Fatalf("parse text subscription failed: %v", err)
+	}
+	if len(textItems) != 2 || textItems[0] != "198.51.100.0/24" || textItems[1] != "203.0.113.10" {
+		t.Fatalf("unexpected text subscription items: %#v", textItems)
+	}
+
+	jsonItems, err := parseWAFIPGroupSubscription([]byte(`{"data":{"items":[{"ip":"203.0.113.11"},{"ip":"203.0.113.12"}]}}`), "json", "data.items[].ip")
+	if err != nil {
+		t.Fatalf("parse json subscription failed: %v", err)
+	}
+	if len(jsonItems) != 2 || jsonItems[0] != "203.0.113.11" || jsonItems[1] != "203.0.113.12" {
+		t.Fatalf("unexpected json subscription items: %#v", jsonItems)
+	}
+}
+
+func TestSyncWAFIPGroupDownloadsSubscription(t *testing.T) {
+	setupServiceTestDB(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("203.0.113.20\n"))
+	}))
+	defer server.Close()
+
+	group, err := CreateWAFIPGroup(WAFIPGroupInput{
+		Name:                "subscription",
+		Type:                WAFIPGroupTypeSubscription,
+		Enabled:             true,
+		SubscriptionURL:     server.URL,
+		SubscriptionFormat:  WAFIPGroupSubscriptionFormatText,
+		SyncIntervalMinutes: 10,
+	})
+	if err != nil {
+		t.Fatalf("CreateWAFIPGroup failed: %v", err)
+	}
+	result, err := SyncWAFIPGroup(group.ID)
+	if err != nil {
+		t.Fatalf("SyncWAFIPGroup failed: %v", err)
+	}
+	if result.IPCount != 1 || result.Group.IPList[0] != "203.0.113.20" {
+		t.Fatalf("unexpected sync result: %+v", result)
+	}
+}
+
+func TestPublishConfigVersionExpandsWAFIPGroupReferences(t *testing.T) {
+	setupServiceTestDB(t)
+
+	route, err := CreateProxyRoute(ProxyRouteInput{
+		SiteName:  "waf-ip-groups",
+		Domains:   []string{"waf-ip-groups.example.com"},
+		OriginURL: "https://origin.internal",
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyRoute failed: %v", err)
+	}
+	ipGroup, err := CreateWAFIPGroup(WAFIPGroupInput{
+		Name:    "publish refs",
+		Type:    WAFIPGroupTypeManual,
+		Enabled: true,
+		IPList:  []string{"203.0.113.30"},
+	})
+	if err != nil {
+		t.Fatalf("CreateWAFIPGroup failed: %v", err)
+	}
+	ruleGroup, err := CreateWAFRuleGroup(WAFRuleGroupInput{
+		Name:              "publish group refs",
+		Enabled:           true,
+		BlockStatusCode:   451,
+		IPBlacklistGroups: []uint{ipGroup.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateWAFRuleGroup failed: %v", err)
+	}
+	if _, err = ReplaceWAFSiteRuleGroups(route.ID, []uint{ruleGroup.ID}); err != nil {
+		t.Fatalf("ReplaceWAFSiteRuleGroups failed: %v", err)
+	}
+	result, err := PublishConfigVersion("root", false)
+	if err != nil {
+		t.Fatalf("PublishConfigVersion failed: %v", err)
+	}
+	if !strings.Contains(result.Version.SnapshotJSON, `"ip_groups"`) {
+		t.Fatal("expected snapshot to include waf ip groups")
+	}
+	var files []SupportFile
+	if err = json.Unmarshal([]byte(result.Version.SupportFilesJSON), &files); err != nil {
+		t.Fatalf("decode support files failed: %v", err)
+	}
+	found := false
+	for _, file := range files {
+		if file.Path == "waf_config.json" && strings.Contains(file.Content, "203.0.113.30") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected expanded IP group in waf_config.json, got %#v", files)
 	}
 }

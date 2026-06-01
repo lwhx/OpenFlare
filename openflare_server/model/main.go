@@ -46,6 +46,7 @@ func registeredModels() []any {
 		&AcmeAccount{},
 		&DnsAccount{},
 		&WAFRuleGroup{},
+		&WAFIPGroup{},
 		&WAFRuleGroupBinding{},
 	}
 }

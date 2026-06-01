@@ -25,6 +25,21 @@ OpenFlare 的管理端 API 与 Agent API 都使用 JSON。
 | 只读接口 | 使用 `GET` |
 | 变更类接口 | 使用 `POST` |
 
+## WAF IP 组接口
+
+管理端 WAF IP 组接口统一要求管理端 Session 鉴权：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/waf/ip-groups` | 查询 IP 组列表 |
+| `GET` | `/api/waf/ip-groups/:id` | 查询单个 IP 组 |
+| `POST` | `/api/waf/ip-groups` | 创建 IP 组 |
+| `POST` | `/api/waf/ip-groups/:id/update` | 更新 IP 组 |
+| `POST` | `/api/waf/ip-groups/:id/delete` | 删除 IP 组；已被规则组引用时会拒绝 |
+| `POST` | `/api/waf/ip-groups/:id/sync` | 立即同步订阅型 IP 组 |
+
+IP 组 `type` 支持 `manual`、`automatic`、`subscription`。订阅格式支持 `text` 与 `json`：文本格式按行解析 IP/IP 段并忽略空行和 `#` 开头的注释；JSON 格式可通过映射规则选择数组，默认读取根数组。
+
 ## 鉴权
 
 管理端继续复用现有登录、角色与 Session。

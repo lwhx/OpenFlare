@@ -199,6 +199,10 @@ func RenderWAFConfig(snapshot WAFDocument) (string, error) {
 	groups := make([]wafRuntimeRuleGroup, 0, len(snapshot.RuleGroups))
 	globalGroupIDs := make([]uint, 0)
 	enabledGroupIDs := make(map[uint]struct{}, len(snapshot.RuleGroups))
+	ipGroupsByID := make(map[uint]WAFIPGroup, len(snapshot.IPGroups))
+	for _, group := range snapshot.IPGroups {
+		ipGroupsByID[group.ID] = group
+	}
 	for _, group := range snapshot.RuleGroups {
 		if !group.Enabled {
 			continue
@@ -211,7 +215,19 @@ func RenderWAFConfig(snapshot WAFDocument) (string, error) {
 			globalGroupIDs = append(globalGroupIDs, group.ID)
 		}
 		enabledGroupIDs[group.ID] = struct{}{}
-		groups = append(groups, wafRuntimeRuleGroup{ID: group.ID, Name: group.Name, IsGlobal: group.IsGlobal, BlockStatusCode: statusCode, BlockResponseBody: group.BlockResponseBody, IPWhitelist: group.IPWhitelist, IPBlacklist: group.IPBlacklist, CountryWhitelist: group.CountryWhitelist, CountryBlacklist: group.CountryBlacklist, RegionWhitelist: group.RegionWhitelist, RegionBlacklist: group.RegionBlacklist})
+		groups = append(groups, wafRuntimeRuleGroup{
+			ID:                group.ID,
+			Name:              group.Name,
+			IsGlobal:          group.IsGlobal,
+			BlockStatusCode:   statusCode,
+			BlockResponseBody: group.BlockResponseBody,
+			IPWhitelist:       expandWAFIPGroups(group.IPWhitelist, group.IPWhitelistGroups, ipGroupsByID),
+			IPBlacklist:       expandWAFIPGroups(group.IPBlacklist, group.IPBlacklistGroups, ipGroupsByID),
+			CountryWhitelist:  group.CountryWhitelist,
+			CountryBlacklist:  group.CountryBlacklist,
+			RegionWhitelist:   group.RegionWhitelist,
+			RegionBlacklist:   group.RegionBlacklist,
+		})
 	}
 	sort.Slice(groups, func(i, j int) bool {
 		if groups[i].IsGlobal != groups[j].IsGlobal {
@@ -232,6 +248,20 @@ func RenderWAFConfig(snapshot WAFDocument) (string, error) {
 	}
 	data, err := json.Marshal(wafRuntimeConfig{DefaultBlockStatusCode: defaultWAFBlockStatus, RuleGroups: groups, SiteRuleGroups: siteRuleGroups})
 	return string(data), err
+}
+
+func expandWAFIPGroups(direct []string, groupIDs []uint, ipGroupsByID map[uint]WAFIPGroup) []string {
+	items := append([]string{}, direct...)
+	for _, id := range groupIDs {
+		group, ok := ipGroupsByID[id]
+		if !ok || !group.Enabled {
+			continue
+		}
+		items = append(items, group.IPList...)
+	}
+	items = uniqueStrings(items)
+	sort.Strings(items)
+	return items
 }
 
 func ChecksumBundle(mainConfig string, routeConfig string, supportFiles []SupportFile) string {
@@ -679,6 +709,23 @@ func uniqueUintIDs(values []uint) []uint {
 		}
 		seen[value] = struct{}{}
 		result = append(result, value)
+	}
+	return result
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		item := strings.TrimSpace(value)
+		if item == "" {
+			continue
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		result = append(result, item)
 	}
 	return result
 }

@@ -21,7 +21,7 @@ func ListWAFRuleGroups(c *gin.Context) {
 }
 
 func GetWAFRuleGroup(c *gin.Context) {
-	id, ok := parseUintPathParam(c, "id")
+	id, ok := parseIDParam(c)
 	if !ok {
 		return
 	}
@@ -47,7 +47,7 @@ func CreateWAFRuleGroup(c *gin.Context) {
 }
 
 func UpdateWAFRuleGroup(c *gin.Context) {
-	id, ok := parseUintPathParam(c, "id")
+	id, ok := parseIDParam(c)
 	if !ok {
 		return
 	}
@@ -64,7 +64,7 @@ func UpdateWAFRuleGroup(c *gin.Context) {
 }
 
 func DeleteWAFRuleGroup(c *gin.Context) {
-	id, ok := parseUintPathParam(c, "id")
+	id, ok := parseIDParam(c)
 	if !ok {
 		return
 	}
@@ -76,7 +76,7 @@ func DeleteWAFRuleGroup(c *gin.Context) {
 }
 
 func ReplaceWAFRuleGroupSites(c *gin.Context) {
-	id, ok := parseUintPathParam(c, "id")
+	id, ok := parseIDParam(c)
 	if !ok {
 		return
 	}
@@ -120,6 +120,83 @@ func ReplaceWAFSiteRuleGroups(c *gin.Context) {
 		return
 	}
 	respondSuccess(c, view)
+}
+
+func ListWAFIPGroups(c *gin.Context) {
+	groups, err := service.ListWAFIPGroups()
+	if err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccess(c, groups)
+}
+
+func GetWAFIPGroup(c *gin.Context) {
+	id, ok := parseIDParam(c)
+	if !ok {
+		return
+	}
+	group, err := service.GetWAFIPGroup(id)
+	if err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccess(c, group)
+}
+
+func CreateWAFIPGroup(c *gin.Context) {
+	var input service.WAFIPGroupInput
+	if !bindJSON(c, &input) {
+		return
+	}
+	group, err := service.CreateWAFIPGroup(input)
+	if err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccess(c, group)
+}
+
+func UpdateWAFIPGroup(c *gin.Context) {
+	id, ok := parseIDParam(c)
+	if !ok {
+		return
+	}
+	var input service.WAFIPGroupInput
+	if !bindJSON(c, &input) {
+		return
+	}
+	group, err := service.UpdateWAFIPGroup(id, input)
+	if err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccess(c, group)
+}
+
+func DeleteWAFIPGroup(c *gin.Context) {
+	id, ok := parseIDParam(c)
+	if !ok {
+		return
+	}
+	if err := service.DeleteWAFIPGroup(id); err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccessMessage(c, "")
+}
+
+func SyncWAFIPGroup(c *gin.Context) {
+	id, ok := parseIDParam(c)
+	if !ok {
+		return
+	}
+	result, err := service.SyncWAFIPGroup(id)
+	if err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccess(c, result)
 }
 
 func parseUintPathParam(c *gin.Context, name string) (uint, bool) {

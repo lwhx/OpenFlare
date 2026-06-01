@@ -27,6 +27,8 @@ type WAFRuleGroupInput struct {
 	BlockResponseBody string          `json:"block_response_body"`
 	IPWhitelist       []string        `json:"ip_whitelist"`
 	IPBlacklist       []string        `json:"ip_blacklist"`
+	IPWhitelistGroups []uint          `json:"ip_whitelist_group_ids"`
+	IPBlacklistGroups []uint          `json:"ip_blacklist_group_ids"`
 	CountryWhitelist  []string        `json:"country_whitelist"`
 	CountryBlacklist  []string        `json:"country_blacklist"`
 	RegionWhitelist   []string        `json:"region_whitelist"`
@@ -45,6 +47,8 @@ type WAFRuleGroupView struct {
 	BlockResponseBody string               `json:"block_response_body"`
 	IPWhitelist       []string             `json:"ip_whitelist"`
 	IPBlacklist       []string             `json:"ip_blacklist"`
+	IPWhitelistGroups []uint               `json:"ip_whitelist_group_ids"`
+	IPBlacklistGroups []uint               `json:"ip_blacklist_group_ids"`
 	CountryWhitelist  []string             `json:"country_whitelist"`
 	CountryBlacklist  []string             `json:"country_blacklist"`
 	RegionWhitelist   []string             `json:"region_whitelist"`
@@ -276,6 +280,8 @@ func EnsureDefaultWAFRuleGroup() error {
 		BlockStatusCode:   defaultWAFBlockStatusCode,
 		IPWhitelist:       "[]",
 		IPBlacklist:       "[]",
+		IPWhitelistGroups: "[]",
+		IPBlacklistGroups: "[]",
 		CountryWhitelist:  "[]",
 		CountryBlacklist:  "[]",
 		RegionWhitelist:   "[]",
@@ -310,6 +316,14 @@ func buildWAFRuleGroup(group *model.WAFRuleGroup, input WAFRuleGroupInput) (*mod
 	if err != nil {
 		return nil, fmt.Errorf("IP 黑名单无效: %w", err)
 	}
+	ipWhitelistGroups, err := normalizeWAFIPGroupIDs(input.IPWhitelistGroups)
+	if err != nil {
+		return nil, fmt.Errorf("IP 白名单引用无效: %w", err)
+	}
+	ipBlacklistGroups, err := normalizeWAFIPGroupIDs(input.IPBlacklistGroups)
+	if err != nil {
+		return nil, fmt.Errorf("IP 黑名单引用无效: %w", err)
+	}
 	countryWhitelist, err := normalizeWAFCountryList(input.CountryWhitelist)
 	if err != nil {
 		return nil, fmt.Errorf("地域白名单无效: %w", err)
@@ -332,6 +346,8 @@ func buildWAFRuleGroup(group *model.WAFRuleGroup, input WAFRuleGroupInput) (*mod
 
 	ipWhitelistJSON, _ := json.Marshal(ipWhitelist)
 	ipBlacklistJSON, _ := json.Marshal(ipBlacklist)
+	ipWhitelistGroupsJSON, _ := json.Marshal(ipWhitelistGroups)
+	ipBlacklistGroupsJSON, _ := json.Marshal(ipBlacklistGroups)
 	countryWhitelistJSON, _ := json.Marshal(countryWhitelist)
 	countryBlacklistJSON, _ := json.Marshal(countryBlacklist)
 	regionWhitelistJSON, _ := json.Marshal(regionWhitelist)
@@ -346,6 +362,8 @@ func buildWAFRuleGroup(group *model.WAFRuleGroup, input WAFRuleGroupInput) (*mod
 	group.BlockResponseBody = input.BlockResponseBody
 	group.IPWhitelist = string(ipWhitelistJSON)
 	group.IPBlacklist = string(ipBlacklistJSON)
+	group.IPWhitelistGroups = string(ipWhitelistGroupsJSON)
+	group.IPBlacklistGroups = string(ipBlacklistGroupsJSON)
 	group.CountryWhitelist = string(countryWhitelistJSON)
 	group.CountryBlacklist = string(countryBlacklistJSON)
 	group.RegionWhitelist = string(regionWhitelistJSON)
@@ -382,6 +400,8 @@ func buildWAFRuleGroupView(group *model.WAFRuleGroup, appliedSiteIDs []uint) (WA
 	if view.IPBlacklist, err = decodeStringList(group.IPBlacklist); err != nil {
 		return view, err
 	}
+	view.IPWhitelistGroups = mustDecodeUintList(group.IPWhitelistGroups)
+	view.IPBlacklistGroups = mustDecodeUintList(group.IPBlacklistGroups)
 	if view.CountryWhitelist, err = decodeStringList(group.CountryWhitelist); err != nil {
 		return view, err
 	}

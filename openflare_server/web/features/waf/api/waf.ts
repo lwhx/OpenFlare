@@ -3,6 +3,9 @@ import { apiRequest } from '@/lib/api/client';
 import type {
   WAFRuleGroup,
   WAFRuleGroupPayload,
+  WAFIPGroup,
+  WAFIPGroupPayload,
+  WAFIPGroupSyncResult,
   WAFSiteRuleGroups,
 } from '@/features/waf/types';
 
@@ -45,5 +48,39 @@ export function replaceWAFSiteRuleGroups(routeId: number, ids: number[]) {
   return apiRequest<WAFSiteRuleGroups>(`/waf/sites/${routeId}/rule-groups`, {
     method: 'POST',
     body: JSON.stringify({ ids }),
+  });
+}
+
+export function getWAFIPGroups() {
+  return apiRequest<WAFIPGroup[]>('/waf/ip-groups');
+}
+
+export function getWAFIPGroup(id: number) {
+  return apiRequest<WAFIPGroup>(`/waf/ip-groups/${id}`);
+}
+
+export function createWAFIPGroup(payload: WAFIPGroupPayload) {
+  return apiRequest<WAFIPGroup>('/waf/ip-groups', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateWAFIPGroup(id: number, payload: WAFIPGroupPayload) {
+  return apiRequest<WAFIPGroup>(`/waf/ip-groups/${id}/update`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteWAFIPGroup(id: number) {
+  return apiRequest<void>(`/waf/ip-groups/${id}/delete`, {
+    method: 'POST',
+  });
+}
+
+export function syncWAFIPGroup(id: number) {
+  return apiRequest<WAFIPGroupSyncResult>(`/waf/ip-groups/${id}/sync`, {
+    method: 'POST',
   });
 }

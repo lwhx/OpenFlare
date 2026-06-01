@@ -127,12 +127,22 @@ type WAFRuleGroup struct {
 	BlockResponseBody string     `json:"block_response_body,omitempty"`
 	IPWhitelist       []string   `json:"ip_whitelist,omitempty"`
 	IPBlacklist       []string   `json:"ip_blacklist,omitempty"`
+	IPWhitelistGroups []uint     `json:"ip_whitelist_group_ids,omitempty"`
+	IPBlacklistGroups []uint     `json:"ip_blacklist_group_ids,omitempty"`
 	CountryWhitelist  []string   `json:"country_whitelist,omitempty"`
 	CountryBlacklist  []string   `json:"country_blacklist,omitempty"`
 	RegionWhitelist   []string   `json:"region_whitelist,omitempty"`
 	RegionBlacklist   []string   `json:"region_blacklist,omitempty"`
 	PoWEnabled        bool       `json:"pow_enabled,omitempty"`
 	PoWConfig         *PoWConfig `json:"pow_config,omitempty"`
+}
+
+type WAFIPGroup struct {
+	ID      uint     `json:"id"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Enabled bool     `json:"enabled"`
+	IPList  []string `json:"ip_list,omitempty"`
 }
 
 type WAFBinding struct {
@@ -143,6 +153,7 @@ type WAFBinding struct {
 
 type WAFDocument struct {
 	RuleGroups []WAFRuleGroup `json:"rule_groups"`
+	IPGroups   []WAFIPGroup   `json:"ip_groups,omitempty"`
 	Bindings   []WAFBinding   `json:"bindings"`
 }
 

@@ -19,6 +19,13 @@ func InitCronJobs() {
 		slog.Info("registered SSL renew cron job")
 	}
 
+	_, err = cronRunner.AddJob("@every 5m", &WAFIPGroupSyncJob{})
+	if err != nil {
+		slog.Error("failed to register WAF IP group sync cron job", "error", err)
+	} else {
+		slog.Info("registered WAF IP group sync cron job")
+	}
+
 	cronRunner.Start()
 }
 

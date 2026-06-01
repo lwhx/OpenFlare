@@ -78,6 +78,8 @@ func (databaseSchemaMigrationContext) ValidateDatabaseSchemaVersion(db *gorm.DB,
 		return validateDatabaseSchemaV15(db, backend)
 	case 16:
 		return validateDatabaseSchemaV16(db, backend)
+	case 17:
+		return validateDatabaseSchemaV17(db, backend)
 	default:
 		return fmt.Errorf("database schema validation for v%d is not defined", version)
 	}
@@ -1097,6 +1099,8 @@ func ensureDefaultWAFRuleGroup(db *gorm.DB) error {
 		BlockStatusCode:   418,
 		IPWhitelist:       "[]",
 		IPBlacklist:       "[]",
+		IPWhitelistGroups: "[]",
+		IPBlacklistGroups: "[]",
 		CountryWhitelist:  "[]",
 		CountryBlacklist:  "[]",
 		RegionWhitelist:   "[]",
@@ -1166,6 +1170,22 @@ func validateDatabaseSchemaV16(db *gorm.DB, backend string) error {
 	}
 	if !db.Migrator().HasColumn(&ProxyRoute{}, "upstream_type") {
 		return fmt.Errorf("column proxy_routes.upstream_type is missing")
+	}
+	return nil
+}
+
+func validateDatabaseSchemaV17(db *gorm.DB, backend string) error {
+	if err := validateDatabaseSchemaV16(db, backend); err != nil {
+		return err
+	}
+	if !db.Migrator().HasTable(&WAFIPGroup{}) {
+		return fmt.Errorf("table waf_ip_groups is missing")
+	}
+	if !db.Migrator().HasColumn(&WAFRuleGroup{}, "ip_whitelist_groups") {
+		return fmt.Errorf("column waf_rule_groups.ip_whitelist_groups is missing")
+	}
+	if !db.Migrator().HasColumn(&WAFRuleGroup{}, "ip_blacklist_groups") {
+		return fmt.Errorf("column waf_rule_groups.ip_blacklist_groups is missing")
 	}
 	return nil
 }

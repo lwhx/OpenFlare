@@ -184,6 +184,41 @@ func TestRegisterShardingAutoMigratesShardTables(t *testing.T) {
 	}
 }
 
+func TestUpgradeDatabaseSchemaV15ToV16AddsWAFIPGroups(t *testing.T) {
+	db := openBareTestSQLiteDB(t, "v16.db")
+	if err := registerSharding(db, "sqlite"); err != nil {
+		t.Fatalf("register sharding: %v", err)
+	}
+	if err := autoMigrateSchemaMetadata(db); err != nil {
+		t.Fatalf("auto migrate schema metadata: %v", err)
+	}
+	if err := applyCurrentSchema(db, "sqlite"); err != nil {
+		t.Fatalf("apply current schema: %v", err)
+	}
+	if err := ensureDefaultWAFRuleGroup(db); err != nil {
+		t.Fatalf("ensure default waf rule group: %v", err)
+	}
+	if err := saveDatabaseSchemaVersion(db, 15); err != nil {
+		t.Fatalf("save schema version: %v", err)
+	}
+	if err := upgradeDatabaseSchema(db, "sqlite", 15); err != nil {
+		t.Fatalf("upgrade schema: %v", err)
+	}
+	if !db.Migrator().HasTable(&WAFIPGroup{}) {
+		t.Fatal("expected waf_ip_groups table")
+	}
+	if !db.Migrator().HasColumn(&WAFRuleGroup{}, "ip_whitelist_groups") {
+		t.Fatal("expected waf_rule_groups.ip_whitelist_groups column")
+	}
+	version, ok, err := loadDatabaseSchemaVersion(db)
+	if err != nil {
+		t.Fatalf("load schema version: %v", err)
+	}
+	if !ok || version != currentDatabaseSchemaVersion {
+		t.Fatalf("unexpected schema version: got %d ok=%v want %d", version, ok, currentDatabaseSchemaVersion)
+	}
+}
+
 func TestMigrateObservabilityLegacyColumnsBackfillsHealthEventMetadata(t *testing.T) {
 	db := openTestSQLiteDB(t, "legacy-health-events.db")
 

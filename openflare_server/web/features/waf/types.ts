@@ -9,6 +9,8 @@ export interface WAFRuleGroup {
   block_response_body: string;
   ip_whitelist: string[];
   ip_blacklist: string[];
+  ip_whitelist_group_ids: number[];
+  ip_blacklist_group_ids: number[];
   country_whitelist: string[];
   country_blacklist: string[];
   region_whitelist: string[];
@@ -29,6 +31,8 @@ export interface WAFRuleGroupPayload {
   block_response_body: string;
   ip_whitelist: string[];
   ip_blacklist: string[];
+  ip_whitelist_group_ids: number[];
+  ip_blacklist_group_ids: number[];
   country_whitelist: string[];
   country_blacklist: string[];
   region_whitelist: string[];
@@ -44,4 +48,50 @@ export interface WAFSiteRuleGroups {
   rule_groups: WAFRuleGroup[];
   applied_rule_groups: WAFRuleGroup[];
   applied_ids: number[];
+}
+
+export type WAFIPGroupType = 'manual' | 'automatic' | 'subscription';
+export type WAFIPGroupSubscriptionFormat = 'text' | 'json';
+
+export interface WAFIPGroup {
+  id: number;
+  name: string;
+  type: WAFIPGroupType;
+  enabled: boolean;
+  ip_list: string[];
+  auto_config: Record<string, unknown>;
+  subscription_url: string;
+  subscription_format: WAFIPGroupSubscriptionFormat;
+  subscription_mapping_rule: string;
+  sync_interval_minutes: number;
+  last_synced_at?: string;
+  next_sync_at?: string;
+  last_sync_status: string;
+  last_sync_message: string;
+  remark: string;
+  referenced_by_rule_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WAFIPGroupPayload {
+  name: string;
+  type: WAFIPGroupType;
+  enabled: boolean;
+  ip_list: string[];
+  auto_config: Record<string, unknown>;
+  subscription_url: string;
+  subscription_format: WAFIPGroupSubscriptionFormat;
+  subscription_mapping_rule: string;
+  sync_interval_minutes: number;
+  remark: string;
+}
+
+export interface WAFIPGroupSyncResult {
+  group: WAFIPGroup;
+  ip_count: number;
+  synced_at: string;
+  next_sync_at: string;
+  status: string;
+  message: string;
 }

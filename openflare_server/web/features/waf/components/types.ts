@@ -7,10 +7,12 @@ export type FeedbackState = {
 
 export type WAFTab = 'basic' | 'lists' | 'pow' | 'block';
 export type RuleListType = 'whitelist' | 'blacklist';
-export type RuleDimension = 'ip' | 'country';
+export type RuleDimension = 'ip' | 'ip_group' | 'country';
 export type ListFieldKey =
   | 'ip_whitelist'
   | 'ip_blacklist'
+  | 'ip_whitelist_group_ids'
+  | 'ip_blacklist_group_ids'
   | 'country_whitelist'
   | 'country_blacklist';
 
@@ -26,6 +28,7 @@ export type RuleModalState = {
   listType: RuleListType;
   dimension: RuleDimension;
   ipValue: string;
+  ipGroupIDs: number[];
   countryValues: string[];
 };
 
@@ -33,6 +36,8 @@ export type RuleListRenderable = Pick<
   WAFRuleGroupPayload,
   | 'ip_whitelist'
   | 'ip_blacklist'
+  | 'ip_whitelist_group_ids'
+  | 'ip_blacklist_group_ids'
   | 'country_whitelist'
   | 'country_blacklist'
   | 'region_whitelist'
