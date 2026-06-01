@@ -35,7 +35,7 @@ func (wafRuleGroupV17) TableName() string {
 }
 
 func migrateV17(ctx Context, db *gorm.DB, backend string) error {
-	return ctx.ApplyCurrentSchema(db, backend)
+	return nil
 }
 
 func validateV17(ctx Context, db *gorm.DB, backend string) error {

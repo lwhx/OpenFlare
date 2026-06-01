@@ -30,7 +30,7 @@ func (nodeV15) TableName() string {
 }
 
 func migrateV15(ctx Context, db *gorm.DB, backend string) error {
-	return ctx.ApplyCurrentSchema(db, backend)
+	return nil
 }
 
 func validateV15(ctx Context, db *gorm.DB, backend string) error {

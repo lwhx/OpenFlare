@@ -18,9 +18,6 @@ func V10() Migration {
 }
 
 func migrateV10(ctx Context, db *gorm.DB, backend string) error {
-	if err := ctx.ApplyCurrentSchema(db, backend); err != nil {
-		return err
-	}
 	return ctx.EnsureDefaultGitHubAuthSource(db)
 }
 

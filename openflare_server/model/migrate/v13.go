@@ -18,9 +18,6 @@ func V13() Migration {
 }
 
 func migrateV13(ctx Context, db *gorm.DB, backend string) error {
-	if err := ctx.ApplyCurrentSchema(db, backend); err != nil {
-		return err
-	}
 	return ctx.EnsureDefaultWAFRuleGroup(db)
 }
 

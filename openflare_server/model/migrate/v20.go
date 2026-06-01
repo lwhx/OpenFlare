@@ -42,9 +42,6 @@ func migrateV20(ctx Context, db *gorm.DB, backend string) error {
 			return err
 		}
 	}
-	if err := ctx.ApplyCurrentSchema(db, backend); err != nil {
-		return err
-	}
 	return validateV20(ctx, db, backend)
 }
 

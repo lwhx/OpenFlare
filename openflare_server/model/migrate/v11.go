@@ -18,7 +18,7 @@ func V11() Migration {
 }
 
 func migrateV11(ctx Context, db *gorm.DB, backend string) error {
-	return ctx.ApplyCurrentSchema(db, backend)
+	return nil
 }
 
 func validateV11(ctx Context, db *gorm.DB, backend string) error {

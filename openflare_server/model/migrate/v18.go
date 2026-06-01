@@ -31,7 +31,7 @@ func (wafIPGroupV18) TableName() string {
 }
 
 func migrateV18(ctx Context, db *gorm.DB, backend string) error {
-	return ctx.ApplyCurrentSchema(db, backend)
+	return nil
 }
 
 func validateV18(ctx Context, db *gorm.DB, backend string) error {

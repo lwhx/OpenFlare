@@ -46,9 +46,6 @@ func (proxyRouteV16) TableName() string {
 }
 
 func migrateV16(ctx Context, db *gorm.DB, backend string) error {
-	if err := ctx.ApplyCurrentSchema(db, backend); err != nil {
-		return err
-	}
 	if err := db.AutoMigrate(&tunnelV16{}); err != nil {
 		return fmt.Errorf("auto migrate tunnelV16: %w", err)
 	}
