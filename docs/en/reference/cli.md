@@ -1,6 +1,6 @@
-# Commands and Scripts
+# CLI Commands
 
-You will learn: Common commands for starting, building, testing, installing, and uninstalling the OpenFlare Server, management console frontend, Agent, Swagger, and documentation site.
+You will learn: Common commands for starting, building, testing, installing, and uninstalling the OpenFlare Server, Admin Frontend, Agent, Swagger, and Documentation site.
 
 ## Server
 
@@ -14,13 +14,13 @@ export LOG_LEVEL='info'
 go run .
 ```
 
-Specify listening port and log directory:
+Specify listening port and logging directory:
 
 ```bash
 go run . --port 3000 --log-dir ./logs
 ```
 
-Test:
+Run tests:
 
 ```bash
 cd openflare_server
@@ -37,14 +37,14 @@ pnpm install
 pnpm dev
 ```
 
-Build static artifacts:
+Build static assets:
 
 ```bash
 cd openflare_server/web
 pnpm build
 ```
 
-Checks:
+Linting and testing checks:
 
 ```bash
 cd openflare_server/web
@@ -69,11 +69,43 @@ cd openflare_agent
 go build -o openflare-agent ./cmd/agent
 ```
 
-Test:
+Run tests:
 
 ```bash
 cd openflare_agent
 GOCACHE=/tmp/openflare-go-cache go test ./...
+```
+
+## Relay (Server-side)
+
+Run from source:
+
+```bash
+cd openflare_relay
+go run ./cmd -config /path/to/relay.json
+```
+
+Compile:
+
+```bash
+cd openflare_relay
+go build -o openflare-relay ./cmd
+```
+
+## OpenFlared (Client-side)
+
+Run from source:
+
+```bash
+cd openflared
+go run ./cmd -config /path/to/flared.json
+```
+
+Compile:
+
+```bash
+cd openflared
+go build -o openflared ./cmd
 ```
 
 ## Install Agent

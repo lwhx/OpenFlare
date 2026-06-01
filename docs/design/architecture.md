@@ -218,6 +218,6 @@ WAF IP 组由 Server 管理。手动 IP 组直接保存 IP/IP 段列表；自动
 如果要修改架构相关代码，先阅读：
 
 1. [产品边界](./index.md)
-2. [发布模型](./release-model.md)
+2. [Agent 与发布模型](./agent-design.md)
 3. [开发约束](../guildline/development-constraints.md)
 4. [仓库结构](./repository.md)

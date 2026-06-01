@@ -1,88 +1,88 @@
-# Publishing Your First Configuration
+# Publishing Your First Site
 
-You will learn: How to create your first site configuration, bind origins and certificates, publish a configuration version, and confirm that the Agent has applied it.
+You will learn: How to create your first website configuration, bind origins and certificates, publish the configuration version, and verify that the Agent applied it successfully.
 
-OpenFlare's release link is centered on complete configuration versions. After modifying site configurations on the management console, you need to publish and activate the new version before the Agent pulls and applies it in subsequent heartbeats.
+The publishing pipeline of OpenFlare centers on a complete configuration version snapshot. After modifying website configurations in the management console, you need to publish and activate the new version to let the Agent pull and apply it in the next heartbeat.
 
-## Pre-release Check
+## Pre-publish Checks
 
-Confirm that the following conditions are met:
+Verify that the following conditions are met:
 
-| Project | Expectation |
+| Item | Expectation |
 | --- | --- |
-| Server | Can log into the management console |
+| Server | Management console is accessible and log-in succeeds |
 | Agent | At least one node is online |
-| Origin | The Agent node can access the origin address |
-| Domain | The domain has been resolved to the OpenResty node, or you are ready to verify via local hosts / curl Host header |
-| HTTPS | If HTTPS is required, the certificate has been uploaded or hosted |
+| Origin | The Agent node can reach the origin server address |
+| Domain | Domain is resolved to the OpenResty node, or prepared to verify via local `hosts` / `curl` Host header |
+| HTTPS | If HTTPS is required, the certificate is uploaded or hosted |
 
-## Create Site Configuration
+## Create Website Configuration
 
-When adding a site configuration on the management console, you need at least:
+A new website configuration requires at least:
 
 | Field | Description |
 | --- | --- |
-| Site Name | Unique business identifier; defaults to the primary domain when omitted |
-| Domains | At least one domain; the first item is treated as the primary domain |
-| Origin URL | Valid `http://` or `https://` upstream address |
-| Enabled | Only enabled site configurations participate in release rendering |
+| Website Name | Business unique identifier; the primary domain is used if left blank |
+| Domain | At least one domain, where the first is treated as the primary domain |
+| Origin Address | A valid `http://` or `https://` upstream address |
+| Enabled Status | Only enabled website configurations will participate in publishing and rendering |
 
 Example:
 
 | Field | Example |
 | --- | --- |
-| Site Name | `app` |
-| Domains | `app.example.com` |
-| Origin URL | `http://10.0.0.20:8080` |
+| Website Name | `app` |
+| Domain | `app.example.com` |
+| Origin Address | `http://10.0.0.20:8080` |
 
-A domain can belong to only one site configuration. Site-level rate limits, reverse proxies, and cache configurations are shared by site.
+A single domain can belong to only one website configuration. Rate limiting, reverse proxy, and caching parameters are shared site-wide.
 
-## Bind Certificates
+## Bind Certificate
 
-HTTPS certificates are bound per domain. Domains not bound to certificates will not be automatically placed in `443 ssl` server blocks.
+HTTPS certificates are bound by domain. Domains without a bound certificate will not be placed into `443 ssl` server blocks automatically.
 
-If a site contains multiple domains, the publishing rendering will generate HTTPS configurations grouped by certificate and ensure all domains still belong to the same site snapshot.
+If a website contains multiple domains, the rendering pipeline groups the HTTPS configurations by certificate while ensuring all domains belong to the same site snapshot.
 
-## Publish and Activate
+## Publish & Activate
 
-Standard link:
+Standard Pipeline:
 
 ```text
-Modify rules -> Preview / View diff -> Publish -> Generate complete configuration version -> Activate version -> Agent pulls -> Local application -> Report result
+Modify rules -> Preview / Diff -> Publish -> Generate complete version -> Activate version -> Agent pulls -> Local application -> Report result
 ```
 
-When publishing, the Server reads all enabled site configurations, OpenResty main configuration templates, performance parameters, and cache parameters, renders the complete OpenResty configuration, calculates the `checksum`, writes to `config_versions`, and then switches the activated version.
+During publication, the Server reads all enabled website configurations, the main OpenResty config templates, performance and cache parameters, rendering the complete OpenResty configuration and calculating its `checksum`, saving to `config_versions`, and switching the active version.
 
 ## Verify Results
 
-After publishing, confirm on the management console:
+Verify in the management console after publishing:
 
-| Location | Expected Result |
+| Position | Expected Result |
 | --- | --- |
-| Node List | Node is online |
-| Node Details | The current version is consistent with the activated version |
-| Apply Logs | The most recent application succeeded |
-| Version Page | The new version is in the activated state |
+| Node List | Node status is online |
+| Node Details | Current version matches active version |
+| Apply Logs | Most recent application succeeded |
+| Version Page | The new version is currently active |
 
-Confirm the Agent logs on the node:
+Verify Agent logs on the node:
 
 ```bash
 journalctl -u openflare-agent -n 100 --no-pager
 ```
 
-Access using the domain:
+Access via domain:
 
 ```bash
 curl -I http://app.example.com
 ```
 
-If the domain has not been officially resolved yet, you can temporarily specify the Host header to access the node IP:
+If the domain has not been officially resolved, you can verify by specifying the Host header against the node IP:
 
 ```bash
 curl -I -H 'Host: app.example.com' http://NODE_IP
 ```
 
-HTTPS verification:
+HTTPS Validation:
 
 ```bash
 curl -I https://app.example.com
@@ -90,11 +90,11 @@ curl -I https://app.example.com
 
 ## Rollback
 
-If the target version application fails and rolls back, the Agent will block repeated applications of the same `version + checksum` locally until the activated version or checksum on the control plane changes.
+If a target version application fails and triggers a rollback, the Agent blocks repeated synchronization of the same failing `version + checksum` until the active version or checksum changes on the control plane.
 
-To roll back to an older version:
+Roll back to an older version:
 
-1. Open the configuration version page.
-2. Find the previous confirmed working historical version.
-3. Reactivate that version.
-4. View the node application records to confirm that the Agent applied it successfully.
+1. Open the Configuration Versions page.
+2. Locate the last known good historic version.
+3. Re-activate that version.
+4. Check the node application logs to verify that the Agent successfully applied the rollback.

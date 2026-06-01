@@ -2,11 +2,13 @@
 
 # OpenFlare
 
-轻量、自托管的 OpenResty 控制面，用于管理反向代理规则、配置发布、节点同步、TLS 证书与基础可观测能力。
+**[English](./README.md) | [📖 中文](./README.zh-CN.md)**
+
+OpenFlare 是开源 CDN 编排与边缘安全平台。它支持反向代理、集中式配置同步、内网穿透（Tunnels）、动态 WAF 防护以及防 CC 挑战。
 
 </div>
 
-<p align="center
+<p align="center">
   <a href="https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/LICENSE">
     <img src="https://img.shields.io/github/license/Rain-kl/OpenFlare?color=brightgreen" alt="license">
   </a>
@@ -36,13 +38,15 @@
 
 ## 核心能力
 
-* 反向代理网站配置与多域名绑定
-* 配置预览、发布、激活与历史回滚
-* Agent 自动注册、心跳、同步、校验、reload 与失败回滚
-* OpenResty 主配置、性能参数、缓存参数与 Lua 资源托管
-* WAF 全局/自定义规则组，支持 IP/IP 段与国家级地域黑白名单
-* TLS 证书、域名资产、节点凭证与版本状态管理
-* 请求聚合、访问分析、资源快照、健康事件与节点详情
+* **中心化实时配置同步**：通过 WebSocket 与心跳实现全网节点配置秒级同步下发与热生效，告警与状态即时回收，无须手动 SSH 登录或在线打补丁。
+* **分布式 CDN 编排集群**：将分散独立的 OpenResty 节点编排为高度协同的分布式内容分发网络（CDN）舰队，支持网站级多域名聚合、上游 Keepalive 与多源站负载均衡。
+* **安全内网穿透（Tunnels）**：开源版的 Cloudflare Tunnels。无须公网 IP 或暴露入向端口，安全反向穿透本地内网服务至公网。
+* **边缘 WAF 安全防护**：提供全局及自定义规则组，支持 IP/CIDR 过滤、MaxMind GeoIP 国家级地域准入、IP 组成员异步差分同步免 Nginx 重载以及自定义拦截响应。
+* **防 CC 与人机挑战（PoW）**：内置高性能客户端密码学 Proof of Work 挑战（类似 Turnstile），在网关边缘秒级拦截并阻断僵尸网络与爬虫。
+* **发布与同步模型**：基于不可变配置版本（`YYYYMMDD-NNN`）、发布前预览对比差异、全局单激活版本与一键秒级回滚。
+* **三阶段容灾回滚**：支持节点备份自动回滚、内置安全兜底页面（Port 80/503 保持状态监控与安全拦截）及异常配置阻断名单。
+* **证书托管自动化**：支持证书动态上传、多域名证书自动匹配绑定、ACME 自动续期与全生命周期状态追踪。
+* **统一观测与可观测性**：聚合节点请求数、实时访问分析、宿主机与 Nginx 资源快照、健康日志及网络波动补传缓冲。
 
 ## 快速开始
 

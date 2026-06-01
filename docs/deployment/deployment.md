@@ -6,6 +6,8 @@
 
 ## 部署拓扑
 
+### 标准反代流量路径
+
 ```text
 Browser
   |
@@ -21,6 +23,26 @@ OpenResty binary
   |
   v
 Origin service
+```
+
+### 内网穿透流量路径
+
+```text
+Browser
+  |
+  v
+OpenResty (Agent, WAF/HTTPS 终结)      <-- TunnelRelay 节点
+  |
+  | proxy_pass (127.0.0.1:{vhost_port})
+  v
+OpenFlareRelay (frps 进程)              <-- TunnelRelay 节点
+  |
+  | frp 隧道协议
+  v
+OpenFlared (frpc 客户端)                <-- 内网服务器
+  |
+  v
+Internal Service (192.168.x.x)
 ```
 
 ## 前置条件
@@ -45,7 +67,14 @@ Agent：
 | 网络 | Agent 节点必须能访问 Server 地址 |
 | GeoIP | WAF 地域规则使用 Agent 本地 MaxMind mmdb；Agent 内置初始库并会定期更新 |
 
-[需要确认：生产环境推荐的最低 CPU、内存与磁盘容量]
+### 硬件配置推荐
+
+| 组件 | 最低硬件配额 | 推荐硬件配额 | 说明 |
+| --- | --- | --- | --- |
+| **Server 控制面** | 1 核 CPU / 1 GB 内存 / 10 GB 磁盘 | 2 核 CPU / 4 GB 内存 / 50 GB+ 磁盘 | 磁盘用量需根据访问日志留存时长与并发流量合理扩容 |
+| **Agent 数据面** | 1 核 CPU / 512 MB 内存 / 2 GB 磁盘 | 2 核 CPU / 2 GB 内存 / 10 GB+ 磁盘 | 根据 OpenResty 的并发代理连接量与 WAF 拦截处理扩容 |
+| **Relay 中继节点**| 1 核 CPU / 1 GB 内存 / 5 GB 磁盘 | 2 核 CPU / 2 GB 内存 / 20 GB 磁盘 | frps 传输中继吞吐量主要受带宽与 CPU 吞吐能力限制 |
+| **OpenFlared 客户端**| 1 核 CPU / 256 MB 内存 / 1 GB 磁盘 | 1 核 CPU / 512 MB 内存 / 5 GB 磁盘 | 独立运行于内网，自身资源占用极小，保障网络吞吐即可 |
 
 ## Docker Compose 部署 Server
 
@@ -234,16 +263,6 @@ export LOG_LEVEL='info'
 
 WAF 地域规则依赖 Agent 本地 `GeoLite2-Country.mmdb`。Agent 启动时会在 `data_dir/etc/openflare/GeoLite2-Country.mmdb` 初始化内置数据库，并按配置周期尝试更新；更新失败只记录警告，不影响配置同步与 OpenResty reload。
 
-## 最小联调步骤
-
-1. 启动 Server 并完成首次登录。
-2. 在管理端准备 `agent_token` 或 `discovery_token`。
-3. 启动 Agent，并确认节点在线。
-4. 新增一条启用的网站配置。
-5. 发布并激活新版本。
-6. 查看节点详情和应用记录，确认版本应用成功。
-7. 访问绑定域名或用 `curl` 验证反代结果。
-
 ## 升级与卸载
 
 Server：
@@ -266,34 +285,3 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/unin
 ```
 
 卸载脚本会停止 Agent、删除 systemd 服务和安装目录，不会删除本机 OpenResty。
-
-## 常用验证命令
-
-Server：
-
-```bash
-cd openflare_server
-GOCACHE=/tmp/openflare-go-cache go test ./...
-```
-
-Agent：
-
-```bash
-cd openflare_agent
-GOCACHE=/tmp/openflare-go-cache go test ./...
-```
-
-Frontend：
-
-```bash
-cd openflare_server/web
-pnpm build
-```
-
-Swagger：
-
-```bash
-go install github.com/swaggo/swag/cmd/swag@v1.16.4
-cd openflare_server
-swag init -g main.go -o docs
-```

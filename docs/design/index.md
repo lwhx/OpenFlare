@@ -56,34 +56,28 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 
 ## 网站配置约束
 
-`proxy_routes` 从“单域名规则”升级为“网站配置”聚合对象。一条记录对应一个网站，可绑定一个或多个域名，并共享一组站点级配置。
+`proxy_routes` 是“网站配置”的聚合对象。一条记录对应一个网站，可绑定一个或多个域名，并共享一组站点级配置。
 
 约束：
 
 * `proxy_routes.site_name` 是网站的业务唯一标识。
 * `proxy_routes.domains` 至少包含一个域名，且 `domains[0]` 作为主域名。
 * 任一域名全局只能属于一个 `proxy_routes`。
-* 迁移期可保留 `proxy_routes.domain` 作为 `domains[0]` 的镜像字段，但业务读写与后续扩展必须以 `site_name` + `domains` 为准。
-* 网站级流量限制、反向代理与缓存配置当前按站点共享，不在同一网站内做域名级差异化配置。
+* 网站级流量限制、反向代理与缓存配置均按站点共享，不在同一网站内做域名级差异化配置。
 * HTTPS 允许在同一站点内按域名绑定证书。
 
-## 源站约束
+## 源站与上游约束
 
-`origins` 只保存源站地址、展示名与备注，不承载协议、端口、路径、权重或健康检查策略。
-
-`proxy_routes` 可选关联一个 `origins` 记录，用于复用源站地址；规则仍保存完整 `origin_url` 快照以参与渲染与版本快照。
+`origins` 服务于源站目录复用，仅保存源站地址、展示名与备注，不承载协议、端口、路径、权重或健康检查策略。`proxy_routes` 可选关联一个 `origins`，但规则内部仍保存完整上游快照以参与渲染。
 
 上游约束：
 
-* `proxy_routes` 至少包含一个上游地址（直连类型），或关联一个 Tunnel（内网穿透类型）。
-* `proxy_routes.upstream_type` 区分上游类型：`direct`（默认，直连）或 `tunnel`（内网穿透）。
-* 为兼容历史数据保留 `origin_url` 主上游字段，也允许在同一规则内补充多个上游做负载均衡。
-* 上游统一渲染为带 keepalive 的 named `upstream`。
-* 单上游可附带 base path 或 query 并在 `proxy_pass` 中追加。
-* 多上游限定为纯 `scheme://host[:port]`。
+* `proxy_routes` 至少包含一个上游地址（直连类型 `direct`），或关联一个 Tunnel（内网穿透类型 `tunnel`）。
+* 多上游负载均衡统一渲染为带 keepalive 的 named `upstream`。
+* 单上游允许附带 base path 或 query，并在 `proxy_pass` 中追加。多上游限定为纯 `scheme://host[:port]` 结构，且同一规则内的协议必须一致。
 * `proxy_routes.origin_host` 为可选字段，用于回源时覆盖 `Host` 请求头。
-* 所有直连类型上游地址都必须为合法 `http://` 或 `https://`。
-* 内网穿透类型上游必须关联 `tunnel_id`，并指定内网目标地址与协议。
+* 所有直连类型上游地址都必须为合法的 `http://` 或 `https://`。
+* 内网穿透类型上游必须关联有效 `tunnel_id`，并指定内网目标地址与协议。
 
 ## 内网穿透约束
 
@@ -147,12 +141,11 @@ OpenFlare 通过 TunnelRelay 节点与 OpenFlared 客户端实现内网穿透，
 * **Tunnel 侧配置**：Relay 列表 + frpc 代理定义。随发布流程版本化，变更时优先使用 `frpc reload` 热重载。
 * **Relay 配置**：通过心跳响应下发，相对静态，不纳入版本化流程。
 
-### 当前阶段约束
+### 隧道设计约束
 
-* 仅支持 HTTP 协议隧道流量，保留未来 TCP/UDP 隧道扩展性。
-* Tunnel 类型上游的域名 DNS 应仅解析到 TunnelRelay 节点；EdgeNode 上对应请求会因 frps 不可达返回 502。
-* frp 版本使用 v0.61+（或更新稳定版），frp 二进制由部署脚本或 Docker 镜像提供。
-* 暂不支持 TCP/UDP 端口分配；HTTP 单端口复用已满足 MVP 需求。
+* 仅支持 HTTP 协议隧道流量（保留 TCP/UDP 隧道的可扩展性），暂不支持单独的 TCP/UDP 端口分配。
+* Tunnel 类型上游的域名 DNS 应当解析到指定的 TunnelRelay 中继节点。
+* frp 二进制（v0.61+）由系统部署脚本或容器镜像统一打包提供。
 
 
 ## HTTPS 约束
@@ -167,48 +160,30 @@ OpenFlare 通过 TunnelRelay 节点与 OpenFlared 客户端实现内网穿透，
 
 ## WAF 约束
 
-WAF 以规则组为配置边界。系统固定一个全局规则组，默认应用到所有网站；网站可叠加多个自定义规则组。
+WAF 以规则组为核心配置边界。系统提供唯一的全局规则组（默认应用至所有站点），网站可在此基础上叠加多个自定义规则组。
 
-一期支持：
+核心能力：
 
-* IP / IP 段白名单与黑名单。
-* IP 组引用，支持手动、自动、订阅三类 IP 组。
-* 国家级地域白名单与黑名单。
-* 规则组级拦截状态码与响应页面，默认 `418` 与空页面。
+* 支持单个 IP / CIDR 网段黑白名单。
+* 支持 IP 组引用（包括手动、自动Expr计算、URL订阅三类 IP 组）。
+* 支持基于 GeoIP 的国家/地区级地域准入过滤。
+* 支持规则组自定义拦截响应（支持自定义状态码与拦截 HTML 页面，默认返回 `418`）。
 
-IP 组约束：
+IP 组与判定约束：
 
-* 手动 IP 组由管理端直接维护 IP/IP 段列表。
-* 自动 IP 组使用 Expr 语法保存自定义规则，由 Server 定时按单个 IP 聚合请求日志并更新 IP 列表。
-* 订阅 IP 组由 Server 定时从 HTTP/HTTPS URL 同步，支持文本列表和 JSON 映射。
-* WAF 运行时不访问数据库；发布版本只保存规则组引用的 IP 组 ID，不把 IP 组成员展开进版本快照。
-* Agent 通过心跳上报本地 IP 组 checksum，Server 仅返回 checksum 不一致的 IP 组；Server 侧 IP 组更新时会通过 Agent WebSocket 主动广播变更组，使节点可在不重新发布配置版本的情况下更新 WAF IP 组内容。
-
-自动 IP 组首批内置预设规则：
-
-* 单个 IP 请求数大于 100，且 404 状态码占比不低于 80%：`request_count > 100 && status_404_ratio >= 0.8`
-* 单个 IP 通过 IP 地址访问次数大于 50，且通过 IP 地址访问占比大于 50%：`ip_host_count > 50 && ip_host_ratio > 0.5`
-
-判定顺序：
-
-* 白名单是放行例外，任意启用规则组命中白名单即放行。
-* 未命中白名单时继续判断黑名单。
-* 多个黑名单命中时，全局规则组优先，其后按自定义规则组 ID 升序。
-
-地域识别由 Agent 维护节点本地 MaxMind mmdb，OpenResty Lua 在请求路径中读取本地库。GeoIP 依赖不可用时只能跳过地域规则，不得影响 IP 规则与反向代理主链路。
+* **运行时解耦**：WAF 运行时只读取本地 JSON，不访问 Server 数据库；配置版本仅保存引用的 IP 组 ID。IP 组成员通过哈希 Checksum 差分心跳及 WebSocket 异步推送，实现无需平滑重载 Nginx 的热生效。
+* **内置预设 Expr 规则**：
+  * 高频 404 扫描封禁：`request_count > 100 && status_404_ratio >= 0.8`
+  * 恶意 IP 直连探测：`ip_host_count > 50 && ip_host_ratio > 0.5`
+* **判决优先级**：白名单拥有绝对优先权。若未命中白名单，则触发黑名单漏斗匹配（全局规则组优先，自定义组按 ID 升序匹配）。
+* 地域解析依赖节点本地 MaxMind 库；当 GeoIP 异常时自动忽略地域规则，不得破坏 IP 规则与反代主链路的可用性。
 
 ## 认证源约束
 
-`auth_sources` 是管理端第三方登录入口的配置对象，当前仅支持 `github` 与 `oidc` 两类。启用后的认证源会显示在登录页。
+`auth_sources` 统一支持 `github` 与 `oidc` 登录配置入口。`external_accounts` 存储第三方与本地用户的绑定关系。第三方账号首次接入逻辑：
 
-`external_accounts` 保存认证源外部账号与本地用户的绑定关系。第三方账号首次登录时：
-
-* 已绑定本地用户则直接登录。
-* 当前已有本地登录 Session 时，绑定到当前用户。
-* 未绑定且允许注册时，自动创建普通用户并绑定。
-* 未绑定且关闭注册时，只允许用户输入已有本地账号密码完成绑定。
-
-旧 `users.github_id` 仅作为升级迁移来源，新的第三方账号登录与绑定关系必须以 `external_accounts` 为准。
+* 已绑定时直接授权登录；若已有本地会话则自动建立绑定。
+* 未绑定且允许注册时自动创建本地账号；若关闭注册，则要求用户提供已有本地账号密码以建立关联。
 
 ## 版本与观测约束
 
@@ -223,9 +198,9 @@ IP 组约束：
 
 * 产品范围或系统边界变化时更新本文档。
 * 系统结构或模块职责变化时更新 [系统架构](./architecture.md)。
-* 发布、同步、回滚模型变化时更新 [发布模型](./release-model.md)。
+* 发布、同步、回滚与 Agent 模型变化时更新 [Agent 与发布模型](./agent-design.md)。
 * 开发约束、代码规范、接口约定变化时更新 [开发约束](../guildline/development-constraints.md)。
-* 部署方式变化时更新 [部署说明](../reference/deployment.md) 与 README。
+* 部署方式变化时更新 [部署说明](../deployment/deployment.md) 与 README.
 * 配置项变化时更新 [配置项参考](../reference/configuration.md)。
 * 已完成阶段不再以“版本计划”形式回填。
 * 新阶段开始前，先补设计，再进入实现。

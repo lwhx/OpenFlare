@@ -101,7 +101,7 @@ export LOG_LEVEL='debug'
 go run ./cmd/agent -config ./agent.json
 ```
 
-未配置 `openresty_path` 时，Agent 默认调用 `openresty`。调试时可显式配置 `openresty_path`、`main_config_path`、`route_config_path`、`access_log_path`、`cert_dir`、`lua_dir` 和 `runtime_config_dir`。
+未配置 `openresty_path` 时，Agent 默认调用 `openresty`。调试时可显式配置 `openresty_path`、`main_config_path`、`route_config_path` , `access_log_path`、`cert_dir`、`lua_dir` 和 `runtime_config_dir`。
 
 ## 测试
 

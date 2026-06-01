@@ -199,6 +199,95 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/access-logs/folds/ip-summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AccessLogs"
+                ],
+                "summary": "List folded access log IP summaries",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Node ID",
+                        "name": "node_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Remote address",
+                        "name": "remote_addr",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Host",
+                        "name": "host",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Path",
+                        "name": "path",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bucket started at",
+                        "name": "bucket_started_at",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Fold minutes",
+                        "name": "fold_minutes",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page index",
+                        "name": "p",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort by",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order",
+                        "name": "sort_order",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/access-logs/ip-summary": {
             "get": {
                 "security": [
@@ -512,6 +601,66 @@ const docTemplate = `{
                         }
                     }
                 }
+            }
+        },
+        "/api/agent/waf/ip-groups/sync": {
+            "post": {
+                "security": [
+                    {
+                        "AccessTokenAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agent"
+                ],
+                "summary": "Sync WAF IP groups for agent",
+                "parameters": [
+                    {
+                        "description": "WAF IP group sync payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.AgentWAFIPGroupSyncInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/agent/ws": {
+            "get": {
+                "security": [
+                    {
+                        "AccessTokenAuth": []
+                    }
+                ],
+                "tags": [
+                    "Agent"
+                ],
+                "summary": "Upgrade agent connection to websocket",
+                "responses": {}
             }
         },
         "/api/apply-logs/": {
@@ -999,6 +1148,130 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/flared/apply-log": {
+            "post": {
+                "security": [
+                    {
+                        "TunnelTokenAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Flared"
+                ],
+                "summary": "Report OpenFlared apply result",
+                "parameters": [
+                    {
+                        "description": "Apply log payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.ApplyLogPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/flared/config/active": {
+            "get": {
+                "security": [
+                    {
+                        "TunnelTokenAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Flared"
+                ],
+                "summary": "Get active tunnel config for OpenFlared",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/flared/heartbeat": {
+            "post": {
+                "security": [
+                    {
+                        "TunnelTokenAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Flared"
+                ],
+                "summary": "Report OpenFlared heartbeat",
+                "parameters": [
+                    {
+                        "description": "Flared heartbeat payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.FlaredHeartbeatPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/flared/ws": {
+            "get": {
+                "security": [
+                    {
+                        "TunnelTokenAuth": []
+                    }
+                ],
+                "tags": [
+                    "Flared"
+                ],
+                "summary": "Upgrade OpenFlared connection to websocket",
+                "responses": {}
+            }
+        },
         "/api/managed-domains/": {
             "get": {
                 "security": [
@@ -1417,6 +1690,47 @@ const docTemplate = `{
                     "Nodes"
                 ],
                 "summary": "Delete node",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Node ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/nodes/{id}/force-sync": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Nodes"
+                ],
+                "summary": "Request force sync config on node",
                 "parameters": [
                     {
                         "type": "integer",
@@ -2007,6 +2321,66 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/relay/heartbeat": {
+            "post": {
+                "security": [
+                    {
+                        "AccessTokenAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Relay"
+                ],
+                "summary": "Report relay heartbeat",
+                "parameters": [
+                    {
+                        "description": "Relay heartbeat payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.RelayHeartbeatPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/relay/ws": {
+            "get": {
+                "security": [
+                    {
+                        "AccessTokenAuth": []
+                    }
+                ],
+                "tags": [
+                    "Relay"
+                ],
+                "summary": "Upgrade relay connection to websocket",
+                "responses": {}
+            }
+        },
         "/api/status": {
             "get": {
                 "produces": [
@@ -2531,6 +2905,11 @@ const docTemplate = `{
         },
         "/api/update/latest-release": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2694,6 +3073,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/service.AgentNodeAccessLog"
                     }
                 },
+                "openresty_observation": {
+                    "$ref": "#/definitions/service.AgentNodeOpenrestyObservation"
+                },
                 "snapshot": {
                     "$ref": "#/definitions/service.AgentNodeMetricSnapshot"
                 },
@@ -2775,6 +3157,20 @@ const docTemplate = `{
                 "network_tx_bytes": {
                     "type": "integer"
                 },
+                "storage_total_bytes": {
+                    "type": "integer"
+                },
+                "storage_used_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.AgentNodeOpenrestyObservation": {
+            "type": "object",
+            "properties": {
+                "captured_at_unix": {
+                    "type": "integer"
+                },
                 "openresty_connections": {
                     "type": "integer"
                 },
@@ -2782,12 +3178,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "openresty_tx_bytes": {
-                    "type": "integer"
-                },
-                "storage_total_bytes": {
-                    "type": "integer"
-                },
-                "storage_used_bytes": {
                     "type": "integer"
                 }
             }
@@ -2801,9 +3191,6 @@ const docTemplate = `{
                         "$ref": "#/definitions/service.AgentNodeAccessLog"
                     }
                 },
-                "version": {
-                    "type": "string"
-                },
                 "buffered_observability": {
                     "type": "array",
                     "items": {
@@ -2811,6 +3198,9 @@ const docTemplate = `{
                     }
                 },
                 "current_version": {
+                    "type": "string"
+                },
+                "ext_version": {
                     "type": "string"
                 },
                 "health_events": {
@@ -2828,14 +3218,14 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "ext_version": {
-                    "type": "string"
-                },
                 "node_id": {
                     "type": "string"
                 },
                 "openresty_message": {
                     "type": "string"
+                },
+                "openresty_observation": {
+                    "$ref": "#/definitions/service.AgentNodeOpenrestyObservation"
                 },
                 "openresty_status": {
                     "type": "string"
@@ -2848,6 +3238,15 @@ const docTemplate = `{
                 },
                 "traffic_report": {
                     "$ref": "#/definitions/service.AgentNodeTrafficReport"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "waf_ip_group_checksums": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -2927,6 +3326,23 @@ const docTemplate = `{
                 }
             }
         },
+        "service.AgentWAFIPGroupSyncInput": {
+            "type": "object",
+            "properties": {
+                "checksums": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "service.ApplyLogPayload": {
             "type": "object",
             "properties": {
@@ -2952,6 +3368,49 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.FlaredConnectedRelay": {
+            "type": "object",
+            "properties": {
+                "proxy_count": {
+                    "type": "integer"
+                },
+                "relay_node_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.FlaredHeartbeatPayload": {
+            "type": "object",
+            "properties": {
+                "client_version": {
+                    "type": "string"
+                },
+                "connected_relays": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.FlaredConnectedRelay"
+                    }
+                },
+                "current_checksum": {
+                    "type": "string"
+                },
+                "current_version": {
+                    "type": "string"
+                },
+                "frp_version": {
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "tunnel_status": {
                     "type": "string"
                 }
             }
@@ -2999,6 +3458,28 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "node_type": {
+                    "description": "TunnelRelay fields",
+                    "type": "string"
+                },
+                "relay_agent_access_addr": {
+                    "type": "string"
+                },
+                "relay_bind_port": {
+                    "type": "integer"
+                },
+                "relay_client_access_addr": {
+                    "type": "string"
+                },
+                "relay_client_proxy_url": {
+                    "type": "string"
+                },
+                "relay_vhost_http_port": {
+                    "type": "integer"
+                },
+                "relay_web_server_enabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -3118,11 +3599,99 @@ const docTemplate = `{
                 "site_name": {
                     "type": "string"
                 },
+                "tunnel_id": {
+                    "type": "integer"
+                },
+                "tunnel_node_id": {
+                    "type": "integer"
+                },
+                "tunnel_target_addr": {
+                    "type": "string"
+                },
+                "tunnel_target_protocol": {
+                    "type": "string"
+                },
+                "upstream_type": {
+                    "type": "string"
+                },
                 "upstreams": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "service.RelayHeartbeatPayload": {
+            "type": "object",
+            "properties": {
+                "frp_version": {
+                    "type": "string"
+                },
+                "frps_client_count": {
+                    "type": "integer"
+                },
+                "frps_connections": {
+                    "type": "integer"
+                },
+                "frps_proxies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.RelayProxyStat"
+                    }
+                },
+                "frps_proxy_count": {
+                    "type": "integer"
+                },
+                "health_events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.AgentNodeHealthEvent"
+                    }
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "profile": {
+                    "$ref": "#/definitions/service.AgentNodeSystemProfile"
+                },
+                "relay_status": {
+                    "type": "string"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/service.AgentNodeMetricSnapshot"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.RelayProxyStat": {
+            "type": "object",
+            "properties": {
+                "client_addr": {
+                    "type": "string"
+                },
+                "client_version": {
+                    "type": "string"
+                },
+                "last_close_time": {
+                    "type": "string"
+                },
+                "last_start_time": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },

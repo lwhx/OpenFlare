@@ -44,6 +44,8 @@ definitions:
         items:
           $ref: '#/definitions/service.AgentNodeAccessLog'
         type: array
+      openresty_observation:
+        $ref: '#/definitions/service.AgentNodeOpenrestyObservation'
       snapshot:
         $ref: '#/definitions/service.AgentNodeMetricSnapshot'
       traffic_report:
@@ -97,15 +99,20 @@ definitions:
         type: integer
       network_tx_bytes:
         type: integer
+      storage_total_bytes:
+        type: integer
+      storage_used_bytes:
+        type: integer
+    type: object
+  service.AgentNodeOpenrestyObservation:
+    properties:
+      captured_at_unix:
+        type: integer
       openresty_connections:
         type: integer
       openresty_rx_bytes:
         type: integer
       openresty_tx_bytes:
-        type: integer
-      storage_total_bytes:
-        type: integer
-      storage_used_bytes:
         type: integer
     type: object
   service.AgentNodePayload:
@@ -114,13 +121,13 @@ definitions:
         items:
           $ref: '#/definitions/service.AgentNodeAccessLog'
         type: array
-      agent_version:
-        type: string
       buffered_observability:
         items:
           $ref: '#/definitions/service.AgentBufferedObservabilityRecord'
         type: array
       current_version:
+        type: string
+      ext_version:
         type: string
       health_events:
         items:
@@ -132,12 +139,12 @@ definitions:
         type: string
       name:
         type: string
-      nginx_version:
-        type: string
       node_id:
         type: string
       openresty_message:
         type: string
+      openresty_observation:
+        $ref: '#/definitions/service.AgentNodeOpenrestyObservation'
       openresty_status:
         type: string
       profile:
@@ -146,6 +153,12 @@ definitions:
         $ref: '#/definitions/service.AgentNodeMetricSnapshot'
       traffic_report:
         $ref: '#/definitions/service.AgentNodeTrafficReport'
+      version:
+        type: string
+      waf_ip_group_checksums:
+        additionalProperties:
+          type: string
+        type: object
     type: object
   service.AgentNodeSystemProfile:
     properties:
@@ -197,6 +210,17 @@ definitions:
       window_started_at_unix:
         type: integer
     type: object
+  service.AgentWAFIPGroupSyncInput:
+    properties:
+      checksums:
+        additionalProperties:
+          type: string
+        type: object
+      ids:
+        items:
+          type: integer
+        type: array
+    type: object
   service.ApplyLogPayload:
     properties:
       checksum:
@@ -214,6 +238,34 @@ definitions:
       support_file_count:
         type: integer
       version:
+        type: string
+    type: object
+  service.FlaredConnectedRelay:
+    properties:
+      proxy_count:
+        type: integer
+      relay_node_id:
+        type: string
+      status:
+        type: string
+    type: object
+  service.FlaredHeartbeatPayload:
+    properties:
+      client_version:
+        type: string
+      connected_relays:
+        items:
+          $ref: '#/definitions/service.FlaredConnectedRelay'
+        type: array
+      current_checksum:
+        type: string
+      current_version:
+        type: string
+      frp_version:
+        type: string
+      ip:
+        type: string
+      tunnel_status:
         type: string
     type: object
   service.ManagedDomainInput:
@@ -245,6 +297,21 @@ definitions:
         type: boolean
       name:
         type: string
+      node_type:
+        description: TunnelRelay fields
+        type: string
+      relay_agent_access_addr:
+        type: string
+      relay_bind_port:
+        type: integer
+      relay_client_access_addr:
+        type: string
+      relay_client_proxy_url:
+        type: string
+      relay_vhost_http_port:
+        type: integer
+      relay_web_server_enabled:
+        type: boolean
     type: object
   service.ProxyRouteCustomHeaderInput:
     properties:
@@ -323,10 +390,68 @@ definitions:
         type: string
       site_name:
         type: string
+      tunnel_id:
+        type: integer
+      tunnel_node_id:
+        type: integer
+      tunnel_target_addr:
+        type: string
+      tunnel_target_protocol:
+        type: string
+      upstream_type:
+        type: string
       upstreams:
         items:
           type: string
         type: array
+    type: object
+  service.RelayHeartbeatPayload:
+    properties:
+      frp_version:
+        type: string
+      frps_client_count:
+        type: integer
+      frps_connections:
+        type: integer
+      frps_proxies:
+        items:
+          $ref: '#/definitions/service.RelayProxyStat'
+        type: array
+      frps_proxy_count:
+        type: integer
+      health_events:
+        items:
+          $ref: '#/definitions/service.AgentNodeHealthEvent'
+        type: array
+      ip:
+        type: string
+      name:
+        type: string
+      profile:
+        $ref: '#/definitions/service.AgentNodeSystemProfile'
+      relay_status:
+        type: string
+      snapshot:
+        $ref: '#/definitions/service.AgentNodeMetricSnapshot'
+      version:
+        type: string
+    type: object
+  service.RelayProxyStat:
+    properties:
+      client_addr:
+        type: string
+      client_version:
+        type: string
+      last_close_time:
+        type: string
+      last_start_time:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
     type: object
   service.TLSApplyInput:
     properties:
@@ -489,6 +614,64 @@ paths:
       summary: List folded access logs
       tags:
       - AccessLogs
+  /api/access-logs/folds/ip-summary:
+    get:
+      parameters:
+      - description: Node ID
+        in: query
+        name: node_id
+        type: string
+      - description: Remote address
+        in: query
+        name: remote_addr
+        type: string
+      - description: Host
+        in: query
+        name: host
+        type: string
+      - description: Path
+        in: query
+        name: path
+        type: string
+      - description: Bucket started at
+        in: query
+        name: bucket_started_at
+        required: true
+        type: string
+      - description: Fold minutes
+        in: query
+        name: fold_minutes
+        required: true
+        type: integer
+      - description: Page index
+        in: query
+        name: p
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - description: Sort by
+        in: query
+        name: sort_by
+        type: string
+      - description: Sort order
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List folded access log IP summaries
+      tags:
+      - AccessLogs
   /api/access-logs/ip-summary:
     get:
       parameters:
@@ -610,7 +793,7 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - AgentTokenAuth: []
+      - AccessTokenAuth: []
       summary: Report agent apply result
       tags:
       - Agent
@@ -625,7 +808,7 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - AgentTokenAuth: []
+      - AccessTokenAuth: []
       summary: Get active config for agent
       tags:
       - Agent
@@ -654,7 +837,7 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - AgentTokenAuth: []
+      - AccessTokenAuth: []
       summary: Report agent heartbeat
       tags:
       - Agent
@@ -683,8 +866,45 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - AgentTokenAuth: []
+      - AccessTokenAuth: []
       summary: Register or discover agent node
+      tags:
+      - Agent
+  /api/agent/waf/ip-groups/sync:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: WAF IP group sync payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/service.AgentWAFIPGroupSyncInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - AccessTokenAuth: []
+      summary: Sync WAF IP groups for agent
+      tags:
+      - Agent
+  /api/agent/ws:
+    get:
+      responses: {}
+      security:
+      - AccessTokenAuth: []
+      summary: Upgrade agent connection to websocket
       tags:
       - Agent
   /api/apply-logs/:
@@ -986,6 +1206,82 @@ paths:
       summary: Update DNS account
       tags:
       - DnsAccounts
+  /api/flared/apply-log:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Apply log payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/service.ApplyLogPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - TunnelTokenAuth: []
+      summary: Report OpenFlared apply result
+      tags:
+      - Flared
+  /api/flared/config/active:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - TunnelTokenAuth: []
+      summary: Get active tunnel config for OpenFlared
+      tags:
+      - Flared
+  /api/flared/heartbeat:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Flared heartbeat payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/service.FlaredHeartbeatPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - TunnelTokenAuth: []
+      summary: Report OpenFlared heartbeat
+      tags:
+      - Flared
+  /api/flared/ws:
+    get:
+      responses: {}
+      security:
+      - TunnelTokenAuth: []
+      summary: Upgrade OpenFlared connection to websocket
+      tags:
+      - Flared
   /api/managed-domains/:
     get:
       produces:
@@ -1233,6 +1529,32 @@ paths:
       security:
       - BearerAuth: []
       summary: Delete node
+      tags:
+      - Nodes
+  /api/nodes/{id}/force-sync:
+    post:
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Request force sync config on node
       tags:
       - Nodes
   /api/nodes/{id}/observability:
@@ -1625,6 +1947,43 @@ paths:
       summary: Update proxy route
       tags:
       - ProxyRoutes
+  /api/relay/heartbeat:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Relay heartbeat payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/service.RelayHeartbeatPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - AccessTokenAuth: []
+      summary: Report relay heartbeat
+      tags:
+      - Relay
+  /api/relay/ws:
+    get:
+      responses: {}
+      security:
+      - AccessTokenAuth: []
+      summary: Upgrade relay connection to websocket
+      tags:
+      - Relay
   /api/status:
     get:
       produces:
@@ -1968,6 +2327,8 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Get latest GitHub release
       tags:
       - Update
@@ -2024,7 +2385,7 @@ schemes:
 - http
 - https
 securityDefinitions:
-  AgentTokenAuth:
+  AccessTokenAuth:
     description: Agent API 使用节点专属 Agent Token 或全局 Discovery Token
     in: header
     name: X-Agent-Token

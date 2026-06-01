@@ -7,7 +7,9 @@
 | `openflare_server`     | Gin + GORM + SQLite/PostgreSQL 单体控制面            |
 | `openflare_server/web` | Next.js 15 App Router 管理端前端，由 Go Server 托管  |
 | `openflare_agent`      | Go 单体 Agent，运行在节点侧                          |
-| `scripts`              | Agent 安装、卸载等辅助脚本                           |
+| `openflare_relay`      | Tunnel 中继代理，运行在公网边缘管理 frps 进程        |
+| `openflared`           | Tunnel 客户端，运行在内网服务器侧管理 frpc 进程      |
+| `scripts`              | 安装、自更新等系统辅助脚本                           |
 | `docs`                 | VitePress 文档站、设计基线、开发规范、部署与配置文档 |
 | `docs/en`              | 英文版文档                                           |
 
@@ -60,3 +62,33 @@
 | `tests/`      | 前端单元测试与集成测试（Vitest、Playwright） |
 | `scripts/`    | 构建和部署相关脚本                           |
 | `public/`     | 静态资源                                     |
+
+## Relay 模块
+
+| 模块             | 职责                                             |
+| ---------------- | ------------------------------------------------ |
+| `cmd/`           | Relay 命令行启动入口及初始化主函数               |
+| `internal/config/`| 本地配置文件解析与默认参数初始化                 |
+| `internal/frps/` | 管理 frps 进程生命周期、端口与 Token 并监控运行   |
+| `internal/heartbeat/`| 周期性 HTTP 心跳通信、上报状态并获取更新请求  |
+| `internal/httpclient/`| Server 的通用 API 客户端调用工具类              |
+| `internal/observability/`| 采集本地宿主机、frps 的基础运行指标并进行预聚合 |
+| `internal/relay/` | 协调中继的核心生命周期、初始化与清理             |
+| `internal/state/` | 本地运行时状态、错误记录与持久化缓存             |
+| `internal/updater/`| Relay 升级检查、下载安装与重启机制               |
+| `internal/wsclient/`| 与 Server 保持的长连接 WebSocket 双向通信管道     |
+
+## OpenFlared (Client) 模块
+
+| 模块             | 职责                                             |
+| ---------------- | ------------------------------------------------ |
+| `cmd/`           | Client 命令行启动入口及初始化主函数              |
+| `internal/config/`| 本地客户端配置加载与解析                         |
+| `internal/flared/`| 内网穿透客户端的核心调度与状态管理机制           |
+| `internal/frpc/` | 热重载/动态生成多 Relay 的 `frpc.toml` 并监控 frpc |
+| `internal/heartbeat/`| 与控制面进行的心跳通信，包含 Token 校验机制       |
+| `internal/httpclient/`| 客户端通用 API 通信客户端                       |
+| `internal/sync/`  | 增量拉取最新 Tunnel 路由绑定关系、生成快照并应用  |
+| `internal/updater/`| 客户端自更新、新版检查与更新落地逻辑             |
+| `internal/wsclient/`| 用于实时监听 Server 端隧道配置变更推送的 WS 信道  |
+

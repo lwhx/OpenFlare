@@ -13,7 +13,10 @@ OpenFlare Agent 运行在代理节点侧。它不会接收远程 shell 指令，
 
 `agent_token` 与 `discovery_token` 至少填写一个。
 
-[需要确认：当前管理端中创建或查看 `discovery_token` 与节点 `agent_token` 的准确菜单路径]
+### 凭证获取路径
+
+- **`discovery_token`（自动注册凭证）**：登录管理端后台，导航至「系统设置」->「自动注册」，在页面中可直接生成、查看和复制全局的自动注册凭证。
+- **`agent_token`（节点专属凭证）**：登录管理端后台，导航至「节点管理」->「新增节点」，填写节点基本信息保存后，在节点详情页面即可直接复制该节点专属的接入 Token。
 
 ## 一键安装
 
@@ -89,7 +92,7 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
 }
 ```
 
-如果不配置 `openresty_path`，Agent 默认调用 `openresty`。完整字段见 [配置项参考](./configuration.md#agent-配置字段)。
+如果不配置 `openresty_path`，Agent 默认调用 `openresty`。完整字段见 [配置项参考](../reference/configuration.md#agent-配置字段)。
 
 ## Docker 运行
 

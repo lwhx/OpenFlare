@@ -1,36 +1,43 @@
-# Guide
+# Guide Overview
 
-You will learn how the OpenFlare documentation is organized, which pages to read for a first run, and where to find deployment, usage, troubleshooting, and development information.
+You will learn: How the OpenFlare documentation is organized, which pages to read when running it for the first time, and where to start for deployment, usage, troubleshooting, and development.
 
-OpenFlare is a self-hosted OpenResty control plane. It brings reverse proxy site configuration, immutable releases, Agent-based node sync, TLS certificates, and basic observability into one management UI for a single team or organization.
+OpenFlare is a self-hosted OpenResty control plane. It integrates reverse proxy website configurations, configuration version publishing, Agent node synchronization, TLS certificates, and basic observability into a single management console, making it ideal for a single team or organization managing multiple proxy nodes.
 
-## Recommended Path
+## Recommended Reading Path
 
-If you are new to OpenFlare, read these pages in order:
+If you are new to OpenFlare, read the documents in the following order:
 
-1. [Quick Start](./quick-start.md): start the Server with Docker Compose, sign in, and connect the first Agent.
-2. [Usage](./usage.md): learn common operations for sites, origins, certificates, releases, rollbacks, and observability.
-3. [Deployment](./deployment.md): run the Server and Agent in an environment closer to production.
-4. [Configuration](../reference/configuration.md): look up Server environment variables, runtime options, and Agent configuration fields.
-5. [Troubleshooting](./troubleshooting.md): debug login, database, node sync, OpenResty apply, and frontend build issues.
+1. [Quick Start](./quick-start.md): Start the Server using Docker Compose, log into the management console, and connect your first Agent.
+2. [Basic Usage](./usage.md): Learn common operations for website configs, origins, certificates, publishing, rollbacks, and observability.
+3. [Tunnel & Intranet Penetration](./tunnel-usage.md): Learn to deploy Relay and Client to achieve secure, public IP-free reverse penetration.
+4. [WAF Security Protection](./waf-usage.md): Master IP whitelisting/blacklisting, WAF auto IP group aggregation Expr rules, geographical restrictions, and PoW CC protection.
+5. [WAF Auto IP Group Expressions](./waf-ip-group-expr.md): Write auto IP group Expr rules and learn keyword definitions and presets.
+6. [Deployment Guide](../deployment/deployment.md): Deploy Server and Agent in closer-to-production environments.
+7. [Configurations Reference](../reference/configuration.md): Check Server environment variables, runtime Options, and Agent configurations.
+8. [Troubleshooting](./troubleshooting.md): Troubleshoot login, database, node sync, OpenResty application, and frontend build issues.
 
-## Find by Role
+## Role-Based Entrypoints
 
-| Goal | Start Here |
+| What do you want to do? | Recommended Entrance |
 | --- | --- |
-| Run the management UI in a few minutes | [Quick Start](./quick-start.md) |
-| Publish the first reverse proxy site | [Publish First Site](./first-site.md) |
-| Connect or reinstall a node Agent | [Connect Agent](./agent.md) |
-| Start the Server from source | [Run Server](./server.md) |
-| Configure GitHub or OIDC login | [SSO Login](./sso.md) |
-| Upgrade the Server or Agent | [Upgrade and Maintenance](./upgrade.md) |
-| Contribute code or fix issues | [Local Development](./development.md) and [Development Constraints](../design/development.md) |
-| Understand architecture and releases | [Architecture](../design/architecture.md) and [Release Model](../design/release-model.md) |
+| Run the console in under 5 minutes | [Quick Start](./quick-start.md) |
+| Publish your first reverse proxy configuration | [Publish First Configuration](./first-site.md) |
+| Configure intranet penetration mapping | [Tunnel & Intranet Penetration](./tunnel-usage.md) |
+| Configure CC protection & IP group blocking | [WAF Security Protection](./waf-usage.md) |
+| Write auto IP group aggregation rules | [WAF Auto IP Group Expressions](./waf-ip-group-expr.md) |
+| Connect or reinstall a node Agent | [Access Agent](../deployment/agent.md) |
+| Start Server from source code | [Launch Server](../deployment/server.md) |
+| Configure GitHub or OIDC SSO | [SSO Login Configuration](./sso.md) |
+| Upgrade Server or Agent | [Upgrade & Maintenance](../deployment/upgrade.md) |
+| Participate in development or bug fixing | [Local Development](../design/development.md) and [Development Constraints](../../guildline/development-constraints.md) |
+| Understand architecture and publishing | [System Architecture](../design/architecture.md) and [Agent & Publish Model](../design/agent-design.md) |
+| View open-source references and credits | [Credits](./credits.md) |
 
-## Documentation Areas
+## Documentation Partitions
 
-`guide/` is for users and operators. It provides executable steps from installation to daily operations.
+`guide/` is oriented toward users and deployers, providing actionable steps from installation to daily operations.
 
-`reference/` collects stable facts, such as configuration fields, commands, API conventions, and repository layout.
+`reference/` collects stable facts such as configuration fields, commands, API response structures, and repository layout.
 
-`design/` is for maintainers and contributors. It describes product boundaries, architecture, release model, and engineering constraints. Update the related design page before implementing changes that alter those boundaries.
+`design/` is oriented toward maintainers and contributors, describing product boundaries, system architecture, Agent & publishing models, and engineering constraints. Before adding capabilities or changing boundaries, update the corresponding design document first.

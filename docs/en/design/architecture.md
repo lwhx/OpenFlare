@@ -1,8 +1,10 @@
 # System Architecture
 
-You will learn: The overall architecture of OpenFlare, the responsibility boundaries of Server, Agent, OpenResty, and the management console frontend, and the request flow of a configuration release from the management console to take effect on a node.
+You will learn: The overall architecture of OpenFlare, the boundaries of responsibilities for Server, Agent, OpenResty, and Admin Frontend, and the request flow of a configuration publication from the admin dashboard to activation on a node.
 
-OpenFlare consists of the Server, the Agent, local OpenResty on each node, and the management console frontend. The Server is the control plane, the Agent is the only controlled landing entry point on the node side, and OpenResty is the actual data plane.
+OpenFlare consists of the Server, the Agent, the node-local OpenResty, and the Admin Frontend. The Server is the control plane, the Agent is the only controlled entry point on the node side, and OpenResty serves as the actual data plane. In intranet penetration scenarios, the Relay (frps manager) and OpenFlared (frpc manager) extend the data plane traffic path.
+
+### Standard Reverse Proxy Traffic Path
 
 ```text
 Browser
@@ -24,75 +26,140 @@ OpenResty binary
 Origin
 ```
 
+### Intranet Penetration Traffic Path
+
+```text
+Browser
+  |
+  | HTTPS request
+  v
+OpenResty (Agent, TLS/WAF)         <-- TunnelRelay Node
+  |
+  | proxy_pass http://localhost:vhost_port (Host header preserved)
+  v
+OpenFlareRelay (frps)              <-- TunnelRelay Node, co-located with Agent
+  |
+  | frp tunnel protocol (HTTP Vhost routing by Host header)
+  v
+OpenFlared (frpc)                  <-- Intranet Server
+  |
+  | HTTP/HTTPS forward
+  v
+Internal Service (192.168.x.x)
+```
+
 ## Component Responsibilities
 
 | Component | Responsibility |
 | --- | --- |
-| Server | Management UI, admin APIs, Agent APIs, configuration rendering, version publishing, data storage, and aggregate queries |
-| Agent | Registration, heartbeats, synchronization, writing files, configuration validation, reloads, fallback/rollbacks, self-updating, and lightweight data collection |
-| OpenResty | Receives real traffic, executes WAF, PoW, authentication, and reverse proxying according to configurations rendered by OpenFlare |
-| Frontend | Manages website configurations, WAF, origins, certificates, nodes, versions, users, settings, and observability pages |
+| Server | Admin UI, Admin API, Agent/Relay/Client API, configuration rendering, version publishing, data storage, and aggregated queries. |
+| Agent | Registration, heartbeats, synchronization, file writing, validation, reload, rollback on failure, self-updating, and light metrics collection. |
+| OpenResty | Receives real traffic, executing WAF, PoW, authentication, and reverse proxying according to the configuration rendered by OpenFlare. |
+| OpenFlareRelay | Manages the lifecycle of the frps process, providing tunnel relay services and receiving frps configurations via heartbeat. |
+| OpenFlared | Manages frpc processes (can be multiple), connecting to the Relay and forwarding traffic to intranet services. |
+| Frontend | Manages pages for website configs, WAF, origins, certificates, nodes, tunnels, versions, users, settings, and observability. |
 
 ## Server
 
-`openflare_server` is a monolithic control plane:
+`openflare_server` is the single-control-plane monolith:
 
-* Gin provides HTTP services.
+* Gin provides the HTTP services.
 * GORM accesses SQLite or PostgreSQL.
-* The existing login system provides management console Sessions.
-* Authentication source and external account binding support GitHub OAuth and standard OIDC.
-* The Go Server hosts the static build output of `openflare_server/web`.
+* The existing login system provides Admin Session management.
+* Authentication sources support GitHub OAuth and standard OIDC logins with external account binding.
+* The Go Server hosts the `openflare_server/web` static build assets.
 
-The Server does not directly SSH into nodes, nor does it modify node files online. It only saves the control plane state, generates complete configuration versions, and lets nodes actively pull them via the Agent API.
+The Server does not directly SSH to nodes, nor does it modify node files online. It only stores control plane state, generates complete configuration versions, and lets nodes actively pull them via the Agent API.
 
 ## Agent
 
 `openflare_agent` is a Go monolithic application:
 
-* Runs on nodes as a single binary.
-* Reads or generates local node information upon startup.
-* Performs periodic heartbeats to report status and fetch the active version summary.
-* Pulls configurations, backs up old files, writes new files, validates, and reloads upon discovering a new version.
-* Attempts to restore execution and roll back when the application fails.
-* Maintains the WAF GeoIP mmdb; writes the built-in initial database on startup and updates it regularly based on configuration.
+* Runs as a single binary on the node side.
+* Reads or generates local node information on startup.
+* Performs periodic heartbeat check-ins to report status and retrieve active version summaries.
+* Upon discovering a new version, it pulls the configuration, backs up old files, writes new files, validates them, and reloads.
+* Automatically rolls back to restore operations if the application fails.
+* Maintains the local WAF GeoIP mmdb, writing the built-in library on startup and updating it periodically based on configuration.
 
-The Agent uniformly executes validations, reloads, starts, and restarts via the OpenResty binary pointed to by `openresty_path`; it falls back to calling `openresty` by default when not configured. In Docker deployments, the Agent image includes the OpenResty binary and follows the same binary control logic.
+The Agent executes validation, reload, startup, and restart uniformly via the path specified in `openresty_path`; if unconfigured, it defaults to calling `openresty`. During Docker deployments, the Agent image packages OpenResty and follows the same execution control logic.
 
-Node IPs are maintained by Agent registration and heartbeat reports by default; when the admin UI locks a node IP, the Server continues updating runtime fields such as status, versions, and observability, but no longer accepts Agent reports to overwrite that IP.
+The node IP is maintained by default through Agent registration and heartbeat reporting; if the administrator locks the node IP, the Server only updates running status, versions, and observability fields, and no longer accepts reports from the Agent to override the locked IP.
 
 ## Frontend
 
-`openflare_server/web` is the official management console frontend:
+`openflare_server/web` is the official Next.js-based frontend:
 
-* Next.js App Router.
+* Next.js 15 App Router.
 * React 19.
 * TypeScript.
 * Tailwind CSS.
-* TanStack Query manages server state.
+* TanStack Query for server-side state.
 
-The frontend is hosted by the Go Server after static export. All API requests must go through `lib/api/` uniformly and handle the `success/message/data` response structure.
+The frontend uses static export mode (`output: 'export'`), which is then hosted by the Go Server using `embed.FS`. All API requests must go through `lib/api/` and process the `success/message/data` response structure.
 
-## Data and Request Flow
+The Server integrates the following security features:
+* CORS middleware: Cross-Origin Resource Sharing protection.
+* Rate limiting: Global and key API endpoint throttling.
+* Session management: Cookie/Redis-based session storage.
 
-### Management Console Request Flow
+## Data & Request Flow
+
+### Management Request Flow
 
 ```text
 Browser -> Frontend -> /api/* -> controller -> service -> model -> database
 ```
 
-Mutation APIs on the management console use `POST`, while read-only APIs use `GET`. Both success and failure return a clear `message`.
+Admin mutation APIs use `POST`, while read-only APIs use `GET`. Both success and failure responses return a clear `message`.
 
 ### Agent Sync Flow
 
 ```text
-Agent heartbeat -> Server returns active version summary
-Agent discovers new version -> Pulls configuration details
-Agent writes main configuration / route configuration / certificates / Lua resources / WAF runtime configuration
-Agent executes OpenResty validation and reload
+Agent HTTP heartbeat -> Server returns active version summary
+Agent detects new version -> Pulls complete configuration details
+Agent writes main configuration / route configurations / certificates / Lua resources / WAF runtimes
+Agent runs OpenResty validation (openresty -t) and reload
 Agent reports application result
 ```
 
-When WebSocket (WS) connection upgrade is enabled by default, the Agent first obtains settings through the HTTP heartbeat, and then attempts to connect to the Agent WebSocket. Once the WS connection is successful, periodic status reporting is carried by WS; when the Server publishes or activates a version, it broadcasts the active version summary to connected Agents, allowing them to enter the synchronization flow immediately. When the WS connection is disconnected or fails to establish, the Agent automatically falls back to the HTTP heartbeat.
+### Relay Sync Flow
+
+The Relay (OpenFlareRelay process) runs on the TunnelRelay node and shares the same `agent_token` with the Agent:
+
+```text
+Relay HTTP heartbeat -> Server returns frps base configuration (bindPort, vhostHTTPPort, auth_token)
+Relay generates frps.toml and starts or updates the frps process
+Relay periodically reports frps health status and connection statistics
+Relay attempts WebSocket upgrade for real-time configuration pushes
+```
+
+frps configurations are relatively static (ports, auth token), dispatched via heartbeats, and **not included in the versioned publishing flow**. The Relay must monitor the frps process and auto-recover it on failures. Authentication: `X-Agent-Token` + API path prefix `/api/relay/*`, distinguished by Server via `node_type = tunnel_relay`.
+
+### OpenFlared Sync Flow
+
+OpenFlared (client) runs inside the intranet server, using independent `tunnel_token` authentication:
+
+```text
+Client HTTP heartbeat -> Server returns tunnel configuration version summary (version, checksum)
+Client detects new version -> Pulls complete tunnel route configuration (relay list + frpc proxy definitions)
+Client generates independent frpc.toml configuration files for each Relay
+Client starts a new frpc process for new Relays, or hot-reloads (frpc reload) existing ones
+Client reports application results (success/failure details)
+```
+
+OpenFlared communicates with the Server via `/api/flared/*` using the `X-Tunnel-Token` header. Tunnel route configurations are versioned along with the publishing flow, ensuring all configuration changes are consistently published to both Agents and Clients via a single version number.
+
+**WebSocket Upgrade Flow** (Optional, controlled via `AgentWebsocketUpgradeEnabled`):
+
+When WebSocket upgrade is enabled:
+1. The Agent retrieves run configurations and settings via HTTP heartbeat.
+2. The Agent attempts to upgrade the connection to `GET /api/agent/ws` (WebSocket).
+3. Once the WS connection is established, periodic state reporting and real-time commands are carried over the WebSocket pipeline, minimizing latency.
+4. When the Server publishes or activates a version, it immediately broadcasts the active version summary to connected Agents, triggering the sync flow instantly.
+5. If the WebSocket disconnects or fails to establish, the Agent automatically falls back to HTTP heartbeats, ensuring high availability.
+
+Through the `OpenRestyWebsocketEnabled` option, WebSocket reverse proxy support can be enabled or disabled at the OpenResty layer.
 
 ### Reverse Proxy Flow
 
@@ -100,18 +167,21 @@ When WebSocket (WS) connection upgrade is enabled by default, the Agent first ob
 Client -> OpenResty server block -> WAF Lua -> named upstream -> Origin
 ```
 
-Website configuration is the aggregation boundary of reverse proxies. A website configuration can bind multiple domains and share site-level traffic limits, reverse proxies, and caching configurations.
+Website configurations are the boundaries of reverse proxy aggregation. A single website configuration can bind multiple domains, sharing site-level rate limiting, reverse proxy, and cache settings.
 
-WAF is executed in the OpenResty `access_by_lua_file` phase. Rules come from `waf_config.json` carried in the current active version; the global rule group takes effect by default, and websites can overlay custom rule groups.
+WAF executes in the OpenResty `access_by_lua_file` phase. Rules originate from the `waf_config.json` carried in the currently active version; global rule groups take effect by default, and websites can overlay custom rule groups. `waf_config.json` only stores rule group references and IP group IDs; IP group members are synchronized independently by the Agent into `waf_ip_groups.json`, and the OpenResty Lua engine merges and evaluates them by reference ID.
+
+WAF IP groups are managed by the Server. Manual IP groups store IP/CIDR lists directly; auto IP groups are evaluated by Server cron jobs reading request logs and applying Expr boolean rules; subscription IP groups are fetched by Server cron jobs from remote text or JSON sources. The Agent reports local IP group checksums in heartbeats, and the Server only returns mismatched IP groups. When an IP group is updated on the Server, a broadcast is sent via WebSocket to push changes, and the OpenResty Lua reads the local JSON file directly without querying the DB, request logs, or remote subscription sources.
 
 ## Core Objects
 
-Currently active entities include:
+Current valid entities include:
 
 * `proxy_routes`
 * `origins`
 * `config_versions`
 * `nodes`
+* `tunnels`
 * `auth_sources`
 * `external_accounts`
 * `node_system_profiles`
@@ -124,23 +194,30 @@ Currently active entities include:
 * `traffic_analytics_rollups`
 * `node_health_events`
 * `waf_rule_groups`
+* `waf_ip_groups`
 * `waf_rule_group_bindings`
+* `acme_accounts`
+* `dns_accounts`
+* `geoip_update_configs`
 
 ## Key Design Decisions
 
-| Decision | Reason |
+| Decision | Rationale |
 | --- | --- |
-| Complete configuration versions, instead of online patches | Gives previews, activations, history, and rollbacks stable boundaries |
-| Active pull by Agents | Server does not need SSH permissions, nor does it expose remote command execution entry points |
-| Global single active version | Reduces MVP complexity and ensures all nodes are consistent by default |
-| Website configurations aggregate multiple domains | Supports sharing site-level policies for a business site while allowing certificate binding per domain |
-| Server-side aggregation of observability data | Avoids inconsistent results caused by temporary frontend calculations |
+| Full Config Versioning instead of Patches | Provides stable, verifiable boundaries for previewing, activating, history, and rollbacks. |
+| Pull Model (Agent-driven) | Server does not need SSH keys or inbound command ports, preventing control channel hijacking. Supports HTTP and WebSocket. |
+| Global Single Active Version | Reduces MVP complexity, ensuring all nodes are uniform by default. Supports previews, version history, and one-click rollback. |
+| Website Multi-Domain Aggregation | Enables sharing site-level policies across domains while supporting per-domain certificate binding. |
+| Server-side Observability Aggregation | Prevents UI-side temporary statistical calculations from producing inconsistent data metrics. |
+| Intranet Penetration based on frp | Reuses a mature tunnel protocol rather than custom implementations to minimize stability risks. frps Vhost routing aligns naturally with HTTP. |
+| Independent Binary for Relay/Client | Separation of concerns: Relay manages frps, Client manages frpc, allowing independent updates and deployments. |
+| Tunnel decoupled from Node system | Tunnel clients run internally, using completely different registration and authentication flows compared to edge nodes. |
 
-## Contributor Reading Suggestions
+## Recommended Reading for Contributors
 
-If you want to modify architecture-related code, read these first:
+Before modifying architectural code, please read:
 
-1. [Product Boundary](./index.md)
-2. [Release Model](./release-model.md)
-3. [Development Constraints](./development.md)
-4. [Repository Structure](../reference/repository.md)
+1. [Product Boundaries](./index.md)
+2. [Agent & Publish Model](./agent-design.md)
+3. [Development Constraints](../../guildline/development-constraints.md)
+4. [Repository Structure](./repository.md)

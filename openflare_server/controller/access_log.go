@@ -10,7 +10,7 @@ import (
 // GetAccessLogs godoc
 // @Summary List access logs
 // @Tags AccessLogs
-// @Produce JSON
+// @Produce json
 // @Security BearerAuth
 // @Param node_id query string false "Node ID"
 // @Param remote_addr query string false "Remote address"
@@ -34,7 +34,7 @@ func GetAccessLogs(c *gin.Context) {
 // GetFoldedAccessLogs godoc
 // @Summary List folded access logs
 // @Tags AccessLogs
-// @Produce JSON
+// @Produce json
 // @Security BearerAuth
 // @Param node_id query string false "Node ID"
 // @Param remote_addr query string false "Remote address"
@@ -61,7 +61,7 @@ func GetFoldedAccessLogs(c *gin.Context) {
 // GetFoldedAccessLogIPs godoc
 // @Summary List folded access log IP summaries
 // @Tags AccessLogs
-// @Produce JSON
+// @Produce json
 // @Security BearerAuth
 // @Param node_id query string false "Node ID"
 // @Param remote_addr query string false "Remote address"
@@ -98,7 +98,7 @@ func GetFoldedAccessLogIPs(c *gin.Context) {
 // GetAccessLogIPSummaries godoc
 // @Summary List access log IP summaries
 // @Tags AccessLogs
-// @Produce JSON
+// @Produce json
 // @Security BearerAuth
 // @Param node_id query string false "Node ID"
 // @Param remote_addr query string false "Remote address"
@@ -129,7 +129,7 @@ func GetAccessLogIPSummaries(c *gin.Context) {
 // GetAccessLogIPTrend godoc
 // @Summary Get access log IP trend
 // @Tags AccessLogs
-// @Produce JSON
+// @Produce json
 // @Security BearerAuth
 // @Param node_id query string false "Node ID"
 // @Param remote_addr query string true "Remote address"
@@ -156,8 +156,8 @@ func GetAccessLogIPTrend(c *gin.Context) {
 // CleanupAccessLogs godoc
 // @Summary Cleanup access logs by retention days
 // @Tags AccessLogs
-// @Accept JSON
-// @Produce JSON
+// @Accept json
+// @Produce json
 // @Security BearerAuth
 // @Success 200 {object} map[string]interface{}
 // @Router /api/access-logs/cleanup [post]

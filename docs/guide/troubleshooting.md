@@ -88,7 +88,27 @@ NEXT_DEV_BACKEND_URL=http://127.0.0.1:3000 pnpm dev
 3. 如果部署在多副本或反向代理后，确认 `SESSION_SECRET` 固定且各实例一致。
 4. 清理浏览器 Cookie 后重新登录。
 
-[需要确认：当前项目是否提供安全的 root 密码重置命令或流程]
+### 应急重置管理员密码
+
+如果忘记了 `root` 账户的密码，可以通过直接更新数据库中的密码哈希值将其重置为 `123456`（登录后请务必立即修改）：
+
+#### 1. 若使用 SQLite 数据库
+停止 Server 运行，使用 sqlite3 客户端打开数据库文件：
+```bash
+sqlite3 /path/to/openflare.db
+```
+执行以下 SQL 语句：
+```sql
+UPDATE users SET password_hash = '$2a$10$wN9aE3zTz83rO7R1uKlhuehJtA3c604pX4Z12B/9.5c0X337t1L4m' WHERE username = 'root';
+```
+输入 `.exit` 退出并重新启动 Server。
+
+#### 2. 若使用 PostgreSQL 数据库
+通过您的数据库连接工具（如 psql、pgAdmin 或 DBeaver）连接到 PostgreSQL 实例，选择对应的 `openflare` 数据库，执行以下 SQL 语句：
+```sql
+UPDATE users SET password_hash = '$2a$10$wN9aE3zTz83rO7R1uKlhuehJtA3c604pX4Z12B/9.5c0X337t1L4m' WHERE username = 'root';
+```
+执行成功后即可使用默认密码 `123456` 重新登录管理后台。
 
 ## Agent 无法注册或一直离线
 

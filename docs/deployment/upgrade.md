@@ -50,36 +50,3 @@ journalctl -u openflare-agent -n 100 --no-pager
 | `DatabaseAutoCleanupRetentionDays` | 自动清理保留天数，至少 1 天 |
 
 开启后，Server 会在每天凌晨 3 点清理访问日志、指标快照与请求报告。
-
-## 常用验证命令
-
-Server：
-
-```bash
-cd openflare_server
-GOCACHE=/tmp/openflare-go-cache go test ./...
-```
-
-Agent：
-
-```bash
-cd openflare_agent
-GOCACHE=/tmp/openflare-go-cache go test ./...
-```
-
-Frontend：
-
-```bash
-cd openflare_server/web
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-```
-
-Docs：
-
-```bash
-cd docs
-pnpm build
-```

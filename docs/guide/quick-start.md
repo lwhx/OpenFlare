@@ -21,7 +21,8 @@ Agent 统一通过 OpenResty 二进制控制运行时。本地部署需要节点
 | 可访问端口 | Server 默认监听 `3000`，Agent 节点需要能访问 Server 地址 |
 | 浏览器 | 用于访问管理端 |
 
-[需要确认：项目建议的最低 Docker 与 Docker Compose 版本]
+- **Docker**：`20.10.0+`
+- **Docker Compose**：`2.0.0+`
 
 ## 1. 启动 Server
 
@@ -57,9 +58,12 @@ services:
       DSN: postgres://openflare:replace-with-strong-password@postgres:5432/openflare?sslmode=disable
       GIN_MODE: release
       LOG_LEVEL: info
+    volumes:
+      - openflare-data:/data
 
 volumes:
   postgres-data:
+  openflare-data:
 ```
 
 启动服务：
@@ -100,7 +104,8 @@ Agent 可以用两类凭证接入：
 
 在管理端准备其中一种凭证后，进入下一步。
 
-[需要确认：当前管理端中创建或查看 `discovery_token` 与节点 `agent_token` 的准确菜单路径]
+- **`discovery_token`** 获取菜单路径：「系统设置」->「自动注册」
+- **`agent_token`** 获取菜单路径：「节点管理」->「新增节点」
 
 ## 3. 安装/运行 Agent
 
@@ -199,3 +204,17 @@ journalctl -u openflare-agent -n 100 --no-pager
 | OpenResty 应用失败 | 查看节点应用记录和 `journalctl -u openflare-agent`，重点检查域名、证书、上游地址和端口占用 |
 
 更多排查路径见 [故障排查](./troubleshooting.md)。
+
+---
+
+## 进阶部署指引
+
+当您完成快速开始并熟悉了 OpenFlare 的基本操作后，可以阅读以下进阶部署文档，将各组件投入到正式生产环境中：
+
+* **Server 生产部署**：阅读 [启动 Server](../deployment/server.md) 了解如何从源码构建前端、配置系统环境变量及使用 Docker Compose 运行。
+* **Agent 生产接入**：阅读 [部署 Agent](../deployment/agent.md) 了解基于 systemd 的服务管理、详细本地配置文件字段及故障排查。
+* **内网穿透中继端部署**：阅读 [部署 Relay](../deployment/relay.md) 了解如何为穿透隧道配置公网中继节点（frps）。
+* **内网穿透客户端部署**：阅读 [部署 OpenFlared](../deployment/openflared.md) 了解如何在内网服务器侧运行穿透守护客户端（frpc）。
+* **生产部署拓扑参考**：阅读 [部署说明](../deployment/deployment.md) 了解生产高可用拓扑和整体网络规划。
+* **系统升级与日常维护**：阅读 [升级与维护](../deployment/upgrade.md) 了解如何平滑升级 Server 和各代理节点 Agent。
+

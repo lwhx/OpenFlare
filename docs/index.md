@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: OpenFlare
-  text: 自托管 OpenResty 控制面
-  tagline: 管理反向代理规则、配置发布、节点同步、TLS 证书与基础观测。
+  text: 开源 CDN 编排与边缘安全平台
+  tagline: 支持反向代理、集中式配置同步、内网穿透（Tunnels）、动态 WAF 防护与人机防 CC 挑战。
   actions:
     - theme: brand
       text: 快速开始
@@ -17,16 +17,19 @@ hero:
       link: https://github.com/Rain-kl/OpenFlare
 
 features:
-  - icon: 🧭
-    title: 统一控制面
-    details: 在一个管理端维护网站、域名、源站、证书、节点与版本状态。
-  - icon: 🚀
-    title: 不可变发布
-    details: 每次发布生成完整 OpenResty 配置快照，可预览、激活和回滚。
-  - icon: 🔁
-    title: Agent 自动应用
-    details: 节点侧自动拉取、校验、reload，并在失败时回滚到可运行配置。
-  - icon: 📊
-    title: 基础观测
-    details: 提供请求聚合、访问分析、资源快照、健康事件与节点详情。
+  - icon: 🛰️
+    title: 集中式配置同步
+    details: 通过 WebSocket 与心跳实现全网节点配置秒级同步下发与热生效，状态即时回收。
+  - icon: 🌐
+    title: 分布式 CDN 编排
+    details: 将独立的 OpenResty 编排为高度协同的分布式 CDN 舰队，支持源站多负载均衡。
+  - icon: 🚇
+    title: 安全内网穿透 (Tunnels)
+    details: 对标 Cloudflare Tunnels，无须公网 IP 或暴露入向端口，安全穿透本地服务至公网。
+  - icon: 🛡️
+    title: 边缘 WAF 安全防护
+    details: IP 组成员差分同步写入 Lua 共享内存，实现免 Nginx 重载的 WAF 热更新与 GeoIP 过滤。
+  - icon: 🧩
+    title: 防 CC 与人机挑战 (PoW)
+    details: 内置高性能客户端 Proof of Work 密码学挑战，网关边缘秒级拦截阻断僵尸网络与爬虫。
 ---

@@ -3,30 +3,33 @@ layout: home
 
 hero:
   name: OpenFlare
-  text: Self-hosted OpenResty control plane
-  tagline: Manage reverse proxy rules, configuration releases, node sync, TLS certificates, and basic observability.
+  text: Open-source CDN Orchestration & Edge Security Platform
+  tagline: Supports reverse proxy, centralized configuration synchronization, secure intranet penetration (Tunnels), dynamic WAF protection, and anti-CC challenges.
   actions:
     - theme: brand
       text: Quick Start
       link: /en/guide/quick-start
     - theme: alt
-      text: Design Boundary
+      text: Design Boundaries
       link: /en/design/
     - theme: alt
       text: GitHub
       link: https://github.com/Rain-kl/OpenFlare
 
 features:
-  - icon: 🧭
-    title: Unified Control Plane
-    details: Manage sites, domains, origins, certificates, nodes, and release state in one console.
-  - icon: 🚀
-    title: Immutable Releases
-    details: Each publish creates a full OpenResty configuration snapshot that can be previewed, activated, and rolled back.
-  - icon: 🔁
-    title: Agent Automation
-    details: Nodes pull, validate, reload, and roll back to the last runnable configuration on failure.
-  - icon: 📊
-    title: Basic Observability
-    details: Includes request rollups, access analytics, resource snapshots, health events, and node details.
----
+  - icon: 🛰️
+    title: Centralized Config Sync
+    details: Sync configurations across all nodes in real time via WebSockets and heartbeats with sub-second hot reload. Instantly retrieve alerts and statuses.
+  - icon: 🌐
+    title: Distributed CDN Orchestration
+    details: Orchestrate scattered and independent OpenResty nodes into a highly collaborative CDN fleet with website-level multi-domain aggregation and load balancing.
+  - icon: 🚇
+    title: Secure Intranet Penetration (Tunnels)
+    details: An open-source alternative to Cloudflare Tunnels. Expose local intranet services securely to the public network without a public IP or open inbound ports.
+  - icon: 🛡️
+    title: Edge WAF Protection
+    details: Dynamic WAF rules with differential syncing of IP groups to Lua shared memory without Nginx reloads, plus country-level regional access control.
+  - icon: 🧩
+    title: Anti-CC & Bot Defense (PoW)
+    details: Built-in high-performance client-side cryptographic Proof of Work challenges (similar to Turnstile) to intercept botnets and scrapers at the edge.
+ ---

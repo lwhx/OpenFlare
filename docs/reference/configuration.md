@@ -16,7 +16,19 @@ Agent 支持：
 
 1. `-config` 命令行参数。
 2. `agent.json` 配置文件。
-3. 少量日志相关环境变量。
+3. 少量日志与配置覆盖相关环境变量。
+
+Relay (中继端) 支持：
+
+1. `-config` 命令行参数。
+2. `relay.json` 配置文件。
+3. 丰富的启动覆盖环境变量。
+
+Client (内网客户端) 支持：
+
+1. `-config` 命令行参数。
+2. `flared.json` 配置文件。
+3. 启动覆盖与日志环境变量。
 
 ## 配置文件位置
 
@@ -26,6 +38,10 @@ Agent 支持：
 | Agent 配置文件 | `./agent.json` | 可通过 `-config` 指定 |
 | 一键安装 Agent 配置 | `/opt/openflare-agent/agent.json` | 安装脚本默认生成 |
 | Agent 数据目录 | 配置文件所在目录下的 `data` | 可通过 `data_dir` 修改 |
+| Relay 配置文件 | `./relay.json` | 可通过 `-config` 指定 |
+| 一键安装 Relay 配置 | `/opt/openflare-relay/relay.json` | 安装脚本默认生成 |
+| Client 配置文件 | `./flared.json` | 可通过 `-config` 指定 |
+| 一键安装 Client 配置 | `/opt/openflared/flared.json` | 安装脚本默认生成 |
 
 ## Server 命令行参数
 
@@ -196,6 +212,70 @@ OpenResty 性能参数与缓存参数继续统一保存在 `Option` 表。当前
 * Agent 自动探测到私网 `node_ip` 时，Server 会在注册/心跳阶段优先保留 Agent 直连来源的公网地址，避免 NAT/多网卡场景误登记内网网卡地址。
 * 在管理端开启“锁定节点 IP”后，Server 会保留管理端填写的节点 IP，后续 Agent 注册、HTTP 心跳或 WebSocket 状态上报不会覆盖该字段；关闭锁定后，下一次上报可重新回填。
 
+## Relay 环境变量
+
+| 环境变量 | 作用 | 默认值 |
+| --- | --- | --- |
+| `LOG_LEVEL` | Relay 日志等级 | `info` |
+| `OPENFLARE_SERVER_URL` | 控制面地址，可覆盖 `relay.json` | 空 |
+| `OPENFLARE_AGENT_TOKEN` | 节点专属认证 Token，可覆盖 `relay.json` | 空 |
+| `OPENFLARE_DISCOVERY_TOKEN` | 首次自动注册 Token，可覆盖 `relay.json` | 空 |
+| `OPENFLARE_NODE_NAME` | 节点名称，可覆盖 `relay.json` | 空 |
+| `OPENFLARE_NODE_IP` | 节点 IP，可覆盖 `relay.json` | 空 |
+| `OPENFLARE_DATA_DIR` | Relay 数据目录，可覆盖 `relay.json` | 空 |
+| `OPENFLARE_FRPS_PATH` | frps 二进制路径，可覆盖 `relay.json` | 空 |
+
+## Relay 命令行参数
+
+| 参数 | 作用 | 默认值 |
+| --- | --- | --- |
+| `-config` | 指定 Relay 配置文件路径 | `./relay.json` |
+
+## Relay 配置字段
+
+| 字段 | 作用 | 是否必填 | 默认值/行为 |
+| --- | --- | --- | --- |
+| `server_url` | 控制面地址 | 是 | 无 |
+| `agent_token` | 中继节点专属认证 Token | 与 `discovery_token` 二选一 | 空 |
+| `discovery_token` | 首次自动注册使用的全局 Token | 与 `agent_token` 二选一 | 空 |
+| `node_name` | 节点名称 | 否 | 自动使用主机名 |
+| `node_ip` | 中继节点 IP，用于接收穿透流量 | 否 | 自动探测，优先使用公网出口 IP；失败时退回网卡探测 |
+| `frps_path` | frps 二进制路径 | 否 | `frps`（在系统 PATH 中寻找） |
+| `data_dir` | Relay 运行时数据目录 | 否 | 配置文件所在目录下的 `data` |
+| `state_path` | Relay 本地状态文件存储路径 | 否 | `data_dir/relay-state.json` |
+| `heartbeat_interval` | 心跳间隔 | 否 | `10000` 毫秒，支持 Go duration 字符串 |
+| `request_timeout` | HTTP 请求超时 | 否 | `10000` 毫秒，支持 Go duration 字符串 |
+
+## OpenFlared (Client) 环境变量
+
+| 环境变量 | 作用 | 默认值 |
+| --- | --- | --- |
+| `LOG_LEVEL` | Client 日志等级 | `info` |
+| `OPENFLARE_SERVER_URL` | 控制面地址，可覆盖 `flared.json` | 空 |
+| `OPENFLARE_TUNNEL_TOKEN` | 隧道专属认证 Token，可覆盖 `flared.json` | 空 |
+| `OPENFLARE_DATA_DIR` | Client 数据目录，可覆盖 `flared.json` | 空 |
+| `OPENFLARE_FRPC_PATH` | frpc 二进制路径，可覆盖 `flared.json` | 空 |
+
+## OpenFlared (Client) 命令行参数
+
+| 参数 | 作用 | 默认值 |
+| --- | --- | --- |
+| `-config` | 指定 Client 配置文件路径 | `./flared.json` |
+
+## OpenFlared (Client) 配置字段
+
+| 字段 | 作用 | 是否必填 | 默认值/行为 |
+| --- | --- | --- | --- |
+| `server_url` | 控制面地址 | 是 | 无 |
+| `tunnel_token` | 隧道专属认证 Token | 是 | 无 |
+| `frpc_path` | frpc 二进制路径 | 否 | `frpc`（在系统 PATH 中寻找） |
+| `data_dir` | Client 运行时数据目录 | 否 | 配置文件所在目录下的 `data` |
+| `state_path` | Client 本地状态文件存储路径 | 否 | `data_dir/flared-state.json` |
+| `heartbeat_interval` | 心跳间隔 | 否 | `10000` 毫秒，支持 Go duration 字符串 |
+| `sync_interval` | 配置拉取同步间隔 | 否 | `30000` 毫秒，支持 Go duration 字符串 |
+| `request_timeout` | HTTP 请求超时 | 否 | `10000` 毫秒，支持 Go duration 字符串 |
+
+
 ## 常见配置组合
 
 ### 生产 Server + PostgreSQL
@@ -248,12 +328,45 @@ go run .
 }
 ```
 
+### Relay (中继端) 默认配置
+
+`relay.json`：
+
+```json
+{
+  "server_url": "http://your-server:3000",
+  "agent_token": "replace-with-relay-auth-token",
+  "frps_path": "frps",
+  "data_dir": "/opt/openflare-relay/data",
+  "heartbeat_interval": 10000,
+  "request_timeout": 10000
+}
+```
+
+### OpenFlared (内网客户端) 默认配置
+
+`flared.json`：
+
+```json
+{
+  "server_url": "http://your-server:3000",
+  "tunnel_token": "replace-with-tunnel-token",
+  "frpc_path": "frpc",
+  "data_dir": "/opt/openflared/data",
+  "heartbeat_interval": 10000,
+  "sync_interval": 30000,
+  "request_timeout": 10000
+}
+```
+
+
 ## 维护要求
 
 以下内容变化时，必须同步更新本文档：
 
 * Server 命令行参数。
 * Server 环境变量。
-* Agent 命令行参数。
-* Agent 配置字段。
+* Agent 命令行参数与配置字段。
+* Relay 命令行参数与配置字段。
+* Client 命令行参数与配置字段。
 * 任一配置项的默认值、用途或示例。

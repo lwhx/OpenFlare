@@ -69,10 +69,13 @@ function sidebarGuide(): DefaultTheme.SidebarItem[] {
         { text: '概览', link: '' },
         { text: '快速开始', link: 'quick-start' },
         { text: '基础使用', link: 'usage' },
+        { text: '内网穿透与隧道使用', link: 'tunnel-usage' },
+        { text: 'WAF 安全防护使用', link: 'waf-usage' },
         { text: 'WAF 自动 IP 组语法', link: 'waf-ip-group-expr' },
         { text: 'SSO 登录配置', link: 'sso' },
         { text: '发布第一份配置', link: 'first-site' },
-        { text: '故障排查', link: 'troubleshooting' }
+        { text: '故障排查', link: 'troubleshooting' },
+        { text: '引用与致谢', link: 'credits' }
       ]
     }
   ]
@@ -85,10 +88,12 @@ function sidebarReference(): DefaultTheme.SidebarItem[] {
       items: [
         { text: '概览', link: '' },
         { text: '系统架构', link: '../design/architecture' },
-        { text: '启动 Server', link: 'server' },
-        { text: '接入 Agent', link: 'agent' },
-        { text: '部署说明', link: 'deployment' },
-        { text: '升级与维护', link: 'upgrade' },
+        { text: '启动 Server', link: '../deployment/server' },
+        { text: '接入 Agent', link: '../deployment/agent' },
+        { text: '部署说明', link: '../deployment/deployment' },
+        { text: '部署 Relay (Tunnel)', link: '../deployment/relay' },
+        { text: '部署 OpenFlared', link: '../deployment/openflared' },
+        { text: '升级与维护', link: '../deployment/upgrade' },
         { text: '配置项', link: 'configuration' },
         { text: '命令与脚本', link: 'cli' },
         { text: 'API 约定', link: 'api' }
@@ -104,8 +109,9 @@ function sidebarDesign(): DefaultTheme.SidebarItem[] {
       items: [
         { text: '产品边界', link: '' },
         { text: '系统架构', link: 'architecture' },
-        { text: '发布模型', link: 'release-model' },
-        { text: '本地开发', link: 'development' },
+        { text: 'Agent 与发布模型', link: 'agent-design' },
+        { text: '内网穿透隧道设计', link: 'tunnel-design' },
+        { text: 'WAF 设计', link: 'waf-design' },
         { text: '仓库结构', link: 'repository' }
       ]
     }

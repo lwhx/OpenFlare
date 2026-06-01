@@ -76,6 +76,39 @@ cd openflare_agent
 GOCACHE=/tmp/openflare-go-cache go test ./...
 ```
 
+## Relay (中继端)
+
+源码运行：
+
+```bash
+cd openflare_relay
+go run ./cmd -config /path/to/relay.json
+```
+
+编译：
+
+```bash
+cd openflare_relay
+go build -o openflare-relay ./cmd
+```
+
+## OpenFlared (Client 客户端)
+
+源码运行：
+
+```bash
+cd openflared
+go run ./cmd -config /path/to/flared.json
+```
+
+编译：
+
+```bash
+cd openflared
+go build -o openflared ./cmd
+```
+
+
 ## 安装 Agent
 
 ```bash

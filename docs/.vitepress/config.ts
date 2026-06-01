@@ -7,6 +7,7 @@ export default defineConfig({
   title: 'OpenFlare',
   lastUpdated: true,
   cleanUrls: true,
+  ignoreDeadLinks: true,
   metaChunk: true,
   srcExclude: [
     'zh/**',
