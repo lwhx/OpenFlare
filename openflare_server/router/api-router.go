@@ -100,6 +100,7 @@ func SetApiRouter(router *gin.Engine) {
 			wafRoute.GET("/ip-groups", controller.ListWAFIPGroups)
 			wafRoute.GET("/ip-groups/:id", controller.GetWAFIPGroup)
 			wafRoute.POST("/ip-groups", controller.CreateWAFIPGroup)
+			wafRoute.POST("/ip-groups/test", controller.TestWAFIPGroupAutoConfig)
 			wafRoute.POST("/ip-groups/:id/update", controller.UpdateWAFIPGroup)
 			wafRoute.POST("/ip-groups/:id/delete", controller.DeleteWAFIPGroup)
 			wafRoute.POST("/ip-groups/:id/sync", controller.SyncWAFIPGroup)

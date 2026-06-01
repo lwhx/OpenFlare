@@ -95,3 +95,15 @@ export interface WAFIPGroupSyncResult {
   status: string;
   message: string;
 }
+
+export interface WAFIPGroupAutoTestPayload {
+  auto_config: Record<string, unknown>;
+}
+
+export interface WAFIPGroupAutoTestResult {
+  matched_ips: string[];
+  matched_count: number;
+  lookback_minutes: number;
+  rule_count: number;
+  tested_at: string;
+}

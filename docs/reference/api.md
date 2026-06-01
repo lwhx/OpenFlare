@@ -34,6 +34,7 @@ OpenFlare 的管理端 API 与 Agent API 都使用 JSON。
 | `GET` | `/api/waf/ip-groups` | 查询 IP 组列表 |
 | `GET` | `/api/waf/ip-groups/:id` | 查询单个 IP 组 |
 | `POST` | `/api/waf/ip-groups` | 创建 IP 组 |
+| `POST` | `/api/waf/ip-groups/test` | 测试自动 IP 组 Expr 规则，不保存配置，返回当前日志窗口内命中的 IP 列表 |
 | `POST` | `/api/waf/ip-groups/:id/update` | 更新 IP 组 |
 | `POST` | `/api/waf/ip-groups/:id/delete` | 删除 IP 组；已被规则组引用时会拒绝 |
 | `POST` | `/api/waf/ip-groups/:id/sync` | 立即同步订阅型 IP 组或立即执行自动型 IP 组 |

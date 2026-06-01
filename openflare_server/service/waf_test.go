@@ -255,6 +255,41 @@ func TestSyncWAFIPGroupAutomaticExprRules(t *testing.T) {
 	}
 }
 
+func TestWAFIPGroupAutoConfigReturnsMatchedIPs(t *testing.T) {
+	setupServiceTestDB(t)
+
+	now := time.Now().UTC()
+	seedWAFNodeAccessLogs(t, now, "203.0.113.10", "app.example.com", 101, 81)
+	seedWAFNodeAccessLogs(t, now, "203.0.113.11", "198.51.100.10", 60, 0)
+	seedWAFNodeAccessLogs(t, now, "203.0.113.12", "app.example.com", 120, 10)
+
+	result, err := TestWAFIPGroupAutoConfig(WAFIPGroupAutoTestInput{
+		AutoConfig: json.RawMessage(`{
+			"lookback_minutes": 60,
+			"rules": [
+				{"name":"单 IP 404 高频扫描","expr":"request_count > 100 && status_404_ratio >= 0.8"},
+				{"name":"单 IP 直连访问异常","expr":"ip_host_count > 50 && ip_host_ratio > 0.5"}
+			]
+		}`),
+	})
+	if err != nil {
+		t.Fatalf("TestWAFIPGroupAutoConfig failed: %v", err)
+	}
+	if result.MatchedCount != 2 || result.RuleCount != 2 || result.LookbackMinutes != 60 {
+		t.Fatalf("unexpected test result: %+v", result)
+	}
+	want := map[string]bool{"203.0.113.10": true, "203.0.113.11": true}
+	for _, item := range result.MatchedIPs {
+		if !want[item] {
+			t.Fatalf("unexpected matched IP %s in %#v", item, result.MatchedIPs)
+		}
+		delete(want, item)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing matched IPs: %#v", want)
+	}
+}
+
 func TestWAFIPGroupAutomaticRejectsInvalidExpr(t *testing.T) {
 	setupServiceTestDB(t)
 

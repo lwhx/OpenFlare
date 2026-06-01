@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, Play, Plus, Save, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -16,10 +16,12 @@ import {
   deleteWAFIPGroup,
   getWAFIPGroups,
   syncWAFIPGroup,
+  testWAFIPGroupAutoConfig,
   updateWAFIPGroup,
 } from '@/features/waf/api/waf';
 import type {
   WAFIPGroup,
+  WAFIPGroupAutoTestResult,
   WAFIPGroupPayload,
   WAFIPGroupSubscriptionFormat,
   WAFIPGroupType,
@@ -101,14 +103,10 @@ function buildDraft(group: WAFIPGroup | null): IPGroupDraft {
 }
 
 function buildPayload(draft: IPGroupDraft): WAFIPGroupPayload {
-  let autoConfig: Record<string, unknown> = {};
-  if (draft.type === 'automatic') {
-    const parsed = JSON.parse(draft.auto_config_text || '{}') as unknown;
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-      throw new Error('自动配置必须是 JSON 对象。');
-    }
-    autoConfig = parsed as Record<string, unknown>;
-  }
+  const autoConfig =
+    draft.type === 'automatic'
+      ? parseAutomaticConfig(draft.auto_config_text)
+      : {};
   return {
     name: draft.name,
     type: draft.type,
@@ -121,6 +119,14 @@ function buildPayload(draft: IPGroupDraft): WAFIPGroupPayload {
     sync_interval_minutes: draft.sync_interval_minutes,
     remark: draft.remark,
   };
+}
+
+function parseAutomaticConfig(text: string): Record<string, unknown> {
+  const parsed = JSON.parse(text || '{}') as unknown;
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw new Error('自动配置必须是 JSON 对象。');
+  }
+  return parsed as Record<string, unknown>;
 }
 
 function appendAutomaticPresetRule(
@@ -161,6 +167,8 @@ export function WAFIPGroupsPage() {
   const [selectedID, setSelectedID] = useState<number | null>(null);
   const [draft, setDraft] = useState<IPGroupDraft>(emptyIPGroupDraft);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [autoTestResult, setAutoTestResult] =
+    useState<WAFIPGroupAutoTestResult | null>(null);
 
   const groupsQuery = useQuery({
     queryKey: ['waf', 'ip-groups'],
@@ -234,6 +242,28 @@ export function WAFIPGroupsPage() {
     },
   });
 
+  const testMutation = useMutation({
+    mutationFn: testWAFIPGroupAutoConfig,
+    onSuccess: (result) => {
+      setAutoTestResult(result);
+      setFeedback({
+        tone: result.matched_count > 0 ? 'success' : 'info',
+        message:
+          result.matched_count > 0
+            ? `规则测试完成，命中 ${result.matched_count} 个 IP。`
+            : '规则测试完成，当前未命中任何 IP。',
+      });
+    },
+    onError: (error) => {
+      setAutoTestResult(null);
+      setFeedback({ tone: 'danger', message: getErrorMessage(error) });
+    },
+  });
+
+  useEffect(() => {
+    setAutoTestResult(null);
+  }, [draft.type, draft.auto_config_text, selectedID]);
+
   if (groupsQuery.isLoading) {
     return <LoadingState />;
   }
@@ -250,6 +280,17 @@ export function WAFIPGroupsPage() {
     try {
       saveMutation.mutate(buildPayload(draft));
     } catch (error) {
+      setFeedback({ tone: 'danger', message: getErrorMessage(error) });
+    }
+  };
+
+  const testDraft = () => {
+    try {
+      testMutation.mutate({
+        auto_config: parseAutomaticConfig(draft.auto_config_text),
+      });
+    } catch (error) {
+      setAutoTestResult(null);
       setFeedback({ tone: 'danger', message: getErrorMessage(error) });
     }
   };
@@ -328,6 +369,16 @@ export function WAFIPGroupsPage() {
           }
           action={
             <div className="flex flex-wrap gap-3">
+              {draft.type === 'automatic' ? (
+                <SecondaryButton
+                  type="button"
+                  disabled={testMutation.isPending}
+                  onClick={testDraft}
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  {testMutation.isPending ? '测试中...' : '测试规则'}
+                </SecondaryButton>
+              ) : null}
               {selectedGroup?.type === 'subscription' ||
               selectedGroup?.type === 'automatic' ? (
                 <SecondaryButton
@@ -516,6 +567,39 @@ export function WAFIPGroupsPage() {
                     }
                   />
                 </ResourceField>
+                {autoTestResult ? (
+                  <div className="space-y-3 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-semibold text-[var(--foreground-primary)]">
+                        测试结果
+                      </div>
+                      <div className="text-xs text-[var(--foreground-secondary)]">
+                        回看 {autoTestResult.lookback_minutes} 分钟 · 规则{' '}
+                        {autoTestResult.rule_count} 条
+                      </div>
+                    </div>
+                    <InlineMessage
+                      tone={
+                        autoTestResult.matched_count > 0 ? 'success' : 'info'
+                      }
+                      message={
+                        autoTestResult.matched_count > 0
+                          ? `命中 ${autoTestResult.matched_count} 个 IP。`
+                          : '当前没有匹配到任何 IP。'
+                      }
+                    />
+                    {autoTestResult.matched_count > 0 ? (
+                      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] p-3">
+                        <div className="mb-2 text-xs font-medium text-[var(--foreground-secondary)]">
+                          命中 IP 列表
+                        </div>
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-all text-sm text-[var(--foreground-primary)]">
+                          {autoTestResult.matched_ips.join('\n')}
+                        </pre>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : (
               <ResourceField

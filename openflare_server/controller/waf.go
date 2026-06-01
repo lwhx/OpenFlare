@@ -199,6 +199,19 @@ func SyncWAFIPGroup(c *gin.Context) {
 	respondSuccess(c, result)
 }
 
+func TestWAFIPGroupAutoConfig(c *gin.Context) {
+	var input service.WAFIPGroupAutoTestInput
+	if !bindJSON(c, &input) {
+		return
+	}
+	result, err := service.TestWAFIPGroupAutoConfig(input)
+	if err != nil {
+		respondFailure(c, err.Error())
+		return
+	}
+	respondSuccess(c, result)
+}
+
 func parseUintPathParam(c *gin.Context, name string) (uint, bool) {
 	id, err := strconv.ParseUint(c.Param(name), 10, 64)
 	if err != nil || id == 0 {

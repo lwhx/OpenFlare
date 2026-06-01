@@ -110,6 +110,18 @@ type WAFIPGroupSyncResult struct {
 	Message    string         `json:"message"`
 }
 
+type WAFIPGroupAutoTestInput struct {
+	AutoConfig json.RawMessage `json:"auto_config"`
+}
+
+type WAFIPGroupAutoTestResult struct {
+	MatchedIPs      []string `json:"matched_ips"`
+	MatchedCount    int      `json:"matched_count"`
+	LookbackMinutes int      `json:"lookback_minutes"`
+	RuleCount       int      `json:"rule_count"`
+	TestedAt        string   `json:"tested_at"`
+}
+
 func ListWAFIPGroups() ([]WAFIPGroupView, error) {
 	groups, err := model.ListWAFIPGroups()
 	if err != nil {
@@ -193,6 +205,25 @@ func SyncWAFIPGroup(id uint) (*WAFIPGroupSyncResult, error) {
 		return nil, err
 	}
 	return syncWAFIPGroup(group, time.Now().UTC())
+}
+
+func TestWAFIPGroupAutoConfig(input WAFIPGroupAutoTestInput) (*WAFIPGroupAutoTestResult, error) {
+	config, err := parseWAFIPGroupAutoConfig(input.AutoConfig)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	ips, err := evaluateParsedWAFIPGroupAutoConfig(config, now)
+	if err != nil {
+		return nil, err
+	}
+	return &WAFIPGroupAutoTestResult{
+		MatchedIPs:      ips,
+		MatchedCount:    len(ips),
+		LookbackMinutes: config.LookbackMinutes,
+		RuleCount:       len(config.Rules),
+		TestedAt:        now.Format(time.RFC3339),
+	}, nil
 }
 
 func SyncDueWAFIPGroups() error {
@@ -401,13 +432,34 @@ func normalizeWAFIPGroupAutoConfig(raw json.RawMessage) (string, error) {
 	if text == "" {
 		text = "{}"
 	}
+	config, err := parseWAFIPGroupAutoConfig(json.RawMessage(text))
+	if err != nil {
+		return "", err
+	}
+	normalized, _ := json.Marshal(config)
+	return string(normalized), nil
+}
+
+func evaluateWAFIPGroupAutoConfig(raw string, now time.Time) ([]string, error) {
+	config, err := parseWAFIPGroupAutoConfig(json.RawMessage(raw))
+	if err != nil {
+		return nil, err
+	}
+	return evaluateParsedWAFIPGroupAutoConfig(config, now)
+}
+
+func parseWAFIPGroupAutoConfig(raw json.RawMessage) (wafIPGroupAutoConfig, error) {
+	text := strings.TrimSpace(string(raw))
+	if text == "" {
+		text = "{}"
+	}
 	var config wafIPGroupAutoConfig
 	if err := json.Unmarshal([]byte(text), &config); err != nil {
-		return "", errors.New("自动 IP 组配置必须是 JSON 对象")
+		return wafIPGroupAutoConfig{}, errors.New("自动 IP 组配置必须是 JSON 对象")
 	}
 	var object map[string]any
 	if err := json.Unmarshal([]byte(text), &object); err != nil || object == nil {
-		return "", errors.New("自动 IP 组配置必须是 JSON 对象")
+		return wafIPGroupAutoConfig{}, errors.New("自动 IP 组配置必须是 JSON 对象")
 	}
 	if config.LookbackMinutes <= 0 {
 		config.LookbackMinutes = defaultWAFIPGroupAutoLookbackMinutes
@@ -425,26 +477,17 @@ func normalizeWAFIPGroupAutoConfig(raw json.RawMessage) (string, error) {
 		rule.Name = strings.TrimSpace(rule.Name)
 		rule.Expr = strings.TrimSpace(rule.Expr)
 		if rule.Expr == "" {
-			return "", fmt.Errorf("自动规则 %d 的 Expr 表达式不能为空", i+1)
+			return wafIPGroupAutoConfig{}, fmt.Errorf("自动规则 %d 的 Expr 表达式不能为空", i+1)
 		}
 		if _, err := exprlang.Compile(rule.Expr, exprlang.Env(wafIPGroupAutoRuleEnv{}), exprlang.AsBool()); err != nil {
-			return "", fmt.Errorf("自动规则 %s Expr 无效: %w", displayWAFIPGroupAutoRuleName(rule, i), err)
+			return wafIPGroupAutoConfig{}, fmt.Errorf("自动规则 %s Expr 无效: %w", displayWAFIPGroupAutoRuleName(rule, i), err)
 		}
 		config.Rules[i] = rule
 	}
-	normalized, _ := json.Marshal(config)
-	return string(normalized), nil
+	return config, nil
 }
 
-func evaluateWAFIPGroupAutoConfig(raw string, now time.Time) ([]string, error) {
-	normalized, err := normalizeWAFIPGroupAutoConfig(json.RawMessage(raw))
-	if err != nil {
-		return nil, err
-	}
-	var config wafIPGroupAutoConfig
-	if err := json.Unmarshal([]byte(normalized), &config); err != nil {
-		return nil, err
-	}
+func evaluateParsedWAFIPGroupAutoConfig(config wafIPGroupAutoConfig, now time.Time) ([]string, error) {
 	if len(config.Rules) == 0 {
 		return []string{}, nil
 	}

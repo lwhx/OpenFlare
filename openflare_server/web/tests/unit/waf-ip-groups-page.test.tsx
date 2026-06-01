@@ -204,6 +204,69 @@ describe('WAF IP groups', () => {
     expect(value).toContain('ip_host_count > 50 && ip_host_ratio > 0.5');
   });
 
+  it('tests automatic Expr rules before saving', async () => {
+    const testMock = vi.fn();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method?.toUpperCase() ?? 'GET';
+
+        if (url.includes('/waf/ip-groups/test') && method === 'POST') {
+          testMock(JSON.parse(String(init?.body)));
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                success: true,
+                message: '',
+                data: {
+                  matched_ips: ['203.0.113.10', '203.0.113.11'],
+                  matched_count: 2,
+                  lookback_minutes: 60,
+                  rule_count: 1,
+                  tested_at: '2026-06-01T00:00:00Z',
+                },
+              }),
+            ),
+          );
+        }
+
+        if (url.includes('/waf/ip-groups')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ success: true, message: '', data: [] }),
+            ),
+          );
+        }
+
+        return Promise.reject(new Error(`Unhandled fetch: ${url}`));
+      }),
+    );
+
+    renderWithProviders(<WAFIPGroupsPage />);
+
+    await screen.findByText('暂无 IP 组');
+    await userEvent.click(screen.getByRole('button', { name: /新建 IP 组/ }));
+    await userEvent.selectOptions(screen.getByLabelText('类型'), 'automatic');
+    await userEvent.click(screen.getByText('单 IP 404 高频扫描'));
+    await userEvent.click(screen.getByRole('button', { name: /测试规则/ }));
+
+    expect(await screen.findByText('命中 2 个 IP。')).toBeInTheDocument();
+    expect(screen.getByText('203.0.113.10')).toBeInTheDocument();
+    expect(screen.getByText('203.0.113.11')).toBeInTheDocument();
+    expect(testMock).toHaveBeenCalledWith({
+      auto_config: expect.objectContaining({
+        lookback_minutes: 60,
+        rules: [
+          expect.objectContaining({
+            expr: 'request_count > 100 && status_404_ratio >= 0.8',
+          }),
+        ],
+      }),
+    });
+  });
+
   it('opens IP group management from WAF page and references an IP group', async () => {
     vi.stubGlobal(
       'fetch',

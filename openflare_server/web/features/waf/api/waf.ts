@@ -4,6 +4,8 @@ import type {
   WAFRuleGroup,
   WAFRuleGroupPayload,
   WAFIPGroup,
+  WAFIPGroupAutoTestPayload,
+  WAFIPGroupAutoTestResult,
   WAFIPGroupPayload,
   WAFIPGroupSyncResult,
   WAFSiteRuleGroups,
@@ -82,5 +84,12 @@ export function deleteWAFIPGroup(id: number) {
 export function syncWAFIPGroup(id: number) {
   return apiRequest<WAFIPGroupSyncResult>(`/waf/ip-groups/${id}/sync`, {
     method: 'POST',
+  });
+}
+
+export function testWAFIPGroupAutoConfig(payload: WAFIPGroupAutoTestPayload) {
+  return apiRequest<WAFIPGroupAutoTestResult>('/waf/ip-groups/test', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
