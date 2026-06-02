@@ -129,6 +129,8 @@ func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTun
 		if _, ok := activeRelays[relayID]; !ok {
 			slog.Info("stopping obsolete frpc process", "relay_id", relayID)
 			proc.Cancel()
+			pidPath := filepath.Join(m.cfg.DataDir, fmt.Sprintf("frpc_%s.pid", relayID))
+			_ = os.Remove(pidPath)
 			delete(m.processes, relayID)
 		}
 	}
@@ -142,8 +144,10 @@ func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTun
 }
 
 func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath string) {
+	pidPath := filepath.Join(m.cfg.DataDir, fmt.Sprintf("frpc_%s.pid", relayID))
 	if proc, ok := m.processes[relayID]; ok {
 		proc.Cancel()
+		_ = os.Remove(pidPath)
 	}
 
 	procCtx, cancel := context.WithCancel(context.Background())
@@ -167,6 +171,8 @@ func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath
 			}
 			m.mu.Unlock()
 
+			ensureNoOrphanProcess(pidPath)
+
 			cmd := exec.CommandContext(procCtx, m.cfg.FrpcPath, "-c", configPath)
 
 			m.mu.Lock()
@@ -175,7 +181,12 @@ func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath
 			m.mu.Unlock()
 
 			startedAt := time.Now()
-			err := cmd.Run()
+			err := cmd.Start()
+			if err == nil {
+				_ = os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0o644)
+				err = cmd.Wait()
+			}
+			_ = os.Remove(pidPath)
 
 			m.mu.Lock()
 			if procCtx.Err() != nil {
@@ -297,4 +308,26 @@ func (m *Manager) LoadState() error {
 	m.currentChecksum = state.Checksum
 	m.mu.Unlock()
 	return nil
+}
+
+func ensureNoOrphanProcess(pidPath string) {
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return
+	}
+	var pid int
+	if _, err := fmt.Sscanf(string(data), "%d", &pid); err != nil {
+		return
+	}
+	if pid <= 0 {
+		return
+	}
+	process, err := os.FindProcess(pid)
+	if err == nil && process != nil {
+		slog.Warn("attempting to kill potentially orphan process", "pid", pid, "pid_path", pidPath)
+		_ = process.Kill()
+		// Wait a little bit to ensure the OS has reclaimed ports
+		time.Sleep(500 * time.Millisecond)
+	}
+	_ = os.Remove(pidPath)
 }

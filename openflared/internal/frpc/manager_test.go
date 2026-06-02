@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -74,6 +75,21 @@ func assertStatusEventually(t *testing.T, m *Manager, relayID string, expectedSt
 	}
 	m.mu.RUnlock()
 	t.Fatalf("expected status eventually %s, got %s (err: %s)", expectedStatus, got, errStr)
+}
+
+func assertCommandExitedEventually(t *testing.T, cmd *exec.Cmd, timeout time.Duration) {
+	t.Helper()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-time.After(timeout):
+		t.Fatalf("expected process pid=%d to exit within %s", cmd.Process.Pid, timeout)
+	case <-done:
+	}
 }
 
 func TestStartProcessSuccess(t *testing.T) {
@@ -258,6 +274,60 @@ func TestBackoffReset(t *testing.T) {
 	writeControl(t, dir, 0, 5)
 
 	// Wait 1.5 seconds. If backoff was reset to 1s, it should be running now.
+	assertStatusEventually(t, m, "relay-1", "running", 4*time.Second)
+
+	m.mu.RLock()
+	proc := m.processes["relay-1"]
+	m.mu.RUnlock()
+	proc.Cancel()
+}
+
+func TestUpdateConfigKillsOrphanProcessBeforeRestart(t *testing.T) {
+	scriptPath, dir := setupDummyScript(t)
+	writeControl(t, dir, 0, 5)
+
+	cfg := &config.Config{
+		ServerURL:   "http://localhost:8080",
+		TunnelToken: "test-token",
+		FrpcPath:    scriptPath,
+		DataDir:     dir,
+		StatePath:   filepath.Join(dir, "flared-state.json"),
+	}
+
+	m := NewManager(cfg)
+
+	orphan := exec.Command("sh", "-c", "sleep 30")
+	if err := orphan.Start(); err != nil {
+		t.Fatalf("failed to start orphan process: %v", err)
+	}
+	t.Cleanup(func() {
+		if orphan.Process != nil {
+			_ = orphan.Process.Kill()
+		}
+	})
+
+	pidPath := filepath.Join(dir, "frpc_relay-1.pid")
+	if err := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", orphan.Process.Pid)), 0o644); err != nil {
+		t.Fatalf("failed to seed orphan pid file: %v", err)
+	}
+
+	newConfig := &service.FlaredTunnelConfigResponse{
+		Version:  "1",
+		Checksum: "sum1",
+		Relays: []service.FlaredRelayInfo{
+			{
+				RelayNodeID: "relay-1",
+				Address:     "127.0.0.1:7000",
+				AuthToken:   "auth-1",
+			},
+		},
+	}
+
+	if err := m.UpdateConfig(context.Background(), newConfig); err != nil {
+		t.Fatalf("failed to UpdateConfig: %v", err)
+	}
+
+	assertCommandExitedEventually(t, orphan, 2*time.Second)
 	assertStatusEventually(t, m, "relay-1", "running", 4*time.Second)
 
 	m.mu.RLock()

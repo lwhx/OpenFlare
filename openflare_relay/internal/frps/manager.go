@@ -19,6 +19,7 @@ type Manager struct {
 	frpsPath   string
 	dataDir    string
 	configPath string
+	pidPath    string
 	agentToken string
 
 	mu           sync.RWMutex
@@ -45,6 +46,7 @@ func NewManager(frpsPath string, dataDir string, agentToken string) *Manager {
 		frpsPath:   frpsPath,
 		dataDir:    dataDir,
 		configPath: filepath.Join(dataDir, "frps.toml"),
+		pidPath:    filepath.Join(dataDir, "frps.pid"),
 		status:     "unknown", // 启动阶段尚未获取配置，状态未知；避免首次 heartbeat 误报 frps_unhealthy
 		agentToken: agentToken,
 	}
@@ -183,6 +185,8 @@ func (m *Manager) supervise(generation uint64) {
 			return
 		}
 
+		ensureNoOrphanProcess(m.pidPath)
+
 		cmd := exec.Command(m.frpsPath, "-c", m.configPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -204,6 +208,8 @@ func (m *Manager) supervise(generation uint64) {
 			continue
 		}
 
+		_ = os.WriteFile(m.pidPath, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0644)
+
 		m.cmd = cmd
 		m.status = "healthy"
 		m.lastError = ""
@@ -211,6 +217,7 @@ func (m *Manager) supervise(generation uint64) {
 
 		startedAt := time.Now()
 		waitErr := cmd.Wait()
+		_ = os.Remove(m.pidPath)
 
 		m.mu.Lock()
 		if m.cmd == cmd {
@@ -272,5 +279,28 @@ func (m *Manager) Stop() {
 		_ = m.cmd.Process.Kill()
 		m.cmd = nil
 	}
+	_ = os.Remove(m.pidPath)
 	m.status = "unhealthy"
+}
+
+func ensureNoOrphanProcess(pidPath string) {
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return
+	}
+	var pid int
+	if _, err := fmt.Sscanf(string(data), "%d", &pid); err != nil {
+		return
+	}
+	if pid <= 0 {
+		return
+	}
+	process, err := os.FindProcess(pid)
+	if err == nil && process != nil {
+		slog.Warn("attempting to kill potentially orphan process", "pid", pid, "pid_path", pidPath)
+		_ = process.Kill()
+		// Wait a little bit to ensure the OS has reclaimed ports
+		time.Sleep(500 * time.Millisecond)
+	}
+	_ = os.Remove(pidPath)
 }

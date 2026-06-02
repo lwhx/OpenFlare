@@ -3,6 +3,7 @@ package frps
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -61,6 +62,21 @@ func assertStatusEventually(t *testing.T, m *Manager, expectedStatus string, tim
 	}
 	rt := m.GetRuntimeStatus()
 	t.Fatalf("expected status eventually %s, got %s (err: %s)", expectedStatus, rt.Status, rt.LastError)
+}
+
+func assertCommandExitedEventually(t *testing.T, cmd *exec.Cmd, timeout time.Duration) {
+	t.Helper()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-time.After(timeout):
+		t.Fatalf("expected process pid=%d to exit within %s", cmd.Process.Pid, timeout)
+	case <-done:
+	}
 }
 
 func TestStartProcessSuccess(t *testing.T) {
@@ -292,4 +308,38 @@ func TestSupervisorGenerationInterrupt(t *testing.T) {
 	if atomic.LoadInt32(&cmd1Finished) != 1 {
 		t.Error("expected first process to be killed")
 	}
+}
+
+func TestUpdateConfigKillsOrphanProcessBeforeRestart(t *testing.T) {
+	scriptPath, dir := setupDummyScript(t)
+	writeControl(t, dir, 0, 5)
+
+	m := NewManager(scriptPath, dir, "agent-token")
+	defer m.Stop()
+
+	orphan := exec.Command("sh", "-c", "sleep 30")
+	if err := orphan.Start(); err != nil {
+		t.Fatalf("failed to start orphan process: %v", err)
+	}
+	t.Cleanup(func() {
+		if orphan.Process != nil {
+			_ = orphan.Process.Kill()
+		}
+	})
+
+	if err := os.WriteFile(m.pidPath, []byte(fmt.Sprintf("%d", orphan.Process.Pid)), 0o644); err != nil {
+		t.Fatalf("failed to seed orphan pid file: %v", err)
+	}
+
+	cfg := &service.RelayConfig{
+		BindPort:         7000,
+		VhostHTTPPort:    8080,
+		AuthToken:        "test-auth",
+		WebServerEnabled: false,
+	}
+
+	m.UpdateConfig(cfg)
+
+	assertCommandExitedEventually(t, orphan, 2*time.Second)
+	assertStatusEventually(t, m, "healthy", 2*time.Second)
 }
