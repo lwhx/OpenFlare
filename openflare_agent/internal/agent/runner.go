@@ -12,6 +12,7 @@ import (
 	"openflare-agent/internal/observability"
 	"openflare-agent/internal/protocol"
 	"openflare-agent/internal/state"
+	"openflare-agent/internal/wsclient"
 )
 
 type HeartbeatService interface {
@@ -211,53 +212,75 @@ func (r *Runner) startWebSocket(ctx context.Context, nodeID string) (<-chan erro
 	return done, nil
 }
 
+type agentWSHandler struct {
+	runner       *Runner
+	conn         protocol.WebSocketConnection
+	nodeID       string
+	statusTicker *time.Ticker
+}
+
+func (h *agentWSHandler) OnConnect(ctx context.Context) error {
+	return h.runner.sendWebSocketStatus(ctx, h.nodeID, h.conn)
+}
+
+func (h *agentWSHandler) HandleMessage(ctx context.Context, msg wsclient.WSMessage) error {
+	var payloadBytes []byte
+	if msg.Payload != nil {
+		payloadBytes = []byte(msg.Payload)
+	}
+	protoMsg := protocol.WSMessage{
+		Type:    msg.Type,
+		Payload: payloadBytes,
+	}
+	changed, err := h.runner.handleWebSocketMessage(ctx, protoMsg, h.conn)
+	if err != nil {
+		return err
+	}
+	if changed {
+		h.statusTicker.Reset(h.runner.Config.HeartbeatInterval.Duration())
+	}
+	return nil
+}
+
+func (h *agentWSHandler) OnClose(err error) {
+	slog.Error("agent ws receive failed", "error", err)
+}
+
 func (r *Runner) runWebSocket(ctx context.Context, nodeID string, conn protocol.WebSocketConnection) error {
 	slog.Debug("agent ws connected", "url", conn.URL(), "node_id", nodeID)
 	statusTicker := time.NewTicker(r.Config.HeartbeatInterval.Duration())
 	defer statusTicker.Stop()
 
-	messages := make(chan protocol.WSMessage, 8)
-	readDone := make(chan error, 1)
+	childCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Start status ticker sender in background
 	go func() {
 		for {
-			message, err := conn.Receive()
-			if err != nil {
-				readDone <- err
-				return
-			}
 			select {
-			case messages <- message:
-			case <-ctx.Done():
-				readDone <- ctx.Err()
+			case <-childCtx.Done():
 				return
+			case <-statusTicker.C:
+				if err := r.sendWebSocketStatus(childCtx, nodeID, conn); err != nil {
+					slog.Error("agent ws send status failed", "error", err)
+					_ = conn.Close()
+					return
+				}
 			}
 		}
 	}()
 
-	if err := r.sendWebSocketStatus(ctx, nodeID, conn); err != nil {
-		return err
+	wsConn, ok := conn.(*wsclient.Connection)
+	if !ok {
+		return errors.New("invalid websocket connection type")
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-readDone:
-			return err
-		case <-statusTicker.C:
-			if err := r.sendWebSocketStatus(ctx, nodeID, conn); err != nil {
-				return err
-			}
-		case message := <-messages:
-			changed, err := r.handleWebSocketMessage(ctx, message, conn)
-			if err != nil {
-				return err
-			}
-			if changed {
-				statusTicker.Reset(r.Config.HeartbeatInterval.Duration())
-			}
-		}
-	}
+	return wsConn.RunReceiveLoop(childCtx, &agentWSHandler{
+		runner:       r,
+		conn:         conn,
+		nodeID:       nodeID,
+		statusTicker: statusTicker,
+	})
 }
 
 func (r *Runner) sendWebSocketStatus(ctx context.Context, nodeID string, conn protocol.WebSocketConnection) error {

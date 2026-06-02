@@ -2,6 +2,7 @@ package wsclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -23,6 +24,17 @@ type Config struct {
 
 type Client struct {
 	cfg Config
+}
+
+type WSMessage struct {
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+type MessageHandler interface {
+	OnConnect(ctx context.Context) error
+	HandleMessage(ctx context.Context, msg WSMessage) error
+	OnClose(err error)
 }
 
 type Connection struct {
@@ -153,6 +165,53 @@ func websocketReadTimeout(requestTimeout time.Duration) time.Duration {
 		return 75 * time.Second
 	}
 	return timeout
+}
+
+func (conn *Connection) RunReceiveLoop(ctx context.Context, handler MessageHandler) error {
+	doneChan := make(chan struct{})
+	defer close(doneChan)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-doneChan:
+		}
+	}()
+
+	if err := handler.OnConnect(ctx); err != nil {
+		handler.OnClose(err)
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		var raw WSMessage
+		if err := conn.Receive(&raw); err != nil {
+			handler.OnClose(err)
+			return err
+		}
+
+		switch raw.Type {
+		case "ping":
+			slog.Debug("ws received ping from server, replying with pong")
+			if err := conn.SendMessage("pong", nil); err != nil {
+				slog.Error("ws send pong response failed", "error", err)
+			}
+		case "pong":
+			slog.Debug("ws received pong response from server")
+		default:
+			if err := handler.HandleMessage(ctx, raw); err != nil {
+				slog.Error("ws handler failed to process message", "type", raw.Type, "error", err)
+				return err
+			}
+		}
+	}
 }
 
 func (conn *Connection) Close() error {

@@ -9,6 +9,9 @@ import (
 	shared "openflare/utils/wsclient"
 )
 
+type WSMessage = shared.WSMessage
+type MessageHandler = shared.MessageHandler
+
 type Client struct {
 	sharedClient *shared.Client
 }
@@ -41,6 +44,10 @@ func (c *Client) Connect(ctx context.Context) (*Connection, error) {
 	return &Connection{sharedConn: conn}, nil
 }
 
+func (conn *Connection) SendPing() error {
+	return conn.sharedConn.SendMessage("ping", nil)
+}
+
 func (conn *Connection) SendPong() error {
 	return conn.sharedConn.SendMessage("pong", nil)
 }
@@ -57,6 +64,10 @@ func (conn *Connection) Receive() (service.WSMessage, error) {
 		Type:    raw.Type,
 		Payload: raw.Payload,
 	}, nil
+}
+
+func (conn *Connection) RunReceiveLoop(ctx context.Context, handler shared.MessageHandler) error {
+	return conn.sharedConn.RunReceiveLoop(ctx, handler)
 }
 
 func (conn *Connection) Close() error {

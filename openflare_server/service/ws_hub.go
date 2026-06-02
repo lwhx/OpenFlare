@@ -3,6 +3,7 @@ package service
 import (
 	"log/slog"
 	"sync"
+	"time"
 )
 
 type WSMessage struct {
@@ -65,13 +66,58 @@ type WSHub struct {
 	name    string
 	mu      sync.RWMutex
 	clients map[string]*WSClient
+	done    chan struct{}
 }
 
 func NewWSHub(name string) *WSHub {
-	return &WSHub{
+	h := &WSHub{
 		name:    name,
 		clients: make(map[string]*WSClient),
+		done:    make(chan struct{}),
 	}
+	go h.startPingLoop()
+	return h
+}
+
+func (h *WSHub) Close() {
+	close(h.done)
+}
+
+func (h *WSHub) startPingLoop() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-h.done:
+			return
+		case <-ticker.C:
+			h.mu.RLock()
+			if len(h.clients) == 0 {
+				h.mu.RUnlock()
+				continue
+			}
+			clients := make([]*WSClient, 0, len(h.clients))
+			for _, client := range h.clients {
+				clients = append(clients, client)
+			}
+			h.mu.RUnlock()
+
+			for _, client := range clients {
+				if !client.Send(WSMessage{
+					Type: "ping",
+				}) {
+					slog.Warn("ws client send ping failed, queue full, disconnecting", "hub", h.name, "id", client.id)
+					h.Disconnect(client.id)
+				}
+			}
+		}
+	}
+}
+
+func ShutdownWSHubs() {
+	DefaultAgentWSHub.Close()
+	DefaultFlaredWSHub.Close()
+	DefaultRelayWSHub.Close()
 }
 
 func (h *WSHub) Register(id string) *WSClient {

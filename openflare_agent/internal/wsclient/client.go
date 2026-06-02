@@ -8,6 +8,9 @@ import (
 	shared "openflare/utils/wsclient"
 )
 
+type WSMessage = shared.WSMessage
+type MessageHandler = shared.MessageHandler
+
 type Client struct {
 	sharedClient *shared.Client
 }
@@ -65,6 +68,10 @@ func (conn *Connection) Receive() (protocol.WSMessage, error) {
 		return message, err
 	}
 	return message, nil
+}
+
+func (conn *Connection) RunReceiveLoop(ctx context.Context, handler shared.MessageHandler) error {
+	return conn.sharedConn.RunReceiveLoop(ctx, handler)
 }
 
 func (conn *Connection) Close() error {

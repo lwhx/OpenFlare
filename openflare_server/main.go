@@ -49,6 +49,8 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	// Initialize SQL Database
+	defer service.ShutdownWSHubs()
+
 	err := model.InitDB()
 	if err != nil {
 		slog.Error("initialize database failed", "error", err)

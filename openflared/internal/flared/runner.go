@@ -49,31 +49,31 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 }
 
-func (r *Runner) handleConnection(ctx context.Context, conn *wsclient.Connection) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
+type flaredWSHandler struct {
+	runner *Runner
+}
 
-		msg, err := conn.Receive()
-		if err != nil {
-			slog.Error("flared ws receive failed", "error", err)
-			return
-		}
+func (h *flaredWSHandler) OnConnect(ctx context.Context) error {
+	return nil
+}
 
-		switch msg.Type {
-		case "ping":
-			_ = conn.SendPong()
-		case "active_config":
-			// Server notifies there is a new config available
-			slog.Info("received config update notification from server")
-			r.SyncService.Trigger()
-		default:
-			slog.Debug("ignored unknown ws message type", "type", msg.Type)
-		}
+func (h *flaredWSHandler) HandleMessage(ctx context.Context, msg wsclient.WSMessage) error {
+	switch msg.Type {
+	case "active_config":
+		slog.Info("received config update notification from server")
+		h.runner.SyncService.Trigger()
+	default:
+		slog.Debug("ignored unknown ws message type", "type", msg.Type)
 	}
+	return nil
+}
+
+func (h *flaredWSHandler) OnClose(err error) {
+	slog.Error("flared ws receive failed", "error", err)
+}
+
+func (r *Runner) handleConnection(ctx context.Context, conn *wsclient.Connection) {
+	_ = conn.RunReceiveLoop(ctx, &flaredWSHandler{runner: r})
 }
 
 func (r *Runner) sleepContext(ctx context.Context, d time.Duration) {

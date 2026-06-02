@@ -51,66 +51,35 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 }
 
-func (r *Runner) handleConnection(ctx context.Context, conn *wsclient.Connection) {
-	// Send pings at 2× heartbeat interval to keep the server-side read deadline
-	// from expiring (server closes the WS if no data arrives within ~30 s).
-	pingInterval := r.Config.HeartbeatInterval.Duration() * 2
-	pingTicker := time.NewTicker(pingInterval)
-	defer pingTicker.Stop()
+type relayWSHandler struct {
+	runner *Runner
+}
 
-	messages := make(chan service.WSMessage, 8)
-	readDone := make(chan error, 1)
-	go func() {
-		for {
-			msg, err := conn.Receive()
-			if err != nil {
-				readDone <- err
-				return
-			}
-			select {
-			case messages <- msg:
-			case <-ctx.Done():
-				readDone <- ctx.Err()
-				return
-			}
-		}
-	}()
+func (h *relayWSHandler) OnConnect(ctx context.Context) error {
+	return nil
+}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case err := <-readDone:
-			slog.Error("relay ws receive failed", "error", err)
-			return
-		case <-pingTicker.C:
-			if err := conn.SendPing(); err != nil {
-				slog.Error("relay ws send ping failed", "error", err)
-				return
-			}
-		case msg := <-messages:
-			switch msg.Type {
-			case "ping":
-				_ = conn.SendPong()
-			case "pong":
-				slog.Debug("relay ws pong received")
-			case "relay_config":
-				payloadBytes, ok := msg.Payload.(json.RawMessage)
-				if !ok {
-					slog.Error("invalid relay_config payload type")
-					continue
-				}
-				var cfg service.RelayConfig
-				if err := json.Unmarshal(payloadBytes, &cfg); err != nil {
-					slog.Error("failed to unmarshal relay_config", "error", err)
-					continue
-				}
-				r.FrpsManager.UpdateConfig(&cfg)
-			default:
-				slog.Debug("ignored unknown ws message type", "type", msg.Type)
-			}
+func (h *relayWSHandler) HandleMessage(ctx context.Context, msg wsclient.WSMessage) error {
+	switch msg.Type {
+	case "relay_config":
+		var cfg service.RelayConfig
+		if err := json.Unmarshal(msg.Payload, &cfg); err != nil {
+			slog.Error("failed to unmarshal relay_config", "error", err)
+			return nil
 		}
+		h.runner.FrpsManager.UpdateConfig(&cfg)
+	default:
+		slog.Debug("ignored unknown ws message type", "type", msg.Type)
 	}
+	return nil
+}
+
+func (h *relayWSHandler) OnClose(err error) {
+	slog.Error("relay ws receive failed", "error", err)
+}
+
+func (r *Runner) handleConnection(ctx context.Context, conn *wsclient.Connection) {
+	_ = conn.RunReceiveLoop(ctx, &relayWSHandler{runner: r})
 }
 
 func (r *Runner) sleepContext(ctx context.Context, d time.Duration) {
