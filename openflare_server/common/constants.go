@@ -77,6 +77,7 @@ var OpenRestyProxyConnectTimeout = 3
 var OpenRestyProxySendTimeout = 60
 var OpenRestyProxyReadTimeout = 60
 var OpenRestyWebsocketEnabled = true
+var OpenRestyHTTP3Enabled = true
 var OpenRestyProxyRequestBufferingEnabled = false
 var OpenRestyProxyBufferingEnabled = true
 var OpenRestyProxyBuffers = "16 16k"

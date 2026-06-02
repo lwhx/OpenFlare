@@ -175,6 +175,7 @@ type ConfigSnapshot struct {
 	ProxySendTimeout          int    `json:"proxy_send_timeout"`
 	ProxyReadTimeout          int    `json:"proxy_read_timeout"`
 	WebsocketEnabled          bool   `json:"websocket_enabled"`
+	HTTP3Enabled              bool   `json:"http3_enabled"`
 	ProxyRequestBuffering     bool   `json:"proxy_request_buffering"`
 	ProxyBufferingEnabled     bool   `json:"proxy_buffering_enabled"`
 	ProxyBuffers              string `json:"proxy_buffers"`

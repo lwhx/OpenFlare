@@ -489,6 +489,9 @@ func TestPublishConfigVersionRendersMultipleCertificatesForMultiDomainWebsite(t 
 
 func TestPublishConfigVersionSkipsHTTPSForDomainsWithoutCertificate(t *testing.T) {
 	setupServiceTestDB(t)
+	if err := model.UpdateOption("OpenRestyHTTP3Enabled", "false"); err != nil {
+		t.Fatalf("UpdateOption failed: %v", err)
+	}
 
 	appCertPEM, appKeyPEM := generateCertificatePair(t, []string{"app.example.com"})
 	appCertificate, err := CreateTLSCertificate(TLSCertificateInput{
@@ -1335,6 +1338,80 @@ func TestOpenRestyProxyRequestBufferingDefaultsToOff(t *testing.T) {
 	}
 	if !strings.Contains(preview.MainConfig, "proxy_request_buffering off;") {
 		t.Fatal("expected preview main config to default proxy_request_buffering to off")
+	}
+}
+
+func TestPreviewConfigVersionSupportsHTTP3(t *testing.T) {
+	setupServiceTestDB(t)
+
+	appCertPEM, appKeyPEM := generateCertificatePair(t, []string{"h3.example.com"})
+	appCertificate, err := CreateTLSCertificate(TLSCertificateInput{
+		Name:    "h3-cert",
+		CertPEM: appCertPEM,
+		KeyPEM:  appKeyPEM,
+	})
+	if err != nil {
+		t.Fatalf("CreateTLSCertificate failed: %v", err)
+	}
+
+	_, err = CreateProxyRoute(ProxyRouteInput{
+		SiteName:      "h3-site",
+		Domains:       []string{"h3.example.com"},
+		OriginURL:     "https://origin.internal",
+		Enabled:       true,
+		EnableHTTPS:   true,
+		CertID:        &appCertificate.ID,
+		DomainCertIDs: []uint{appCertificate.ID},
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyRoute failed: %v", err)
+	}
+
+	if err := model.UpdateOption("OpenRestyHTTP3Enabled", "true"); err != nil {
+		t.Fatalf("UpdateOption OpenRestyHTTP3Enabled failed: %v", err)
+	}
+
+	preview, err := PreviewConfigVersion()
+	if err != nil {
+		t.Fatalf("PreviewConfigVersion failed: %v", err)
+	}
+
+	if !strings.Contains(preview.MainConfig, "listen 443 ssl default_server;\n        listen 443 quic reuseport default_server;") {
+		t.Fatalf("expected default server block to contain quic reuseport listener, main config: %s", preview.MainConfig)
+	}
+
+	if !strings.Contains(preview.RenderedConfig, "listen 443 quic;") {
+		t.Fatalf("expected routing server block to contain listen 443 quic, rendered config: %s", preview.RenderedConfig)
+	}
+	if !strings.Contains(preview.RenderedConfig, "add_header Alt-Svc 'h3=\":443\"; ma=86400';") {
+		t.Fatalf("expected routing server block to contain Alt-Svc header, rendered config: %s", preview.RenderedConfig)
+	}
+
+	if !strings.Contains(preview.RenderedConfig, "listen 443 ssl;") {
+		t.Fatal("expected standard listen 443 ssl to be preserved")
+	}
+	if !strings.Contains(preview.RenderedConfig, "http2 on;") {
+		t.Fatal("expected standard http2 on to be preserved")
+	}
+
+	if err := model.UpdateOption("OpenRestyHTTP3Enabled", "false"); err != nil {
+		t.Fatalf("UpdateOption OpenRestyHTTP3Enabled failed: %v", err)
+	}
+
+	previewOff, err := PreviewConfigVersion()
+	if err != nil {
+		t.Fatalf("PreviewConfigVersion failed: %v", err)
+	}
+
+	if strings.Contains(previewOff.MainConfig, "listen 443 quic reuseport default_server;") {
+		t.Fatal("expected default server block to omit quic listener when disabled")
+	}
+
+	if strings.Contains(previewOff.RenderedConfig, "listen 443 quic;") {
+		t.Fatal("expected routing server block to omit quic listener when disabled")
+	}
+	if strings.Contains(previewOff.RenderedConfig, "add_header Alt-Svc") {
+		t.Fatal("expected routing server block to omit Alt-Svc header when disabled")
 	}
 }
 

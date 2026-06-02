@@ -48,6 +48,7 @@ const defaultPerformanceFields = {
   OpenRestyProxySendTimeout: '60',
   OpenRestyProxyReadTimeout: '60',
   OpenRestyWebsocketEnabled: true,
+  OpenRestyHTTP3Enabled: true,
   OpenRestyProxyRequestBufferingEnabled: false,
   OpenRestyProxyBufferingEnabled: true,
   OpenRestyProxyBuffers: '16 16k',
@@ -96,6 +97,7 @@ const performanceFieldTooltips: Record<string, string> = {
   proxy_read_timeout: '等待上游返回响应的超时时间，单位秒。',
   websocket:
     '控制是否为反向代理规则自动注入 WebSocket 升级所需的 HTTP/1.1、Upgrade 和 Connection 头。',
+  http3: '启用后，OpenResty 将在 443 端口启用 HTTP/3 (QUIC) 协议支持。',
   proxy_request_buffering:
     '控制请求体是否先在 Nginx 侧缓冲后再转发给上游，上传和流式场景经常会用到。',
   proxy_buffering:
@@ -232,6 +234,10 @@ export function PerformancePage() {
       OpenRestyWebsocketEnabled: toBoolean(
         optionMap.OpenRestyWebsocketEnabled,
         true,
+      ),
+      OpenRestyHTTP3Enabled: toBoolean(
+        optionMap.OpenRestyHTTP3Enabled,
+        false,
       ),
       OpenRestyProxyRequestBufferingEnabled: toBoolean(
         optionMap.OpenRestyProxyRequestBufferingEnabled,
@@ -449,6 +455,10 @@ export function PerformancePage() {
           [
             'OpenRestyWebsocketEnabled',
             String(performanceFields.OpenRestyWebsocketEnabled),
+          ],
+          [
+            'OpenRestyHTTP3Enabled',
+            String(performanceFields.OpenRestyHTTP3Enabled),
           ],
           [
             'OpenRestyProxyRequestBufferingEnabled',
@@ -1005,6 +1015,17 @@ export function PerformancePage() {
                     setPerformanceFields((previous) => ({
                       ...previous,
                       OpenRestyWebsocketEnabled: checked,
+                    }))
+                  }
+                />
+                <ToggleField
+                  label="http3"
+                  tooltip={performanceFieldTooltips.http3}
+                  checked={performanceFields.OpenRestyHTTP3Enabled}
+                  onChange={(checked) =>
+                    setPerformanceFields((previous) => ({
+                      ...previous,
+                      OpenRestyHTTP3Enabled: checked,
                     }))
                   }
                 />

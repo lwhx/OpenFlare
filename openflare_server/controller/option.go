@@ -159,6 +159,7 @@ func validateOpenRestyOption(key string, value string) error {
 		return nil
 	case "OpenRestyEventsMultiAcceptEnabled",
 		"OpenRestyWebsocketEnabled",
+		"OpenRestyHTTP3Enabled",
 		"OpenRestyProxyRequestBufferingEnabled",
 		"OpenRestyProxyBufferingEnabled",
 		"OpenRestyGzipEnabled",

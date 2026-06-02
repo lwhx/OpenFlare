@@ -152,6 +152,7 @@ type openRestyConfigSnapshot struct {
 	ProxySendTimeout          int    `json:"proxy_send_timeout"`
 	ProxyReadTimeout          int    `json:"proxy_read_timeout"`
 	WebsocketEnabled          bool   `json:"websocket_enabled"`
+	HTTP3Enabled              bool   `json:"http3_enabled"`
 	ProxyRequestBuffering     bool   `json:"proxy_request_buffering"`
 	ProxyBufferingEnabled     bool   `json:"proxy_buffering_enabled"`
 	ProxyBuffers              string `json:"proxy_buffers"`
@@ -952,6 +953,7 @@ func buildOpenRestyConfigSnapshot() openRestyConfigSnapshot {
 		ProxySendTimeout:          common.OpenRestyProxySendTimeout,
 		ProxyReadTimeout:          common.OpenRestyProxyReadTimeout,
 		WebsocketEnabled:          common.OpenRestyWebsocketEnabled,
+		HTTP3Enabled:              common.OpenRestyHTTP3Enabled,
 		ProxyRequestBuffering:     common.OpenRestyProxyRequestBufferingEnabled,
 		ProxyBufferingEnabled:     common.OpenRestyProxyBufferingEnabled,
 		ProxyBuffers:              common.OpenRestyProxyBuffers,
@@ -1071,6 +1073,7 @@ func diffOpenRestyOptionDetails(left openRestyConfigSnapshot, right openRestyCon
 	appendIfChanged("OpenRestyProxySendTimeout", fmt.Sprintf("%d", left.ProxySendTimeout), fmt.Sprintf("%d", right.ProxySendTimeout))
 	appendIfChanged("OpenRestyProxyReadTimeout", fmt.Sprintf("%d", left.ProxyReadTimeout), fmt.Sprintf("%d", right.ProxyReadTimeout))
 	appendIfChanged("OpenRestyWebsocketEnabled", fmt.Sprintf("%t", left.WebsocketEnabled), fmt.Sprintf("%t", right.WebsocketEnabled))
+	appendIfChanged("OpenRestyHTTP3Enabled", fmt.Sprintf("%t", left.HTTP3Enabled), fmt.Sprintf("%t", right.HTTP3Enabled))
 	appendIfChanged("OpenRestyProxyRequestBufferingEnabled", fmt.Sprintf("%t", left.ProxyRequestBuffering), fmt.Sprintf("%t", right.ProxyRequestBuffering))
 	appendIfChanged("OpenRestyProxyBufferingEnabled", fmt.Sprintf("%t", left.ProxyBufferingEnabled), fmt.Sprintf("%t", right.ProxyBufferingEnabled))
 	appendIfChanged("OpenRestyProxyBuffers", left.ProxyBuffers, right.ProxyBuffers)
@@ -1119,6 +1122,7 @@ func openRestyOptionKeys() []string {
 		"OpenRestyProxySendTimeout",
 		"OpenRestyProxyReadTimeout",
 		"OpenRestyWebsocketEnabled",
+		"OpenRestyHTTP3Enabled",
 		"OpenRestyProxyRequestBufferingEnabled",
 		"OpenRestyProxyBufferingEnabled",
 		"OpenRestyProxyBuffers",

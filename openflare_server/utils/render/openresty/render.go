@@ -305,7 +305,7 @@ func renderMainConfigTemplate(templateText string, cfg ConfigSnapshot) string {
 		"{{OpenRestyWorkerConnections}}", fmt.Sprintf("%d", cfg.WorkerConnections),
 		"{{OpenRestyWorkerRlimitNofile}}", fmt.Sprintf("%d", cfg.WorkerRlimitNofile),
 		"{{OpenRestyConnectionUpgradeMap}}", renderConnectionUpgradeMap(),
-		"{{OpenRestyDefaultServerBlock}}", renderDefaultServerBlock(cfg.DefaultServerReturnStatus),
+		"{{OpenRestyDefaultServerBlock}}", renderDefaultServerBlock(cfg.DefaultServerReturnStatus, cfg.HTTP3Enabled),
 		"{{OpenRestyAccessLogPath}}", AccessLogPlaceholder,
 		"{{OpenRestyErrorLogPath}}", ErrorLogPlaceholder,
 		"{{OpenRestyEventsUseDirective}}", renderTemplateDirective(cfg.EventsUse != "", fmt.Sprintf("use %s;", cfg.EventsUse)),
@@ -379,7 +379,13 @@ func renderHTTPRedirectServer(serverNames string) string {
 func renderHTTPSServer(serverNames string, siteName string, originURL string, originHost string, certificateID uint, customHeaders []CustomHeader, cacheConfig routeCacheConfig, limitConfig routeLimitConfig, upstreamConfig routeUpstreamConfig, powEnabled bool, basicAuthEnabled bool, basicAuthUsername string, basicAuthPassword string, cfg ConfigSnapshot) string {
 	certPath := fmt.Sprintf("%s/%d.crt", CertDirPlaceholder, certificateID)
 	keyPath := fmt.Sprintf("%s/%d.key", CertDirPlaceholder, certificateID)
-	return fmt.Sprintf("server {\n    listen 443 ssl;\n    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s%s    location / {\n%s%s%s%s%s    }\n%s}\n\n", serverNames, certPath, keyPath, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig, cfg), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig), renderPowStaticLocationBlock(powEnabled))
+	var h3Listen string
+	var h3Header string
+	if cfg.HTTP3Enabled {
+		h3Listen = "    listen 443 quic;\n"
+		h3Header = "    add_header Alt-Svc 'h3=\":443\"; ma=86400';\n"
+	}
+	return fmt.Sprintf("server {\n    listen 443 ssl;\n%s    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s%s%s    location / {\n%s%s%s%s%s    }\n%s}\n\n", h3Listen, serverNames, certPath, keyPath, h3Header, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig, cfg), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig), renderPowStaticLocationBlock(powEnabled))
 }
 
 func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []CustomHeader, upstreamConfig routeUpstreamConfig, cfg ConfigSnapshot) string {
@@ -586,9 +592,13 @@ func renderConnectionUpgradeMap() string {
 	return "    map $http_upgrade $connection_upgrade {\n        default upgrade;\n        ''      \"\";\n    }\n\n"
 }
 
-func renderDefaultServerBlock(statusCode int) string {
+func renderDefaultServerBlock(statusCode int, http3Enabled bool) string {
 	if statusCode <= 0 {
 		statusCode = 421
+	}
+	var h3Default string
+	if http3Enabled {
+		h3Default = "\n        listen 443 quic reuseport default_server;"
 	}
 	return strings.Join([]string{
 		"    server {",
@@ -599,7 +609,7 @@ func renderDefaultServerBlock(statusCode int) string {
 		"    }",
 		"",
 		"    server {",
-		"        listen 443 ssl default_server;",
+		fmt.Sprintf("        listen 443 ssl default_server;%s", h3Default),
 		"        server_name _;",
 		"",
 		"        ssl_reject_handshake on;",
