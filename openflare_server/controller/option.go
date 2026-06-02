@@ -104,6 +104,15 @@ func validateOpenRestyOption(key string, value string) error {
 	trimmed := strings.TrimSpace(value)
 
 	switch key {
+	case "OpenRestyDefaultServerReturnStatus":
+		if err := validatePositiveIntegerOption(key, trimmed); err != nil {
+			return err
+		}
+		statusCode, _ := strconv.Atoi(trimmed)
+		if statusCode < 100 || statusCode > 999 {
+			return fmt.Errorf("%s 必须在 100 到 999 之间", key)
+		}
+		return nil
 	case "OpenRestyWorkerProcesses":
 		if trimmed == "auto" {
 			return nil

@@ -87,6 +87,7 @@ const defaultOperationFields = {
   NodeOfflineThreshold: '120000',
   AgentUpdateRepo: 'Rain-kl/OpenFlare',
   GeoIPProvider: 'ipinfo',
+  OpenRestyDefaultServerReturnStatus: '421',
   OpenRestyWorkerProcesses: 'auto',
   OpenRestyWorkerConnections: '4096',
   OpenRestyWorkerRlimitNofile: '65535',
@@ -373,6 +374,7 @@ export function SettingsPage() {
       NodeOfflineThreshold: optionMap.NodeOfflineThreshold ?? '120000',
       AgentUpdateRepo: optionMap.AgentUpdateRepo ?? 'Rain-kl/OpenFlare',
       GeoIPProvider: optionMap.GeoIPProvider ?? 'ipinfo',
+      OpenRestyDefaultServerReturnStatus: optionMap.OpenRestyDefaultServerReturnStatus ?? '421',
       OpenRestyWorkerProcesses: optionMap.OpenRestyWorkerProcesses ?? 'auto',
       OpenRestyWorkerConnections:
         optionMap.OpenRestyWorkerConnections ?? '4096',

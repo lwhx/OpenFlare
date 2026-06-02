@@ -305,7 +305,7 @@ func renderMainConfigTemplate(templateText string, cfg ConfigSnapshot) string {
 		"{{OpenRestyWorkerConnections}}", fmt.Sprintf("%d", cfg.WorkerConnections),
 		"{{OpenRestyWorkerRlimitNofile}}", fmt.Sprintf("%d", cfg.WorkerRlimitNofile),
 		"{{OpenRestyConnectionUpgradeMap}}", renderConnectionUpgradeMap(),
-		"{{OpenRestyDefaultServerBlock}}", renderDefaultServerBlock(),
+		"{{OpenRestyDefaultServerBlock}}", renderDefaultServerBlock(cfg.DefaultServerReturnStatus),
 		"{{OpenRestyAccessLogPath}}", AccessLogPlaceholder,
 		"{{OpenRestyErrorLogPath}}", ErrorLogPlaceholder,
 		"{{OpenRestyEventsUseDirective}}", renderTemplateDirective(cfg.EventsUse != "", fmt.Sprintf("use %s;", cfg.EventsUse)),
@@ -586,8 +586,26 @@ func renderConnectionUpgradeMap() string {
 	return "    map $http_upgrade $connection_upgrade {\n        default upgrade;\n        ''      \"\";\n    }\n\n"
 }
 
-func renderDefaultServerBlock() string {
-	return strings.Join([]string{"    server {", "        listen 80 default_server;", "        server_name _;", "", "        return 404;", "    }", "", "    server {", "        listen 443 ssl default_server;", "        server_name _;", "", "        ssl_reject_handshake on;", "    }", ""}, "\n")
+func renderDefaultServerBlock(statusCode int) string {
+	if statusCode <= 0 {
+		statusCode = 421
+	}
+	return strings.Join([]string{
+		"    server {",
+		"        listen 80 default_server;",
+		"        server_name _;",
+		"",
+		fmt.Sprintf("        return %d;", statusCode),
+		"    }",
+		"",
+		"    server {",
+		"        listen 443 ssl default_server;",
+		"        server_name _;",
+		"",
+		"        ssl_reject_handshake on;",
+		"    }",
+		"",
+	}, "\n")
 }
 
 func normalizedRouteDomains(route Route) []string {

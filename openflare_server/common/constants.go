@@ -59,6 +59,7 @@ var DatabaseAutoCleanupRetentionDays = 30
 
 // V5 OpenResty performance settings (hot-reloadable via Option table)
 
+var OpenRestyDefaultServerReturnStatus = 421
 var OpenRestyWorkerProcesses = "auto"
 var OpenRestyWorkerConnections = 4096
 var OpenRestyWorkerRlimitNofile = 65535

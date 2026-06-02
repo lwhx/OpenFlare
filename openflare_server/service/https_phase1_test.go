@@ -1193,8 +1193,8 @@ func TestRenderConfigUsesDefaultServerFallback(t *testing.T) {
 	if !strings.Contains(preview.MainConfig, "server_name _;") {
 		t.Fatal("expected preview main config to include default server_name")
 	}
-	if !strings.Contains(preview.MainConfig, "return 404;") {
-		t.Fatal("expected preview main config to return 404 for unmatched hosts")
+	if !strings.Contains(preview.MainConfig, "return 421;") {
+		t.Fatal("expected preview main config to return 421 for unmatched hosts")
 	}
 	if !strings.Contains(preview.MainConfig, "ssl_reject_handshake on;") {
 		t.Fatal("expected preview main config to reject unmatched https handshakes")

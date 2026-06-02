@@ -9,6 +9,11 @@ func TestValidateOpenRestyOption(t *testing.T) {
 		value   string
 		wantErr bool
 	}{
+		{name: "default server status valid 421", key: "OpenRestyDefaultServerReturnStatus", value: "421"},
+		{name: "default server status valid 200", key: "OpenRestyDefaultServerReturnStatus", value: "200"},
+		{name: "default server status invalid 99", key: "OpenRestyDefaultServerReturnStatus", value: "99", wantErr: true},
+		{name: "default server status invalid 1000", key: "OpenRestyDefaultServerReturnStatus", value: "1000", wantErr: true},
+		{name: "default server status invalid abc", key: "OpenRestyDefaultServerReturnStatus", value: "abc", wantErr: true},
 		{name: "worker processes auto", key: "OpenRestyWorkerProcesses", value: "auto"},
 		{name: "worker processes number", key: "OpenRestyWorkerProcesses", value: "8"},
 		{name: "worker processes invalid", key: "OpenRestyWorkerProcesses", value: "0", wantErr: true},

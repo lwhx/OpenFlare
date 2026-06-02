@@ -31,6 +31,7 @@ const templatePanelClassName =
   'h-[560px] w-full box-border overflow-auto rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-3 font-mono text-xs leading-6';
 
 const defaultPerformanceFields = {
+  OpenRestyDefaultServerReturnStatus: '421',
   OpenRestyWorkerProcesses: 'auto',
   OpenRestyWorkerConnections: '4096',
   OpenRestyWorkerRlimitNofile: '65535',
@@ -69,6 +70,8 @@ const defaultPerformanceFields = {
 };
 
 const performanceFieldTooltips: Record<string, string> = {
+  default_server_return_status:
+    '当客户端请求未匹配任何已配置的网站域名时，默认服务器返回的 HTTP 状态码。通常保持 421 拒绝访问。',
   worker_processes:
     'Nginx worker 进程数。通常建议保持 auto，让 OpenResty 按 CPU 核数自动分配。',
   worker_connections:
@@ -201,6 +204,7 @@ export function PerformancePage() {
 
     const optionMap = optionsToMap(optionsQuery.data);
     setPerformanceFields({
+      OpenRestyDefaultServerReturnStatus: optionMap.OpenRestyDefaultServerReturnStatus ?? '421',
       OpenRestyWorkerProcesses: optionMap.OpenRestyWorkerProcesses ?? 'auto',
       OpenRestyWorkerConnections:
         optionMap.OpenRestyWorkerConnections ?? '4096',
@@ -301,6 +305,10 @@ export function PerformancePage() {
       }
 
       const integerFields = [
+        [
+          'default_server_return_status',
+          performanceFields.OpenRestyDefaultServerReturnStatus,
+        ],
         ['worker_connections', performanceFields.OpenRestyWorkerConnections],
         ['worker_rlimit_nofile', performanceFields.OpenRestyWorkerRlimitNofile],
         ['keepalive_timeout', performanceFields.OpenRestyKeepaliveTimeout],
@@ -323,6 +331,17 @@ export function PerformancePage() {
           'client_max_body_size 必须为整数或带 k/m/g 单位的大小值。',
         );
       }
+      const defaultServerReturnStatusVal = Number.parseInt(
+        performanceFields.OpenRestyDefaultServerReturnStatus,
+        10,
+      );
+      if (
+        Number.isNaN(defaultServerReturnStatusVal) ||
+        defaultServerReturnStatusVal < 100 ||
+        defaultServerReturnStatusVal > 999
+      ) {
+        throw new Error('空白页面返回状态码必须在 100 到 999 之间。');
+      }
       if (
         !isProxyBuffersValue(
           performanceFields.OpenRestyLargeClientHeaderBuffers,
@@ -333,6 +352,10 @@ export function PerformancePage() {
 
       await saveOptionEntries(
         [
+          [
+            'OpenRestyDefaultServerReturnStatus',
+            performanceFields.OpenRestyDefaultServerReturnStatus.trim(),
+          ],
           [
             'OpenRestyWorkerProcesses',
             performanceFields.OpenRestyWorkerProcesses.trim(),
@@ -889,6 +912,24 @@ export function PerformancePage() {
                     setPerformanceFields((previous) => ({
                       ...previous,
                       OpenRestySendTimeout: event.target.value,
+                    }))
+                  }
+                />
+              </ResourceField>
+              <ResourceField
+                label="空白页面返回状态码"
+                hint="默认 421，当请求未匹配任何已有反代网站时，默认服务器返回的状态码。"
+                tooltip={performanceFieldTooltips.default_server_return_status}
+              >
+                <ResourceInput
+                  type="number"
+                  min="100"
+                  max="999"
+                  value={performanceFields.OpenRestyDefaultServerReturnStatus}
+                  onChange={(event) =>
+                    setPerformanceFields((previous) => ({
+                      ...previous,
+                      OpenRestyDefaultServerReturnStatus: event.target.value,
                     }))
                   }
                 />

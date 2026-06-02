@@ -135,41 +135,42 @@ type snapshotWAFDocument struct {
 }
 
 type openRestyConfigSnapshot struct {
-	WorkerProcesses          string `json:"worker_processes"`
-	WorkerConnections        int    `json:"worker_connections"`
-	WorkerRlimitNofile       int    `json:"worker_rlimit_nofile"`
-	EventsUse                string `json:"events_use,omitempty"`
-	EventsMultiAcceptEnabled bool   `json:"events_multi_accept_enabled"`
-	KeepaliveTimeout         int    `json:"keepalive_timeout"`
-	KeepaliveRequests        int    `json:"keepalive_requests"`
-	ClientHeaderTimeout      int    `json:"client_header_timeout"`
-	ClientBodyTimeout        int    `json:"client_body_timeout"`
-	ClientMaxBodySize        string `json:"client_max_body_size"`
-	LargeClientHeaderBuffers string `json:"large_client_header_buffers"`
-	SendTimeout              int    `json:"send_timeout"`
-	ProxyConnectTimeout      int    `json:"proxy_connect_timeout"`
-	ProxySendTimeout         int    `json:"proxy_send_timeout"`
-	ProxyReadTimeout         int    `json:"proxy_read_timeout"`
-	WebsocketEnabled         bool   `json:"websocket_enabled"`
-	ProxyRequestBuffering    bool   `json:"proxy_request_buffering"`
-	ProxyBufferingEnabled    bool   `json:"proxy_buffering_enabled"`
-	ProxyBuffers             string `json:"proxy_buffers"`
-	ProxyBufferSize          string `json:"proxy_buffer_size"`
-	ProxyBusyBuffersSize     string `json:"proxy_busy_buffers_size"`
-	GzipEnabled              bool   `json:"gzip_enabled"`
-	GzipMinLength            int    `json:"gzip_min_length"`
-	GzipCompLevel            int    `json:"gzip_comp_level"`
-	Resolvers                string `json:"resolvers,omitempty"`
-	CacheEnabled             bool   `json:"cache_enabled"`
-	CachePath                string `json:"cache_path,omitempty"`
-	CacheLevels              string `json:"cache_levels"`
-	CacheInactive            string `json:"cache_inactive"`
-	CacheMaxSize             string `json:"cache_max_size"`
-	CacheKeyTemplate         string `json:"cache_key_template"`
-	CacheLockEnabled         bool   `json:"cache_lock_enabled"`
-	CacheLockTimeout         string `json:"cache_lock_timeout"`
-	CacheUseStale            string `json:"cache_use_stale"`
-	MainConfigTemplate       string `json:"main_config_template,omitempty"`
+	DefaultServerReturnStatus int    `json:"default_server_return_status"`
+	WorkerProcesses           string `json:"worker_processes"`
+	WorkerConnections         int    `json:"worker_connections"`
+	WorkerRlimitNofile        int    `json:"worker_rlimit_nofile"`
+	EventsUse                 string `json:"events_use,omitempty"`
+	EventsMultiAcceptEnabled  bool   `json:"events_multi_accept_enabled"`
+	KeepaliveTimeout          int    `json:"keepalive_timeout"`
+	KeepaliveRequests         int    `json:"keepalive_requests"`
+	ClientHeaderTimeout       int    `json:"client_header_timeout"`
+	ClientBodyTimeout         int    `json:"client_body_timeout"`
+	ClientMaxBodySize         string `json:"client_max_body_size"`
+	LargeClientHeaderBuffers  string `json:"large_client_header_buffers"`
+	SendTimeout               int    `json:"send_timeout"`
+	ProxyConnectTimeout       int    `json:"proxy_connect_timeout"`
+	ProxySendTimeout          int    `json:"proxy_send_timeout"`
+	ProxyReadTimeout          int    `json:"proxy_read_timeout"`
+	WebsocketEnabled          bool   `json:"websocket_enabled"`
+	ProxyRequestBuffering     bool   `json:"proxy_request_buffering"`
+	ProxyBufferingEnabled     bool   `json:"proxy_buffering_enabled"`
+	ProxyBuffers              string `json:"proxy_buffers"`
+	ProxyBufferSize           string `json:"proxy_buffer_size"`
+	ProxyBusyBuffersSize      string `json:"proxy_busy_buffers_size"`
+	GzipEnabled               bool   `json:"gzip_enabled"`
+	GzipMinLength             int    `json:"gzip_min_length"`
+	GzipCompLevel             int    `json:"gzip_comp_level"`
+	Resolvers                 string `json:"resolvers,omitempty"`
+	CacheEnabled              bool   `json:"cache_enabled"`
+	CachePath                 string `json:"cache_path,omitempty"`
+	CacheLevels               string `json:"cache_levels"`
+	CacheInactive             string `json:"cache_inactive"`
+	CacheMaxSize              string `json:"cache_max_size"`
+	CacheKeyTemplate          string `json:"cache_key_template"`
+	CacheLockEnabled          bool   `json:"cache_lock_enabled"`
+	CacheLockTimeout          string `json:"cache_lock_timeout"`
+	CacheUseStale             string `json:"cache_use_stale"`
+	MainConfigTemplate        string `json:"main_config_template,omitempty"`
 }
 
 type snapshotDocument struct {
@@ -934,41 +935,42 @@ func stringSliceEqual(left []string, right []string) bool {
 
 func buildOpenRestyConfigSnapshot() openRestyConfigSnapshot {
 	return openRestyConfigSnapshot{
-		WorkerProcesses:          common.OpenRestyWorkerProcesses,
-		WorkerConnections:        common.OpenRestyWorkerConnections,
-		WorkerRlimitNofile:       common.OpenRestyWorkerRlimitNofile,
-		EventsUse:                common.OpenRestyEventsUse,
-		EventsMultiAcceptEnabled: common.OpenRestyEventsMultiAcceptEnabled,
-		KeepaliveTimeout:         common.OpenRestyKeepaliveTimeout,
-		KeepaliveRequests:        common.OpenRestyKeepaliveRequests,
-		ClientHeaderTimeout:      common.OpenRestyClientHeaderTimeout,
-		ClientBodyTimeout:        common.OpenRestyClientBodyTimeout,
-		ClientMaxBodySize:        common.OpenRestyClientMaxBodySize,
-		LargeClientHeaderBuffers: common.OpenRestyLargeClientHeaderBuffers,
-		SendTimeout:              common.OpenRestySendTimeout,
-		ProxyConnectTimeout:      common.OpenRestyProxyConnectTimeout,
-		ProxySendTimeout:         common.OpenRestyProxySendTimeout,
-		ProxyReadTimeout:         common.OpenRestyProxyReadTimeout,
-		WebsocketEnabled:         common.OpenRestyWebsocketEnabled,
-		ProxyRequestBuffering:    common.OpenRestyProxyRequestBufferingEnabled,
-		ProxyBufferingEnabled:    common.OpenRestyProxyBufferingEnabled,
-		ProxyBuffers:             common.OpenRestyProxyBuffers,
-		ProxyBufferSize:          common.OpenRestyProxyBufferSize,
-		ProxyBusyBuffersSize:     common.OpenRestyProxyBusyBuffersSize,
-		GzipEnabled:              common.OpenRestyGzipEnabled,
-		GzipMinLength:            common.OpenRestyGzipMinLength,
-		GzipCompLevel:            common.OpenRestyGzipCompLevel,
-		Resolvers:                common.OpenRestyResolvers,
-		CacheEnabled:             common.OpenRestyCacheEnabled,
-		CachePath:                common.OpenRestyCachePath,
-		CacheLevels:              common.OpenRestyCacheLevels,
-		CacheInactive:            common.OpenRestyCacheInactive,
-		CacheMaxSize:             common.OpenRestyCacheMaxSize,
-		CacheKeyTemplate:         common.OpenRestyCacheKeyTemplate,
-		CacheLockEnabled:         common.OpenRestyCacheLockEnabled,
-		CacheLockTimeout:         common.OpenRestyCacheLockTimeout,
-		CacheUseStale:            common.OpenRestyCacheUseStale,
-		MainConfigTemplate:       common.OpenRestyMainConfigTemplate,
+		DefaultServerReturnStatus: common.OpenRestyDefaultServerReturnStatus,
+		WorkerProcesses:           common.OpenRestyWorkerProcesses,
+		WorkerConnections:         common.OpenRestyWorkerConnections,
+		WorkerRlimitNofile:        common.OpenRestyWorkerRlimitNofile,
+		EventsUse:                 common.OpenRestyEventsUse,
+		EventsMultiAcceptEnabled:  common.OpenRestyEventsMultiAcceptEnabled,
+		KeepaliveTimeout:          common.OpenRestyKeepaliveTimeout,
+		KeepaliveRequests:         common.OpenRestyKeepaliveRequests,
+		ClientHeaderTimeout:       common.OpenRestyClientHeaderTimeout,
+		ClientBodyTimeout:         common.OpenRestyClientBodyTimeout,
+		ClientMaxBodySize:         common.OpenRestyClientMaxBodySize,
+		LargeClientHeaderBuffers:  common.OpenRestyLargeClientHeaderBuffers,
+		SendTimeout:               common.OpenRestySendTimeout,
+		ProxyConnectTimeout:       common.OpenRestyProxyConnectTimeout,
+		ProxySendTimeout:          common.OpenRestyProxySendTimeout,
+		ProxyReadTimeout:          common.OpenRestyProxyReadTimeout,
+		WebsocketEnabled:          common.OpenRestyWebsocketEnabled,
+		ProxyRequestBuffering:     common.OpenRestyProxyRequestBufferingEnabled,
+		ProxyBufferingEnabled:     common.OpenRestyProxyBufferingEnabled,
+		ProxyBuffers:              common.OpenRestyProxyBuffers,
+		ProxyBufferSize:           common.OpenRestyProxyBufferSize,
+		ProxyBusyBuffersSize:      common.OpenRestyProxyBusyBuffersSize,
+		GzipEnabled:               common.OpenRestyGzipEnabled,
+		GzipMinLength:             common.OpenRestyGzipMinLength,
+		GzipCompLevel:             common.OpenRestyGzipCompLevel,
+		Resolvers:                 common.OpenRestyResolvers,
+		CacheEnabled:              common.OpenRestyCacheEnabled,
+		CachePath:                 common.OpenRestyCachePath,
+		CacheLevels:               common.OpenRestyCacheLevels,
+		CacheInactive:             common.OpenRestyCacheInactive,
+		CacheMaxSize:              common.OpenRestyCacheMaxSize,
+		CacheKeyTemplate:          common.OpenRestyCacheKeyTemplate,
+		CacheLockEnabled:          common.OpenRestyCacheLockEnabled,
+		CacheLockTimeout:          common.OpenRestyCacheLockTimeout,
+		CacheUseStale:             common.OpenRestyCacheUseStale,
+		MainConfigTemplate:        common.OpenRestyMainConfigTemplate,
 	}
 }
 
@@ -1052,6 +1054,7 @@ func diffOpenRestyOptionDetails(left openRestyConfigSnapshot, right openRestyCon
 			CurrentValue:  current,
 		})
 	}
+	appendIfChanged("OpenRestyDefaultServerReturnStatus", fmt.Sprintf("%d", left.DefaultServerReturnStatus), fmt.Sprintf("%d", right.DefaultServerReturnStatus))
 	appendIfChanged("OpenRestyWorkerProcesses", left.WorkerProcesses, right.WorkerProcesses)
 	appendIfChanged("OpenRestyWorkerConnections", fmt.Sprintf("%d", left.WorkerConnections), fmt.Sprintf("%d", right.WorkerConnections))
 	appendIfChanged("OpenRestyWorkerRlimitNofile", fmt.Sprintf("%d", left.WorkerRlimitNofile), fmt.Sprintf("%d", right.WorkerRlimitNofile))
@@ -1099,6 +1102,7 @@ func extractOptionDiffKeys(details []ConfigOptionDiffItem) []string {
 
 func openRestyOptionKeys() []string {
 	return []string{
+		"OpenRestyDefaultServerReturnStatus",
 		"OpenRestyWorkerProcesses",
 		"OpenRestyWorkerConnections",
 		"OpenRestyWorkerRlimitNofile",

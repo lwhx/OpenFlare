@@ -53,6 +53,7 @@ func InitOptionMap() {
 	common.OptionMap["GeoIPProvider"] = common.GeoIPProvider
 	common.OptionMap["DatabaseAutoCleanupEnabled"] = strconv.FormatBool(common.DatabaseAutoCleanupEnabled)
 	common.OptionMap["DatabaseAutoCleanupRetentionDays"] = strconv.Itoa(common.DatabaseAutoCleanupRetentionDays)
+	common.OptionMap["OpenRestyDefaultServerReturnStatus"] = strconv.Itoa(common.OpenRestyDefaultServerReturnStatus)
 	common.OptionMap["OpenRestyWorkerProcesses"] = common.OpenRestyWorkerProcesses
 	common.OptionMap["OpenRestyWorkerConnections"] = strconv.Itoa(common.OpenRestyWorkerConnections)
 	common.OptionMap["OpenRestyWorkerRlimitNofile"] = strconv.Itoa(common.OpenRestyWorkerRlimitNofile)
@@ -212,6 +213,10 @@ func updateOptionMap(key string, value string) {
 	case "DatabaseAutoCleanupRetentionDays":
 		if v, err := strconv.Atoi(value); err == nil && v >= 1 {
 			common.DatabaseAutoCleanupRetentionDays = v
+		}
+	case "OpenRestyDefaultServerReturnStatus":
+		if v, err := strconv.Atoi(value); err == nil && v >= 100 && v <= 999 {
+			common.OpenRestyDefaultServerReturnStatus = v
 		}
 	case "OpenRestyWorkerProcesses":
 		if strings.TrimSpace(value) != "" {
