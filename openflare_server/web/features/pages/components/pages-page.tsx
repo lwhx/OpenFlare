@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 
 import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
@@ -20,6 +20,7 @@ import {
   getPagesProject,
   getPagesDeployments,
   getPagesProjects,
+  updatePagesProject,
   uploadPagesDeployment,
 } from '@/features/pages/api/pages';
 import type { PagesProject } from '@/features/pages/types';
@@ -135,6 +136,8 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [entryFile, setEntryFile] = useState('index.html');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
 
   const parsedProjectId = Number(projectId);
   const projectQuery = useQuery({
@@ -153,15 +156,22 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
       if (!file) {
         throw new Error('请选择 zip 文件');
       }
-      return uploadPagesDeployment(parsedProjectId, file, entryFile);
+      setUploadProgress(0);
+      return uploadPagesDeployment(parsedProjectId, file, entryFile, (percent) => {
+        setUploadProgress(percent);
+      });
     },
     onSuccess: () => {
       setFile(null);
+      setUploadProgress(null);
       queryClient.invalidateQueries({
         queryKey: deploymentsQueryKey(parsedProjectId),
       });
       queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
       queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+    },
+    onError: () => {
+      setUploadProgress(null);
     },
   });
   const activateMutation = useMutation({
@@ -246,6 +256,12 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
             >
               返回列表
             </Link>
+            <SecondaryButton
+              type="button"
+              onClick={() => setEditModalOpen(true)}
+            >
+              编辑项目
+            </SecondaryButton>
             <DangerButton
               type="button"
               disabled={deleteProjectMutation.isPending}
@@ -280,12 +296,28 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
                 onChange={(event) => setEntryFile(event.target.value)}
               />
             </ResourceField>
+            {uploadProgress !== null && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-medium text-[var(--foreground-secondary)]">
+                  <span>上传进度</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--brand-primary)] transition-all duration-300 ease-out"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <PrimaryButton
               type="button"
               disabled={!file || uploadMutation.isPending}
               onClick={() => uploadMutation.mutate()}
             >
-              {uploadMutation.isPending ? '上传中...' : '上传部署'}
+              {uploadMutation.isPending
+                ? `上传中 (${uploadProgress ?? 0}%)...`
+                : '上传部署'}
             </PrimaryButton>
             {uploadMutation.error ? (
               <p className="text-sm text-[var(--status-danger-foreground)]">
@@ -374,7 +406,134 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
           )}
         </AppCard>
       </div>
+
+      <PagesProjectEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        project={project}
+      />
     </div>
+  );
+}
+
+function PagesProjectEditModal({
+  isOpen,
+  onClose,
+  project,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  project: PagesProject;
+}) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(project.name);
+  const [slug, setSlug] = useState(project.slug);
+  const [description, setDescription] = useState(project.description || '');
+  const [spaFallbackEnabled, setSpaFallbackEnabled] = useState(project.spa_fallback_enabled);
+  const [spaFallbackPath, setSpaFallbackPath] = useState(project.spa_fallback_path);
+
+  useEffect(() => {
+    setName(project.name);
+    setSlug(project.slug);
+    setDescription(project.description || '');
+    setSpaFallbackEnabled(project.spa_fallback_enabled);
+    setSpaFallbackPath(project.spa_fallback_path);
+  }, [project]);
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      updatePagesProject(project.id, {
+        name,
+        slug,
+        description,
+        enabled: project.enabled,
+        spa_fallback_enabled: spaFallbackEnabled,
+        spa_fallback_path: spaFallbackPath,
+      }),
+    onSuccess: () => {
+      onClose();
+      queryClient.invalidateQueries({ queryKey: projectQueryKey(project.id) });
+      queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+    },
+  });
+
+  function handleUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    updateMutation.mutate();
+  }
+
+  return (
+    <AppModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="编辑 Pages 项目"
+      description="修改静态站点项目的基础配置。"
+      footer={
+        <div className="flex flex-wrap justify-end gap-3">
+          <SecondaryButton type="button" onClick={onClose}>
+            取消
+          </SecondaryButton>
+          <PrimaryButton
+            type="submit"
+            form="pages-project-edit-form"
+            disabled={updateMutation.isPending || name.trim() === ''}
+          >
+            {updateMutation.isPending ? '保存中...' : '保存修改'}
+          </PrimaryButton>
+        </div>
+      }
+    >
+      <form
+        id="pages-project-edit-form"
+        className="grid gap-4 md:grid-cols-2"
+        onSubmit={handleUpdate}
+      >
+        <ResourceField label="项目名称">
+          <ResourceInput
+            value={name}
+            placeholder="Marketing Site"
+            onChange={(event) => setName(event.target.value)}
+            required
+          />
+        </ResourceField>
+        <ResourceField label="项目标识" hint="留空时会按名称自动生成。">
+          <ResourceInput
+            value={slug}
+            placeholder="marketing-site"
+            onChange={(event) => setSlug(event.target.value)}
+          />
+        </ResourceField>
+        <ResourceField label="描述" className="md:col-span-2">
+          <ResourceInput
+            value={description}
+            placeholder="这个项目托管的静态站点用途"
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </ResourceField>
+        <ToggleField
+          label="启用 SPA fallback"
+          description="开启后未命中的路径会回退到指定文件，适合 React/Vue history 路由。"
+          checked={spaFallbackEnabled}
+          onChange={setSpaFallbackEnabled}
+        />
+        <ResourceField
+          label="SPA 回退路径"
+          hint="以 / 开头，例如 /index.html 或 /app.html。关闭 fallback 时不会生效。"
+        >
+          <ResourceInput
+            value={spaFallbackPath}
+            placeholder="/index.html"
+            disabled={!spaFallbackEnabled}
+            onChange={(event) => setSpaFallbackPath(event.target.value)}
+          />
+        </ResourceField>
+        {updateMutation.error ? (
+          <p className="text-sm text-[var(--status-danger-foreground)] md:col-span-2">
+            {updateMutation.error.message}
+          </p>
+        ) : null}
+      </form>
+    </AppModal>
   );
 }
 

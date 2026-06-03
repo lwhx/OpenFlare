@@ -221,19 +221,17 @@ function SidebarContent({
         ) : null}
       </div>
 
-      <nav className="flex-1 space-y-2">
-        <div className="flex max-h-full min-h-0 flex-col gap-2 overflow-y-auto pr-1">
-          {dashboardNavigation.map((item) => (
-            <SidebarNavItem
-              key={item.href}
-              item={item}
-              currentPath={currentPath}
-              isSidebarCollapsed={isSidebarCollapsed}
-              forceExpanded={forceExpanded}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </div>
+      <nav className="min-h-0 flex-1 overflow-y-auto no-scrollbar pr-1 flex flex-col gap-2">
+        {dashboardNavigation.map((item) => (
+          <SidebarNavItem
+            key={item.href}
+            item={item}
+            currentPath={currentPath}
+            isSidebarCollapsed={isSidebarCollapsed}
+            forceExpanded={forceExpanded}
+            onNavigate={onNavigate}
+          />
+        ))}
       </nav>
     </div>
   );
