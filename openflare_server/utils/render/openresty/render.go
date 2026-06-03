@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -462,7 +463,7 @@ func renderPagesLocationBlock(deployment *PagesDeployment, limitConfig routeLimi
 	var builder strings.Builder
 	builder.WriteString(renderRouteLimitBlock(limitConfig))
 	if deployment != nil && deployment.SPAFallbackEnabled {
-		builder.WriteString("        try_files $uri $uri/ /index.html;\n")
+		builder.WriteString(fmt.Sprintf("        try_files $uri $uri/ %s;\n", pagesFallbackPath(deployment)))
 	} else {
 		builder.WriteString("        try_files $uri $uri/ =404;\n")
 	}
@@ -481,6 +482,29 @@ func pagesEntryFile(deployment *PagesDeployment) string {
 		return "index.html"
 	}
 	return strings.TrimPrefix(filepathToNginxPath(deployment.EntryFile), "/")
+}
+
+func pagesFallbackPath(deployment *PagesDeployment) string {
+	if deployment == nil || strings.TrimSpace(deployment.SPAFallbackPath) == "" {
+		return "/index.html"
+	}
+	value := filepathToNginxPath(strings.TrimSpace(deployment.SPAFallbackPath))
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	if value == "/" || strings.HasSuffix(value, "/") || strings.Contains(value, "\\") || strings.ContainsAny(value, "\"';") || strings.ContainsAny(value, " \t\r\n") {
+		return "/index.html"
+	}
+	for _, segment := range strings.Split(value, "/") {
+		if segment == "." || segment == ".." {
+			return "/index.html"
+		}
+	}
+	cleaned := path.Clean(value)
+	if cleaned == "/" || strings.HasSuffix(cleaned, "/") {
+		return "/index.html"
+	}
+	return cleaned
 }
 
 func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []CustomHeader, upstreamConfig routeUpstreamConfig, cfg ConfigSnapshot) string {

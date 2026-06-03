@@ -21,9 +21,10 @@ import (
 )
 
 const (
-	pagesMaxDeploymentFiles = 1000
-	pagesMaxDeploymentBytes = 25 * 1024 * 1024
-	defaultPagesEntryFile   = "index.html"
+	pagesMaxDeploymentFiles  = 1000
+	pagesMaxDeploymentBytes  = 25 * 1024 * 1024
+	defaultPagesEntryFile    = "index.html"
+	defaultPagesFallbackPath = "/index.html"
 )
 
 var pagesSlugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,126}[a-z0-9]$|^[a-z0-9]$`)
@@ -34,6 +35,7 @@ type PagesProjectInput struct {
 	Description        string `json:"description"`
 	Enabled            bool   `json:"enabled"`
 	SPAFallbackEnabled bool   `json:"spa_fallback_enabled"`
+	SPAFallbackPath    string `json:"spa_fallback_path"`
 }
 
 type PagesProjectView struct {
@@ -43,6 +45,7 @@ type PagesProjectView struct {
 	Description        string               `json:"description"`
 	Enabled            bool                 `json:"enabled"`
 	SPAFallbackEnabled bool                 `json:"spa_fallback_enabled"`
+	SPAFallbackPath    string               `json:"spa_fallback_path"`
 	ActiveDeploymentID *uint                `json:"active_deployment_id"`
 	ActiveDeployment   *PagesDeploymentView `json:"active_deployment,omitempty"`
 	DeploymentCount    int64                `json:"deployment_count"`
@@ -133,6 +136,7 @@ func UpdatePagesProject(id uint, input PagesProjectInput) (*PagesProjectView, er
 		"description":          project.Description,
 		"enabled":              project.Enabled,
 		"spa_fallback_enabled": project.SPAFallbackEnabled,
+		"spa_fallback_path":    project.SPAFallbackPath,
 	}).Error; err != nil {
 		if model.IsUniqueConstraintError(err) {
 			return nil, errors.New("Pages 项目标识已存在")
@@ -404,6 +408,11 @@ func buildPagesProject(project *model.PagesProject, input PagesProjectInput) (*m
 	project.Description = strings.TrimSpace(input.Description)
 	project.Enabled = input.Enabled
 	project.SPAFallbackEnabled = input.SPAFallbackEnabled
+	fallbackPath, err := normalizePagesFallbackPath(input.SPAFallbackPath)
+	if err != nil {
+		return nil, err
+	}
+	project.SPAFallbackPath = fallbackPath
 	return project, nil
 }
 
@@ -418,6 +427,7 @@ func buildPagesProjectView(project *model.PagesProject) (*PagesProjectView, erro
 		Description:        project.Description,
 		Enabled:            project.Enabled,
 		SPAFallbackEnabled: project.SPAFallbackEnabled,
+		SPAFallbackPath:    normalizeStoredPagesFallbackPath(project.SPAFallbackPath),
 		ActiveDeploymentID: project.ActiveDeploymentID,
 		CreatedAt:          project.CreatedAt,
 		UpdatedAt:          project.UpdatedAt,
@@ -470,6 +480,51 @@ func normalizePagesSlug(raw string) string {
 		}
 	}
 	return strings.Trim(builder.String(), "-")
+}
+
+func normalizePagesFallbackPath(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		value = defaultPagesFallbackPath
+	}
+	if len(value) > 512 {
+		return "", errors.New("SPA fallback 回退路径长度不能超过 512")
+	}
+	if !strings.HasPrefix(value, "/") {
+		return "", errors.New("SPA fallback 回退路径必须以 / 开头")
+	}
+	if value == "/" || strings.HasSuffix(value, "/") {
+		return "", errors.New("SPA fallback 回退路径必须指向具体文件")
+	}
+	if strings.Contains(value, "\\") || strings.ContainsAny(value, "\"';") {
+		return "", errors.New("SPA fallback 回退路径包含不支持的字符")
+	}
+	for _, r := range value {
+		if r <= 0x20 || r == 0x7f {
+			return "", errors.New("SPA fallback 回退路径不能包含空白或控制字符")
+		}
+	}
+	for _, segment := range strings.Split(value, "/") {
+		if segment == "." || segment == ".." {
+			return "", errors.New("SPA fallback 回退路径不能包含 . 或 .. 路径段")
+		}
+	}
+	cleaned := path.Clean(value)
+	if cleaned == "." || !strings.HasPrefix(cleaned, "/") {
+		return "", errors.New("SPA fallback 回退路径不合法")
+	}
+	if cleaned == "/" || strings.HasSuffix(cleaned, "/") {
+		return "", errors.New("SPA fallback 回退路径必须指向具体文件")
+	}
+	return cleaned, nil
+}
+
+func normalizeStoredPagesFallbackPath(value string) string {
+	normalized, err := normalizePagesFallbackPath(value)
+	if err != nil {
+		return defaultPagesFallbackPath
+	}
+	return normalized
 }
 
 func normalizePagesEntryFile(raw string) string {

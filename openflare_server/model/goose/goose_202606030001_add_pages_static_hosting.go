@@ -47,7 +47,7 @@ func validatePagesStaticHosting(db *gorm.DB) error {
 			return fmt.Errorf("column proxy_routes.%s is missing", column)
 		}
 	}
-	for _, column := range []string{"slug", "active_deployment_id", "spa_fallback_enabled"} {
+	for _, column := range []string{"slug", "active_deployment_id", "spa_fallback_enabled", "spa_fallback_path"} {
 		if !db.Migrator().HasColumn("pages_projects", column) {
 			return fmt.Errorf("column pages_projects.%s is missing", column)
 		}

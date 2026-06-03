@@ -105,6 +105,7 @@ type snapshotPagesDeployment struct {
 	Checksum           string `json:"checksum"`
 	EntryFile          string `json:"entry_file"`
 	SPAFallbackEnabled bool   `json:"spa_fallback_enabled"`
+	SPAFallbackPath    string `json:"spa_fallback_path"`
 	LocalRoot          string `json:"local_root"`
 }
 
@@ -624,6 +625,7 @@ func buildSnapshotPagesDeployment(projectID *uint) (*snapshotPagesDeployment, er
 		Checksum:           deployment.Checksum,
 		EntryFile:          deployment.EntryFile,
 		SPAFallbackEnabled: project.SPAFallbackEnabled,
+		SPAFallbackPath:    normalizeStoredPagesFallbackPath(project.SPAFallbackPath),
 		LocalRoot:          fmt.Sprintf("%s/deployments/%d/current", openrestyrender.PagesDirPlaceholder, deployment.ID),
 	}, nil
 }

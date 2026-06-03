@@ -129,6 +129,7 @@ type PagesDeployment struct {
 	Checksum           string `json:"checksum"`
 	EntryFile          string `json:"entry_file"`
 	SPAFallbackEnabled bool   `json:"spa_fallback_enabled"`
+	SPAFallbackPath    string `json:"spa_fallback_path"`
 	LocalRoot          string `json:"local_root"`
 }
 

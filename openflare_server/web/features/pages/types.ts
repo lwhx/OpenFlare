@@ -19,6 +19,7 @@ export interface PagesProject {
   description: string;
   enabled: boolean;
   spa_fallback_enabled: boolean;
+  spa_fallback_path: string;
   active_deployment_id?: number | null;
   active_deployment?: PagesDeployment | null;
   deployment_count: number;
@@ -32,4 +33,5 @@ export interface PagesProjectPayload {
   description: string;
   enabled: boolean;
   spa_fallback_enabled: boolean;
+  spa_fallback_path: string;
 }

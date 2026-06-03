@@ -18,6 +18,7 @@ func TestPagesUploadActivateAndPublishStaticRoute(t *testing.T) {
 		Slug:               "marketing-site",
 		Enabled:            true,
 		SPAFallbackEnabled: true,
+		SPAFallbackPath:    "/app.html",
 	})
 	if err != nil {
 		t.Fatalf("CreatePagesProject failed: %v", err)
@@ -68,11 +69,29 @@ func TestPagesUploadActivateAndPublishStaticRoute(t *testing.T) {
 	if !strings.Contains(result.Version.RenderedConfig, "root \"__OPENFLARE_PAGES_DIR__/deployments/") {
 		t.Fatalf("expected rendered config to use pages dir placeholder, got:\n%s", result.Version.RenderedConfig)
 	}
-	if !strings.Contains(result.Version.RenderedConfig, "try_files $uri $uri/ /index.html;") {
+	if !strings.Contains(result.Version.SnapshotJSON, `"spa_fallback_path":"/app.html"`) {
+		t.Fatalf("expected snapshot to include custom SPA fallback path, got %s", result.Version.SnapshotJSON)
+	}
+	if !strings.Contains(result.Version.RenderedConfig, "try_files $uri $uri/ /app.html;") {
 		t.Fatalf("expected SPA fallback try_files, got:\n%s", result.Version.RenderedConfig)
 	}
 	if strings.Contains(result.Version.RenderedConfig, "proxy_pass") {
 		t.Fatalf("Pages route must not render proxy_pass, got:\n%s", result.Version.RenderedConfig)
+	}
+}
+
+func TestPagesProjectRejectsUnsafeFallbackPath(t *testing.T) {
+	setupServiceTestDB(t)
+
+	_, err := CreatePagesProject(PagesProjectInput{
+		Name:               "Unsafe Fallback",
+		Slug:               "unsafe-fallback",
+		Enabled:            true,
+		SPAFallbackEnabled: true,
+		SPAFallbackPath:    "/index.html; proxy_pass http://evil",
+	})
+	if err == nil || !strings.Contains(err.Error(), "回退路径") {
+		t.Fatalf("expected unsafe SPA fallback path rejection, got %v", err)
 	}
 }
 

@@ -10,6 +10,10 @@ export function getPagesProjects() {
   return apiRequest<PagesProject[]>('/pages/');
 }
 
+export function getPagesProject(id: number) {
+  return apiRequest<PagesProject>(`/pages/${id}`);
+}
+
 export function createPagesProject(payload: PagesProjectPayload) {
   return apiRequest<PagesProject>('/pages/', {
     method: 'POST',

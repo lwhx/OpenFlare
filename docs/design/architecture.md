@@ -85,7 +85,7 @@ Agent 本地 Pages 部署目录
 
 Server 不直接 SSH 到节点，也不在线修改节点文件。它只保存控制面状态、生成完整配置版本，并通过 Agent API 让节点主动拉取。
 
-Pages 静态托管场景中，Server 保存 Pages 项目、不可变部署元数据、文件清单和 zip 部署包；发布版本只记录部署引用和 checksum，不把大体积静态资源写入 `config_versions`。
+Pages 静态托管场景中，Server 保存 Pages 项目、SPA fallback 回退路径、不可变部署元数据、文件清单和 zip 部署包；发布版本只记录部署引用、checksum 与静态渲染策略，不把大体积静态资源写入 `config_versions`。
 
 ## Agent
 

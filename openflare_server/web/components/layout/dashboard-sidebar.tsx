@@ -217,7 +217,6 @@ function SidebarContent({
             <p className="text-sm font-semibold text-[var(--foreground-primary)]">
               OpenFlare
             </p>
-            <p className="text-xs text-[var(--foreground-secondary)]">控制面</p>
           </div>
         ) : null}
       </div>

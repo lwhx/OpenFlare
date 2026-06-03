@@ -14,6 +14,7 @@ type PagesProject struct {
 	Description        string    `json:"description" gorm:"type:text;not null;default:''"`
 	Enabled            bool      `json:"enabled" gorm:"not null;default:true"`
 	SPAFallbackEnabled bool      `json:"spa_fallback_enabled" gorm:"not null;default:false"`
+	SPAFallbackPath    string    `json:"spa_fallback_path" gorm:"size:512;not null;default:'/index.html'"`
 	ActiveDeploymentID *uint     `json:"active_deployment_id" gorm:"index"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
