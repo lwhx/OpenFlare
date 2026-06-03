@@ -209,6 +209,7 @@ func SyncToUptimeKuma() error {
 				"ignoreTls":            false,
 				"accepted_statuscodes": []string{"200-299"},
 				"dns_resolve_type":     "A",
+				"conditions":           []any{},
 			}
 			addAck, err := client.Emit("add", monitorPayload)
 			if err != nil {
@@ -268,6 +269,7 @@ func SyncToUptimeKuma() error {
 					"ignoreTls":            false,
 					"accepted_statuscodes": []string{"200-299"},
 					"dns_resolve_type":     "A",
+					"conditions":           []any{},
 				}
 				editAck, err := client.Emit("editMonitor", monitorPayload)
 				if err != nil {
