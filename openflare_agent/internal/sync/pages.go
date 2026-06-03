@@ -105,6 +105,50 @@ func referencedPagesDeployments(config *protocol.ActiveConfigResponse) ([]pagesD
 	return result, nil
 }
 
+func findCommonRootPrefix(files []*zip.File) (string, error) {
+	var firstFilePath string
+	hasMultipleFiles := false
+	for _, item := range files {
+		relativePath, skip, err := normalizePagesArchivePath(item.Name)
+		if err != nil {
+			return "", err
+		}
+		if skip {
+			continue
+		}
+		normalizedPath := filepath.ToSlash(relativePath)
+		if firstFilePath == "" {
+			firstFilePath = normalizedPath
+		} else {
+			hasMultipleFiles = true
+		}
+	}
+	if firstFilePath == "" {
+		return "", nil
+	}
+	parts := strings.Split(firstFilePath, "/")
+	if len(parts) <= 1 {
+		return "", nil
+	}
+	commonPrefix := parts[0] + "/"
+	if hasMultipleFiles {
+		for _, item := range files {
+			relativePath, skip, err := normalizePagesArchivePath(item.Name)
+			if err != nil {
+				return "", err
+			}
+			if skip {
+				continue
+			}
+			normalizedPath := filepath.ToSlash(relativePath)
+			if !strings.HasPrefix(normalizedPath, commonPrefix) {
+				return "", nil
+			}
+		}
+	}
+	return commonPrefix, nil
+}
+
 func extractPagesPackage(packageBytes []byte, releaseDir string, deployment pagesDeploymentSource) error {
 	tmpDir := releaseDir + ".tmp"
 	_ = os.RemoveAll(tmpDir)
@@ -116,6 +160,11 @@ func extractPagesPackage(packageBytes []byte, releaseDir string, deployment page
 		_ = os.RemoveAll(tmpDir)
 		return fmt.Errorf("open Pages zip: %w", err)
 	}
+	commonPrefix, err := findCommonRootPrefix(reader.File)
+	if err != nil {
+		_ = os.RemoveAll(tmpDir)
+		return err
+	}
 	for _, item := range reader.File {
 		relativePath, skip, err := normalizePagesArchivePath(item.Name)
 		if err != nil {
@@ -124,6 +173,12 @@ func extractPagesPackage(packageBytes []byte, releaseDir string, deployment page
 		}
 		if skip {
 			continue
+		}
+		if commonPrefix != "" {
+			slashPath := filepath.ToSlash(relativePath)
+			if strings.HasPrefix(slashPath, commonPrefix) {
+				relativePath = filepath.FromSlash(strings.TrimPrefix(slashPath, commonPrefix))
+			}
 		}
 		if item.FileInfo().Mode()&os.ModeSymlink != 0 {
 			_ = os.RemoveAll(tmpDir)

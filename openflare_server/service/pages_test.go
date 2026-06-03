@@ -243,3 +243,31 @@ func TestDeletePagesDeploymentRejectsActiveDeployment(t *testing.T) {
 		t.Fatalf("expected active deployment to remain: %v", err)
 	}
 }
+
+func TestUploadPagesDeploymentWithTopLevelFolder(t *testing.T) {
+	setupServiceTestDB(t)
+
+	project, err := CreatePagesProject(PagesProjectInput{
+		Name:    "Folder Site",
+		Slug:    "folder-site",
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("CreatePagesProject failed: %v", err)
+	}
+	// Upload a zip with all files inside a top-level directory "Speed-Test-source/"
+	uploadHeader := multipartFileHeader(t, "site.zip", testPagesZip(t, map[string]string{
+		"Speed-Test-source/index.html":    "<h1>Hello Pages</h1>",
+		"Speed-Test-source/assets/app.js": "console.log('pages')",
+	}))
+	deployment, err := UploadPagesDeployment(project.ID, uploadHeader, "index.html", "root")
+	if err != nil {
+		t.Fatalf("UploadPagesDeployment with folder failed: %v", err)
+	}
+	if deployment.FileCount != 2 {
+		t.Fatalf("expected 2 files, got %d", deployment.FileCount)
+	}
+	if deployment.EntryFile != "index.html" {
+		t.Fatalf("expected EntryFile to be index.html, got %q", deployment.EntryFile)
+	}
+}

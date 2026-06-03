@@ -114,11 +114,6 @@ export function PagesPage() {
               </SecondaryButton>
             }
           >
-            <p className="text-sm leading-6 text-[var(--foreground-secondary)]">
-              V1 仅支持 Direct Upload，不执行 Git
-              构建或边缘函数运行时。创建后可在项目卡片中上传 zip
-              部署包并激活版本。
-            </p>
           </AppCard>
         ) : (
           (projectsQuery.data ?? []).map((project) => (
@@ -262,66 +257,6 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
         }
       />
 
-      <AppCard
-        title="项目概览"
-        description="Pages 项目的发布状态、静态回退策略和规则可选性集中在这里。"
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <OverviewItem
-            label="当前激活部署"
-            value={
-              project.active_deployment
-                ? `#${project.active_deployment.deployment_number} · ${project.active_deployment.checksum.slice(0, 12)}`
-                : '暂无激活部署'
-            }
-            hint={`激活时间：${formatDate(project.active_deployment?.activated_at)}`}
-          />
-          <OverviewItem
-            label="部署数量"
-            value={`${project.deployment_count}`}
-            hint="上传后需要手动激活部署"
-          />
-          <OverviewItem
-            label="SPA fallback"
-            value={
-              project.spa_fallback_enabled
-                ? project.spa_fallback_path || '/index.html'
-                : '严格 404'
-            }
-            hint={
-              project.spa_fallback_enabled
-                ? '未命中路径会回退到该文件'
-                : '未命中路径直接返回 404'
-            }
-          />
-          <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3">
-            <p className="text-xs text-[var(--foreground-secondary)]">
-              项目状态
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <StatusBadge
-                label={project.enabled ? '已启用' : '已停用'}
-                variant={project.enabled ? 'success' : 'warning'}
-              />
-              <StatusBadge
-                label={
-                  project.enabled && project.active_deployment
-                    ? '规则可选'
-                    : '规则不可选'
-                }
-                variant={
-                  project.enabled && project.active_deployment
-                    ? 'success'
-                    : 'warning'
-                }
-              />
-            </div>
-            <p className="mt-2 text-xs text-[var(--foreground-secondary)]">
-              需要启用且有激活部署
-            </p>
-          </div>
-        </div>
-      </AppCard>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <AppCard
@@ -557,10 +492,6 @@ function PagesProjectCreateModal({
             onChange={(event) => setSpaFallbackPath(event.target.value)}
           />
         </ResourceField>
-        <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3 text-xs leading-5 text-[var(--foreground-secondary)]">
-          V1 仅保存项目和部署包，不执行构建任务；请先在本地或 CI
-          中完成静态资源构建。
-        </div>
         {createMutation.error ? (
           <p className="text-sm text-[var(--status-danger-foreground)] md:col-span-2">
             {createMutation.error.message}

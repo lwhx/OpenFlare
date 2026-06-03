@@ -22,7 +22,7 @@ import (
 
 const (
 	pagesMaxDeploymentFiles  = 1000
-	pagesMaxDeploymentBytes  = 25 * 1024 * 1024
+	pagesMaxDeploymentBytes  = 100 * 1024 * 1024
 	defaultPagesEntryFile    = "index.html"
 	defaultPagesFallbackPath = "/index.html"
 )
@@ -560,12 +560,60 @@ func persistPagesUploadTemp(fileHeader *multipart.FileHeader) (string, string, e
 	return temp.Name(), hex.EncodeToString(hash.Sum(nil)), nil
 }
 
+func findCommonRootPrefix(files []*zip.File) (string, error) {
+	var firstFilePath string
+	hasMultipleFiles := false
+	for _, item := range files {
+		normalizedPath, skip, err := normalizePagesZipPath(item.Name)
+		if err != nil {
+			return "", err
+		}
+		if skip {
+			continue
+		}
+		if firstFilePath == "" {
+			firstFilePath = normalizedPath
+		} else {
+			hasMultipleFiles = true
+		}
+	}
+	if firstFilePath == "" {
+		return "", nil
+	}
+	parts := strings.Split(firstFilePath, "/")
+	if len(parts) <= 1 {
+		return "", nil
+	}
+	commonPrefix := parts[0] + "/"
+	if hasMultipleFiles {
+		for _, item := range files {
+			normalizedPath, skip, err := normalizePagesZipPath(item.Name)
+			if err != nil {
+				return "", err
+			}
+			if skip {
+				continue
+			}
+			if !strings.HasPrefix(normalizedPath, commonPrefix) {
+				return "", nil
+			}
+		}
+	}
+	return commonPrefix, nil
+}
+
 func inspectPagesZip(zipPath string, entryFile string) (*pagesDeploymentManifest, error) {
 	reader, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return nil, errors.New("Pages 部署包不是有效 zip 文件")
 	}
 	defer reader.Close()
+
+	commonPrefix, err := findCommonRootPrefix(reader.File)
+	if err != nil {
+		return nil, err
+	}
+
 	manifest := &pagesDeploymentManifest{
 		Files:     []model.PagesDeploymentFile{},
 		EntryFile: entryFile,
@@ -579,6 +627,11 @@ func inspectPagesZip(zipPath string, entryFile string) (*pagesDeploymentManifest
 		if skip {
 			continue
 		}
+
+		if commonPrefix != "" {
+			normalizedPath = strings.TrimPrefix(normalizedPath, commonPrefix)
+		}
+
 		if item.FileInfo().Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("Pages 部署包不支持符号链接: %s", normalizedPath)
 		}

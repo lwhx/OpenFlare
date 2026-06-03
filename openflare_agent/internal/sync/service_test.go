@@ -872,3 +872,52 @@ func testBytesChecksum(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
+
+func TestSyncOnceDownloadsPagesDeploymentWithTopLevelFolder(t *testing.T) {
+	packageBytes := testPagesPackage(t, map[string]string{
+		"Speed-Test-source/index.html":    "hello html",
+		"Speed-Test-source/assets/app.js": "hello js",
+	})
+	checksum := testBytesChecksum(packageBytes)
+	client := &fakeClient{
+		config: protocol.ActiveConfigResponse{
+			Version:          "20260309-105",
+			Checksum:         "pages-config-checksum",
+			SourceConfigJSON: testPagesSourceConfigJSON(77, checksum),
+			CreatedAt:        time.Now().Format(time.RFC3339),
+		},
+		pagesPackages: map[uint][]byte{77: packageBytes},
+	}
+	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	nodeID, err := stateStore.EnsureNodeID()
+	if err != nil {
+		t.Fatalf("EnsureNodeID failed: %v", err)
+	}
+	snapshot, _ := stateStore.Load()
+	snapshot.NodeID = nodeID
+	if err = stateStore.Save(snapshot); err != nil {
+		t.Fatalf("save state failed: %v", err)
+	}
+	manager := &fakeManager{currentChecksum: "old-checksum"}
+	service := New(client, manager, stateStore)
+	pagesDir := t.TempDir()
+	service.SetPagesDir(pagesDir)
+
+	if err = service.SyncOnce(context.Background(), &protocol.ActiveConfigMeta{Version: "20260309-105", Checksum: "pages-config-checksum"}); err != nil {
+		t.Fatalf("SyncOnce failed: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(pagesDir, "deployments", "77", "current", "index.html"))
+	if err != nil {
+		t.Fatalf("expected Pages index.html file to be extracted: %v", err)
+	}
+	if string(data) != "hello html" {
+		t.Fatalf("unexpected Pages index.html content: %s", string(data))
+	}
+	jsData, err := os.ReadFile(filepath.Join(pagesDir, "deployments", "77", "current", "assets", "app.js"))
+	if err != nil {
+		t.Fatalf("expected Pages assets/app.js file to be extracted: %v", err)
+	}
+	if string(jsData) != "hello js" {
+		t.Fatalf("unexpected Pages assets/app.js content: %s", string(jsData))
+	}
+}
