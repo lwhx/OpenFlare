@@ -32,6 +32,9 @@ func registeredModels() []any {
 		&Option{},
 		&Origin{},
 		&ProxyRoute{},
+		&PagesProject{},
+		&PagesDeployment{},
+		&PagesDeploymentFile{},
 		&ConfigVersion{},
 		&Node{},
 

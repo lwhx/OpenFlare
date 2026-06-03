@@ -9,6 +9,7 @@ const (
 	ObservabilityListenPlaceholder = "__OPENFLARE_OBSERVABILITY_LISTEN__"
 	ObservabilityPortPlaceholder   = "__OPENFLARE_OBSERVABILITY_PORT__"
 	PowStaticDirPlaceholder        = "__OPENFLARE_POW_STATIC_DIR__"
+	PagesDirPlaceholder            = "__OPENFLARE_PAGES_DIR__"
 
 	SourceConfigFileName = "openresty_config.json"
 )
@@ -90,32 +91,45 @@ type PoWConfig struct {
 }
 
 type Route struct {
-	ID                 uint           `json:"id,omitempty"`
-	SiteName           string         `json:"site_name,omitempty"`
-	Domain             string         `json:"domain"`
-	Domains            []string       `json:"domains,omitempty"`
-	OriginURL          string         `json:"origin_url"`
-	OriginHost         string         `json:"origin_host,omitempty"`
-	Upstreams          []string       `json:"upstreams,omitempty"`
-	Enabled            bool           `json:"enabled"`
-	EnableHTTPS        bool           `json:"enable_https"`
-	CertID             *uint          `json:"cert_id,omitempty"`
-	CertIDs            []uint         `json:"cert_ids,omitempty"`
-	DomainCertIDs      []uint         `json:"domain_cert_ids,omitempty"`
-	RedirectHTTP       bool           `json:"redirect_http"`
-	LimitConnPerServer int            `json:"limit_conn_per_server,omitempty"`
-	LimitConnPerIP     int            `json:"limit_conn_per_ip,omitempty"`
-	LimitRate          string         `json:"limit_rate,omitempty"`
-	CacheEnabled       bool           `json:"cache_enabled"`
-	CachePolicy        string         `json:"cache_policy,omitempty"`
-	CacheRules         []string       `json:"cache_rules,omitempty"`
-	CustomHeaders      []CustomHeader `json:"custom_headers,omitempty"`
-	PoWEnabled         bool           `json:"pow_enabled,omitempty"`
-	PoWConfig          *PoWConfig     `json:"pow_config,omitempty"`
-	BasicAuthEnabled   bool           `json:"basic_auth_enabled,omitempty"`
-	BasicAuthUsername  string         `json:"basic_auth_username,omitempty"`
-	BasicAuthPassword  string         `json:"basic_auth_password,omitempty"`
-	Remark             string         `json:"remark,omitempty"`
+	ID                 uint             `json:"id,omitempty"`
+	SiteName           string           `json:"site_name,omitempty"`
+	Domain             string           `json:"domain"`
+	Domains            []string         `json:"domains,omitempty"`
+	OriginURL          string           `json:"origin_url"`
+	OriginHost         string           `json:"origin_host,omitempty"`
+	Upstreams          []string         `json:"upstreams,omitempty"`
+	Enabled            bool             `json:"enabled"`
+	EnableHTTPS        bool             `json:"enable_https"`
+	CertID             *uint            `json:"cert_id,omitempty"`
+	CertIDs            []uint           `json:"cert_ids,omitempty"`
+	DomainCertIDs      []uint           `json:"domain_cert_ids,omitempty"`
+	RedirectHTTP       bool             `json:"redirect_http"`
+	LimitConnPerServer int              `json:"limit_conn_per_server,omitempty"`
+	LimitConnPerIP     int              `json:"limit_conn_per_ip,omitempty"`
+	LimitRate          string           `json:"limit_rate,omitempty"`
+	CacheEnabled       bool             `json:"cache_enabled"`
+	CachePolicy        string           `json:"cache_policy,omitempty"`
+	CacheRules         []string         `json:"cache_rules,omitempty"`
+	CustomHeaders      []CustomHeader   `json:"custom_headers,omitempty"`
+	PoWEnabled         bool             `json:"pow_enabled,omitempty"`
+	PoWConfig          *PoWConfig       `json:"pow_config,omitempty"`
+	BasicAuthEnabled   bool             `json:"basic_auth_enabled,omitempty"`
+	BasicAuthUsername  string           `json:"basic_auth_username,omitempty"`
+	BasicAuthPassword  string           `json:"basic_auth_password,omitempty"`
+	Remark             string           `json:"remark,omitempty"`
+	UpstreamType       string           `json:"upstream_type,omitempty"`
+	PagesDeployment    *PagesDeployment `json:"pages_deployment,omitempty"`
+}
+
+type PagesDeployment struct {
+	ProjectID          uint   `json:"project_id"`
+	ProjectSlug        string `json:"project_slug"`
+	DeploymentID       uint   `json:"deployment_id"`
+	DeploymentNumber   int    `json:"deployment_number"`
+	Checksum           string `json:"checksum"`
+	EntryFile          string `json:"entry_file"`
+	SPAFallbackEnabled bool   `json:"spa_fallback_enabled"`
+	LocalRoot          string `json:"local_root"`
 }
 
 type WAFRuleGroup struct {

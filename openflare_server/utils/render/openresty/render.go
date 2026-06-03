@@ -84,6 +84,66 @@ func RenderRouteConfig(doc Document, certificateFiles []SupportFile) (string, er
 		if displayName == "" {
 			displayName = domains[0]
 		}
+		cacheConfig := routeCacheConfig{Enabled: route.CacheEnabled, Policy: route.CachePolicy, Rules: route.CacheRules}
+		limitConfig := routeLimitConfig{LimitConnPerServer: route.LimitConnPerServer, LimitConnPerIP: route.LimitConnPerIP, LimitRate: route.LimitRate}
+		powEnabled, _ := getPoWConfigForRoute(route.ID, doc.WAF)
+		if route.PoWEnabled {
+			powEnabled = true
+		}
+		if normalizeRouteUpstreamType(route.UpstreamType) == "pages" {
+			if route.PagesDeployment == nil {
+				return "", fmt.Errorf("route %s pages deployment is missing", route.Domain)
+			}
+			if !route.EnableHTTPS {
+				builder.WriteString(renderHTTPPagesServer(serverNames, displayName, route.PagesDeployment, limitConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword))
+				continue
+			}
+			certIDs := normalizeCertIDs(route.CertID, route.CertIDs)
+			domainCertIDs := normalizeDomainCertIDs(domains, certIDs, route.DomainCertIDs)
+			if len(certIDs) == 0 {
+				return "", fmt.Errorf("路由 %s 未配置证书", route.Domain)
+			}
+			httpOnlyDomains := make([]string, 0, len(domains))
+			domainsByCertID := make(map[uint][]string, len(certIDs))
+			for index, domain := range domains {
+				if index >= len(domainCertIDs) || domainCertIDs[index] == 0 {
+					httpOnlyDomains = append(httpOnlyDomains, domain)
+					continue
+				}
+				domainsByCertID[domainCertIDs[index]] = append(domainsByCertID[domainCertIDs[index]], domain)
+			}
+			for _, certID := range certIDs {
+				assignedDomains := domainsByCertID[certID]
+				if len(assignedDomains) == 0 {
+					continue
+				}
+				certPEM, ok := certificates[certID]
+				if !ok {
+					return "", fmt.Errorf("route %s certificate %d does not exist", route.Domain, certID)
+				}
+				if err := validateCertificateCoverage(certPEM, assignedDomains); err != nil {
+					return "", fmt.Errorf("site %s certificate validation failed: %w", displayName, err)
+				}
+			}
+			if route.RedirectHTTP {
+				if len(httpOnlyDomains) > 0 {
+					builder.WriteString(renderHTTPPagesServer(renderServerNames(httpOnlyDomains), displayName, route.PagesDeployment, limitConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword))
+				}
+				for _, certID := range certIDs {
+					if assignedDomains := domainsByCertID[certID]; len(assignedDomains) > 0 {
+						builder.WriteString(renderHTTPRedirectServer(renderServerNames(assignedDomains)))
+					}
+				}
+			} else {
+				builder.WriteString(renderHTTPPagesServer(serverNames, displayName, route.PagesDeployment, limitConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword))
+			}
+			for _, certID := range certIDs {
+				if assignedDomains := domainsByCertID[certID]; len(assignedDomains) > 0 {
+					builder.WriteString(renderHTTPSPagesServer(renderServerNames(assignedDomains), displayName, certID, route.PagesDeployment, limitConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword, doc.OpenRestyConfig))
+				}
+			}
+			continue
+		}
 		upstreams := route.Upstreams
 		if len(upstreams) == 0 && strings.TrimSpace(route.OriginURL) != "" {
 			upstreams = []string{route.OriginURL}
@@ -91,12 +151,6 @@ func RenderRouteConfig(doc Document, certificateFiles []SupportFile) (string, er
 		upstreamConfig := buildRouteUpstreamConfig(route, upstreams)
 		if upstreamConfig.UsesNamedUpstream {
 			builder.WriteString(renderNamedUpstreamBlock(upstreamConfig))
-		}
-		cacheConfig := routeCacheConfig{Enabled: route.CacheEnabled, Policy: route.CachePolicy, Rules: route.CacheRules}
-		limitConfig := routeLimitConfig{LimitConnPerServer: route.LimitConnPerServer, LimitConnPerIP: route.LimitConnPerIP, LimitRate: route.LimitRate}
-		powEnabled, _ := getPoWConfigForRoute(route.ID, doc.WAF)
-		if route.PoWEnabled {
-			powEnabled = true
 		}
 		if !route.EnableHTTPS {
 			builder.WriteString(renderHTTPProxyServer(serverNames, displayName, route.OriginURL, route.OriginHost, route.CustomHeaders, cacheConfig, limitConfig, upstreamConfig, powEnabled, route.BasicAuthEnabled, route.BasicAuthUsername, route.BasicAuthPassword, doc.OpenRestyConfig))
@@ -372,6 +426,10 @@ func renderHTTPProxyServer(serverNames string, siteName string, originURL string
 	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s%s    location / {\n%s%s%s%s%s    }\n%s}\n\n", serverNames, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig, cfg), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig), renderPowStaticLocationBlock(powEnabled))
 }
 
+func renderHTTPPagesServer(serverNames string, siteName string, deployment *PagesDeployment, limitConfig routeLimitConfig, powEnabled bool, basicAuthEnabled bool, basicAuthUsername string, basicAuthPassword string) string {
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s%s    root %s;\n    index %s;\n\n    location / {\n%s%s    }\n%s}\n\n", serverNames, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), quoteNginxStringLiteral(pagesDeploymentRoot(deployment)), quoteNginxStringLiteral(pagesEntryFile(deployment)), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderPagesLocationBlock(deployment, limitConfig), renderPowStaticLocationBlock(powEnabled))
+}
+
 func renderHTTPRedirectServer(serverNames string) string {
 	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n\n    return 301 https://$host$request_uri;\n}\n\n", serverNames)
 }
@@ -386,6 +444,43 @@ func renderHTTPSServer(serverNames string, siteName string, originURL string, or
 		h3Header = "    add_header Alt-Svc 'h3=\":443\"; ma=86400';\n"
 	}
 	return fmt.Sprintf("server {\n    listen 443 ssl;\n%s    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s%s%s    location / {\n%s%s%s%s%s    }\n%s}\n\n", h3Listen, serverNames, certPath, keyPath, h3Header, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderProxyHeaderBlock(originURL, originHost, customHeaders, upstreamConfig, cfg), renderRouteLimitBlock(limitConfig), renderRouteCacheBlock(cacheConfig, cfg), renderProxyPassBlock(originURL, upstreamConfig), renderPowStaticLocationBlock(powEnabled))
+}
+
+func renderHTTPSPagesServer(serverNames string, siteName string, certificateID uint, deployment *PagesDeployment, limitConfig routeLimitConfig, powEnabled bool, basicAuthEnabled bool, basicAuthUsername string, basicAuthPassword string, cfg ConfigSnapshot) string {
+	certPath := fmt.Sprintf("%s/%d.crt", CertDirPlaceholder, certificateID)
+	keyPath := fmt.Sprintf("%s/%d.key", CertDirPlaceholder, certificateID)
+	var h3Listen string
+	var h3Header string
+	if cfg.HTTP3Enabled {
+		h3Listen = "    listen 443 quic;\n"
+		h3Header = "    add_header Alt-Svc 'h3=\":443\"; ma=86400';\n"
+	}
+	return fmt.Sprintf("server {\n    listen 443 ssl;\n%s    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s%s%s    root %s;\n    index %s;\n\n    location / {\n%s%s    }\n%s}\n\n", h3Listen, serverNames, certPath, keyPath, h3Header, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), quoteNginxStringLiteral(pagesDeploymentRoot(deployment)), quoteNginxStringLiteral(pagesEntryFile(deployment)), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderPagesLocationBlock(deployment, limitConfig), renderPowStaticLocationBlock(powEnabled))
+}
+
+func renderPagesLocationBlock(deployment *PagesDeployment, limitConfig routeLimitConfig) string {
+	var builder strings.Builder
+	builder.WriteString(renderRouteLimitBlock(limitConfig))
+	if deployment != nil && deployment.SPAFallbackEnabled {
+		builder.WriteString("        try_files $uri $uri/ /index.html;\n")
+	} else {
+		builder.WriteString("        try_files $uri $uri/ =404;\n")
+	}
+	return builder.String()
+}
+
+func pagesDeploymentRoot(deployment *PagesDeployment) string {
+	if deployment == nil || strings.TrimSpace(deployment.LocalRoot) == "" {
+		return PagesDirPlaceholder
+	}
+	return filepathToNginxPath(deployment.LocalRoot)
+}
+
+func pagesEntryFile(deployment *PagesDeployment) string {
+	if deployment == nil || strings.TrimSpace(deployment.EntryFile) == "" {
+		return "index.html"
+	}
+	return strings.TrimPrefix(filepathToNginxPath(deployment.EntryFile), "/")
 }
 
 func renderProxyHeaderBlock(originURL string, originHost string, customHeaders []CustomHeader, upstreamConfig routeUpstreamConfig, cfg ConfigSnapshot) string {
@@ -541,6 +636,15 @@ func buildRouteUpstreamConfig(route Route, upstreams []string) routeUpstreamConf
 		servers = append(servers, parsed.Host)
 	}
 	return routeUpstreamConfig{Name: buildRouteUpstreamName(route), Scheme: scheme, Servers: servers, UsesNamedUpstream: true}
+}
+
+func normalizeRouteUpstreamType(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "pages":
+		return "pages"
+	default:
+		return "direct"
+	}
 }
 
 func renderNamedUpstreamBlock(upstreamConfig routeUpstreamConfig) string {
@@ -785,6 +889,10 @@ func quoteNginxStringLiteral(value string) string {
 	escaped := strings.ReplaceAll(value, `\`, `\\`)
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
 	return fmt.Sprintf(`"%s"`, escaped)
+}
+
+func filepathToNginxPath(value string) string {
+	return strings.ReplaceAll(strings.TrimSpace(value), `\`, `/`)
 }
 
 func escapeNginxString(value string) string {

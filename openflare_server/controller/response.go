@@ -75,7 +75,11 @@ func decodeOptionalJSONBody(body io.Reader, target any) error {
 }
 
 func parseIDParam(c *gin.Context) (uint, bool) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	return parseIDParamByName(c, "id")
+}
+
+func parseIDParamByName(c *gin.Context, name string) (uint, bool) {
+	id, err := strconv.ParseUint(c.Param(name), 10, 64)
 	if err != nil || id == 0 {
 		respondBadRequest(c, "")
 		return 0, false

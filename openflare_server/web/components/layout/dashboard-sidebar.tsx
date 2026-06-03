@@ -80,6 +80,15 @@ function SidebarIcon({ icon }: { icon: NavigationIconKey }) {
           <path d="m14 15 3 2-3 2" />
         </svg>
       );
+    case 'pages':
+      return (
+        <svg {...commonProps}>
+          <path d="M5 5.5h14v13H5z" />
+          <path d="M8 9h8" />
+          <path d="M8 12h5" />
+          <path d="M8 15h7" />
+        </svg>
+      );
     case 'waf':
       return <ShieldCheck className="h-[18px] w-[18px]" strokeWidth={1.8} />;
     case 'release':

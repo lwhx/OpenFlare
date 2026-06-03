@@ -66,6 +66,7 @@ type ProxyRouteInput struct {
 	TunnelID             *uint                         `json:"tunnel_id"`
 	TunnelTargetAddr     string                        `json:"tunnel_target_addr"`
 	TunnelTargetProtocol string                        `json:"tunnel_target_protocol"`
+	PagesProjectID       *uint                         `json:"pages_project_id"`
 }
 
 type ProxyRouteView struct {
@@ -106,6 +107,7 @@ type ProxyRouteView struct {
 	TunnelID             *uint                         `json:"tunnel_id"`
 	TunnelTargetAddr     string                        `json:"tunnel_target_addr"`
 	TunnelTargetProtocol string                        `json:"tunnel_target_protocol"`
+	PagesProjectID       *uint                         `json:"pages_project_id"`
 	CreatedAt            time.Time                     `json:"created_at"`
 	UpdatedAt            time.Time                     `json:"updated_at"`
 }
@@ -181,6 +183,13 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 
 	if upstreamType == "tunnel" {
 		// Tunnel type: origin URL is auto-filled during config rendering
+		originURL = "http://127.0.0.1"
+		upstreams = []string{originURL}
+	} else if upstreamType == "pages" {
+		if err := validatePagesRouteInput(input.PagesProjectID); err != nil {
+			return nil, err
+		}
+		// Keep persisted upstreams HTTP-compatible; Pages rendering uses pages_project_id.
 		originURL = "http://127.0.0.1"
 		upstreams = []string{originURL}
 	} else {
@@ -339,10 +348,17 @@ func buildProxyRoute(route *model.ProxyRoute, input ProxyRouteInput) (*model.Pro
 		route.TunnelNodeID = tunnelNodeID
 		route.TunnelTargetAddr = strings.TrimSpace(input.TunnelTargetAddr)
 		route.TunnelTargetProtocol = normalizeTunnelTargetProtocol(input.TunnelTargetProtocol)
+		route.PagesProjectID = nil
+	} else if upstreamType == "pages" {
+		route.TunnelNodeID = nil
+		route.TunnelTargetAddr = ""
+		route.TunnelTargetProtocol = ""
+		route.PagesProjectID = input.PagesProjectID
 	} else {
 		route.TunnelNodeID = nil
 		route.TunnelTargetAddr = ""
 		route.TunnelTargetProtocol = ""
+		route.PagesProjectID = nil
 	}
 	return route, nil
 }
@@ -434,6 +450,7 @@ func buildProxyRouteView(route *model.ProxyRoute) (*ProxyRouteView, error) {
 		TunnelID:             route.TunnelNodeID,
 		TunnelTargetAddr:     route.TunnelTargetAddr,
 		TunnelTargetProtocol: route.TunnelTargetProtocol,
+		PagesProjectID:       route.PagesProjectID,
 		CreatedAt:            route.CreatedAt,
 		UpdatedAt:            route.UpdatedAt,
 	}, nil
@@ -472,6 +489,26 @@ func validateTunnelRouteInput(tunnelNodeID *uint, targetAddr string, targetProto
 	default:
 		return errors.New("tunnel_target_protocol must be http or https")
 	}
+}
+
+func validatePagesRouteInput(projectID *uint) error {
+	if projectID == nil || *projectID == 0 {
+		return errors.New("pages_project_id is required for Pages upstream")
+	}
+	project, err := model.GetPagesProjectByID(*projectID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("Pages 项目不存在")
+		}
+		return err
+	}
+	if !project.Enabled {
+		return errors.New("Pages 项目未启用")
+	}
+	if project.ActiveDeploymentID == nil || *project.ActiveDeploymentID == 0 {
+		return errors.New("Pages 项目没有激活部署")
+	}
+	return nil
 }
 
 func normalizeProxyRouteSiteNameInput(route *model.ProxyRoute, raw string, primaryDomain string) string {
@@ -1291,6 +1328,8 @@ func normalizeUpstreamType(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "tunnel":
 		return "tunnel"
+	case "pages":
+		return "pages"
 	default:
 		return "direct"
 	}

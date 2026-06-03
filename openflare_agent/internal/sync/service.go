@@ -25,6 +25,7 @@ const (
 
 type ConfigClient interface {
 	GetActiveConfig(ctx context.Context) (*protocol.ActiveConfigResponse, error)
+	DownloadPagesDeploymentPackage(ctx context.Context, deploymentID uint) ([]byte, error)
 	ReportApplyLog(ctx context.Context, payload protocol.ApplyLogPayload) error
 	SyncWAFIPGroups(ctx context.Context, payload protocol.WAFIPGroupSyncRequest) (*protocol.WAFIPGroupSyncResponse, error)
 }
@@ -42,6 +43,11 @@ type Service struct {
 	client       ConfigClient
 	nginxManager NginxManager
 	stateStore   *state.Store
+	pagesDir     string
+}
+
+func (s *Service) SetPagesDir(path string) {
+	s.pagesDir = strings.TrimSpace(path)
 }
 
 func New(client ConfigClient, nginxManager NginxManager, stateStore *state.Store) *Service {
@@ -223,6 +229,9 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 	}
 	rendered, err := renderActiveConfig(config)
 	if err != nil {
+		return err
+	}
+	if err := s.syncPagesDeployments(ctx, config); err != nil {
 		return err
 	}
 	mainConfigChecksum := checksumString(rendered.mainConfig)

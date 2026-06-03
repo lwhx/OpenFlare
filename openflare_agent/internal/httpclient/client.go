@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -84,6 +85,23 @@ func (c *Client) SyncWAFIPGroups(ctx context.Context, payload protocol.WAFIPGrou
 		return nil, errors.New(resp.Message)
 	}
 	return &resp.Data, nil
+}
+
+func (c *Client) DownloadPagesDeploymentPackage(ctx context.Context, deploymentID uint) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+fmt.Sprintf("/api/agent/pages/deployments/%d/package", deploymentID), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Agent-Token", c.token)
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New(res.Status)
+	}
+	return io.ReadAll(res.Body)
 }
 
 func (c *Client) SetToken(token string) {

@@ -93,6 +93,19 @@ type snapshotRoute struct {
 	TunnelNodeID       *uint                         `json:"tunnel_node_id,omitempty"`
 	TunnelTargetAddr   string                        `json:"tunnel_target_addr,omitempty"`
 	TunnelTargetProto  string                        `json:"tunnel_target_protocol,omitempty"`
+	PagesProjectID     *uint                         `json:"pages_project_id,omitempty"`
+	PagesDeployment    *snapshotPagesDeployment      `json:"pages_deployment,omitempty"`
+}
+
+type snapshotPagesDeployment struct {
+	ProjectID          uint   `json:"project_id"`
+	ProjectSlug        string `json:"project_slug"`
+	DeploymentID       uint   `json:"deployment_id"`
+	DeploymentNumber   int    `json:"deployment_number"`
+	Checksum           string `json:"checksum"`
+	EntryFile          string `json:"entry_file"`
+	SPAFallbackEnabled bool   `json:"spa_fallback_enabled"`
+	LocalRoot          string `json:"local_root"`
 }
 
 type snapshotWAFRuleGroup struct {
@@ -515,12 +528,23 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 		var tunnelNodeID *uint
 		var tunnelTargetAddr string
 		var tunnelTargetProtocol string
+		var pagesProjectID *uint
+		var pagesDeployment *snapshotPagesDeployment
 		if upstreamType == "tunnel" {
 			originURL = resolveTunnelOpenRestyUpstreamURL()
 			upstreams = []string{originURL}
 			tunnelNodeID = route.TunnelNodeID
 			tunnelTargetAddr = strings.TrimSpace(route.TunnelTargetAddr)
 			tunnelTargetProtocol = normalizeTunnelTargetProtocol(route.TunnelTargetProtocol)
+		} else if upstreamType == "pages" {
+			deployment, err := buildSnapshotPagesDeployment(route.PagesProjectID)
+			if err != nil {
+				return nil, fmt.Errorf("路由 %s Pages 配置无效: %w", route.Domain, err)
+			}
+			originURL = fmt.Sprintf("openflare-pages://project/%d", deployment.ProjectID)
+			upstreams = []string{originURL}
+			pagesProjectID = route.PagesProjectID
+			pagesDeployment = deployment
 		}
 		cacheRules, err := decodeStoredCacheRules(route.CacheRules)
 		if err != nil {
@@ -564,9 +588,44 @@ func buildSnapshotRoutes(routes []*model.ProxyRoute) ([]snapshotRoute, error) {
 			TunnelNodeID:       tunnelNodeID,
 			TunnelTargetAddr:   tunnelTargetAddr,
 			TunnelTargetProto:  tunnelTargetProtocol,
+			PagesProjectID:     pagesProjectID,
+			PagesDeployment:    pagesDeployment,
 		})
 	}
 	return items, nil
+}
+
+func buildSnapshotPagesDeployment(projectID *uint) (*snapshotPagesDeployment, error) {
+	if projectID == nil || *projectID == 0 {
+		return nil, errors.New("pages_project_id is required")
+	}
+	project, err := model.GetPagesProjectByID(*projectID)
+	if err != nil {
+		return nil, err
+	}
+	if !project.Enabled {
+		return nil, errors.New("Pages 项目未启用")
+	}
+	if project.ActiveDeploymentID == nil || *project.ActiveDeploymentID == 0 {
+		return nil, errors.New("Pages 项目没有激活部署")
+	}
+	deployment, err := model.GetPagesDeploymentByID(*project.ActiveDeploymentID)
+	if err != nil {
+		return nil, err
+	}
+	if deployment.ProjectID != project.ID {
+		return nil, errors.New("Pages 激活部署不属于当前项目")
+	}
+	return &snapshotPagesDeployment{
+		ProjectID:          project.ID,
+		ProjectSlug:        project.Slug,
+		DeploymentID:       deployment.ID,
+		DeploymentNumber:   deployment.DeploymentNumber,
+		Checksum:           deployment.Checksum,
+		EntryFile:          deployment.EntryFile,
+		SPAFallbackEnabled: project.SPAFallbackEnabled,
+		LocalRoot:          fmt.Sprintf("%s/deployments/%d/current", openrestyrender.PagesDirPlaceholder, deployment.ID),
+	}, nil
 }
 
 func resolveTunnelOpenRestyUpstreamURL() string {
@@ -819,10 +878,18 @@ func normalizeSnapshotRoutes(routes []snapshotRoute) []snapshotRoute {
 		if routes[index].UpstreamType == "tunnel" {
 			routes[index].TunnelTargetAddr = strings.TrimSpace(routes[index].TunnelTargetAddr)
 			routes[index].TunnelTargetProto = normalizeTunnelTargetProtocol(routes[index].TunnelTargetProto)
+			routes[index].PagesProjectID = nil
+			routes[index].PagesDeployment = nil
+		} else if routes[index].UpstreamType == "pages" {
+			routes[index].TunnelNodeID = nil
+			routes[index].TunnelTargetAddr = ""
+			routes[index].TunnelTargetProto = ""
 		} else {
 			routes[index].TunnelNodeID = nil
 			routes[index].TunnelTargetAddr = ""
 			routes[index].TunnelTargetProto = ""
+			routes[index].PagesProjectID = nil
+			routes[index].PagesDeployment = nil
 		}
 	}
 	return routes
@@ -849,7 +916,7 @@ func flattenSnapshotRoutesByDomain(routes []snapshotRoute) map[string]snapshotRo
 }
 
 func snapshotRouteConfigEqual(left snapshotRoute, right snapshotRoute) bool {
-	if left.SiteName != right.SiteName || left.Domain != right.Domain || left.OriginURL != right.OriginURL || left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP || left.LimitConnPerServer != right.LimitConnPerServer || left.LimitConnPerIP != right.LimitConnPerIP || left.LimitRate != right.LimitRate || left.CacheEnabled != right.CacheEnabled || left.CachePolicy != right.CachePolicy || left.PoWEnabled != right.PoWEnabled || left.BasicAuthEnabled != right.BasicAuthEnabled || left.BasicAuthUsername != right.BasicAuthUsername || left.BasicAuthPassword != right.BasicAuthPassword || left.UpstreamType != right.UpstreamType || !uintPtrEqual(left.TunnelNodeID, right.TunnelNodeID) || left.TunnelTargetAddr != right.TunnelTargetAddr || left.TunnelTargetProto != right.TunnelTargetProto || !uintSliceEqual(left.CertIDs, right.CertIDs) || !uintSliceEqual(left.DomainCertIDs, right.DomainCertIDs) {
+	if left.SiteName != right.SiteName || left.Domain != right.Domain || left.OriginURL != right.OriginURL || left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP || left.LimitConnPerServer != right.LimitConnPerServer || left.LimitConnPerIP != right.LimitConnPerIP || left.LimitRate != right.LimitRate || left.CacheEnabled != right.CacheEnabled || left.CachePolicy != right.CachePolicy || left.PoWEnabled != right.PoWEnabled || left.BasicAuthEnabled != right.BasicAuthEnabled || left.BasicAuthUsername != right.BasicAuthUsername || left.BasicAuthPassword != right.BasicAuthPassword || left.UpstreamType != right.UpstreamType || !uintPtrEqual(left.TunnelNodeID, right.TunnelNodeID) || left.TunnelTargetAddr != right.TunnelTargetAddr || left.TunnelTargetProto != right.TunnelTargetProto || !uintPtrEqual(left.PagesProjectID, right.PagesProjectID) || !snapshotPagesDeploymentEqual(left.PagesDeployment, right.PagesDeployment) || !uintSliceEqual(left.CertIDs, right.CertIDs) || !uintSliceEqual(left.DomainCertIDs, right.DomainCertIDs) {
 		return false
 	}
 	if len(left.Domains) != len(right.Domains) {
@@ -888,6 +955,21 @@ func snapshotRouteConfigEqual(left snapshotRoute, right snapshotRoute) bool {
 		return false
 	}
 	return true
+}
+
+func snapshotPagesDeploymentEqual(left *snapshotPagesDeployment, right *snapshotPagesDeployment) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	leftJSON, err := json.Marshal(left)
+	if err != nil {
+		return false
+	}
+	rightJSON, err := json.Marshal(right)
+	if err != nil {
+		return false
+	}
+	return string(leftJSON) == string(rightJSON)
 }
 
 func snapshotWAFConfigEqual(left snapshotWAFDocument, right snapshotWAFDocument) bool {

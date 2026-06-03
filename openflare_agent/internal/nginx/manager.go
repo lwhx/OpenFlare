@@ -141,6 +141,7 @@ type Manager struct {
 	LuaDir                       string
 	NginxLuaDir                  string
 	RuntimeConfigDir             string
+	PagesDir                     string
 	OpenrestyObservabilityListen string
 	OpenrestyObservabilityPort   int
 	OpenrestyResolverDirective   string
@@ -421,6 +422,9 @@ func (m *Manager) CurrentChecksum() (string, error) {
 	if luaDir := m.luaRuntimePath(); luaDir != "" {
 		normalizedRoute = strings.ReplaceAll(normalizedRoute, luaDir+"/pow/static", openrestyrender.PowStaticDirPlaceholder)
 		normalizedRoute = strings.ReplaceAll(normalizedRoute, luaDir, openrestyrender.LuaDirPlaceholder)
+	}
+	if pagesDir := m.pagesRuntimePath(); pagesDir != "" {
+		normalizedRoute = strings.ReplaceAll(normalizedRoute, pagesDir, openrestyrender.PagesDirPlaceholder)
 	}
 	files, err := m.readManagedSupportFiles()
 	if err != nil {
@@ -1130,6 +1134,9 @@ func (m *Manager) renderRouteConfig(content string) string {
 		rendered = strings.ReplaceAll(rendered, openrestyrender.LuaDirPlaceholder, luaDir)
 		rendered = strings.ReplaceAll(rendered, openrestyrender.PowStaticDirPlaceholder, luaDir+"/pow/static")
 	}
+	if pagesDir := m.pagesRuntimePath(); pagesDir != "" {
+		rendered = strings.ReplaceAll(rendered, openrestyrender.PagesDirPlaceholder, pagesDir)
+	}
 	return rendered
 }
 
@@ -1256,6 +1263,10 @@ func (m *Manager) luaRuntimePath() string {
 		return ""
 	}
 	return filepath.ToSlash(m.NginxLuaDir)
+}
+
+func (m *Manager) pagesRuntimePath() string {
+	return filepath.ToSlash(strings.TrimSpace(m.PagesDir))
 }
 
 func checksum(content string) string {

@@ -53,11 +53,12 @@ export interface ProxyRouteItem {
   basic_auth_username: string;
   basic_auth_password: string;
   remark: string;
-  upstream_type: 'direct' | 'tunnel';
+  upstream_type: 'direct' | 'tunnel' | 'pages';
   tunnel_node_id?: number | null;
   tunnel_id?: number | null;
   tunnel_target_addr?: string;
   tunnel_target_protocol?: string;
+  pages_project_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,11 +94,12 @@ export interface ProxyRouteMutationPayload {
   basic_auth_username?: string;
   basic_auth_password?: string;
   remark: string;
-  upstream_type?: 'direct' | 'tunnel';
+  upstream_type?: 'direct' | 'tunnel' | 'pages';
   tunnel_node_id?: number | null;
   tunnel_id?: number | null;
   tunnel_target_addr?: string;
   tunnel_target_protocol?: string;
+  pages_project_id?: number | null;
 }
 
 export interface TlsCertificateItem {

@@ -127,6 +127,20 @@ func SetApiRouter(router *gin.Engine) {
 			originRoute.POST("/:id/update", controller.UpdateOrigin)
 			originRoute.POST("/:id/delete", controller.DeleteOrigin)
 		}
+		pagesRoute := apiRouter.Group("/pages")
+		pagesRoute.Use(middleware.AdminAuth())
+		{
+			pagesRoute.GET("/", controller.ListPagesProjects)
+			pagesRoute.GET("/:id", controller.GetPagesProject)
+			pagesRoute.POST("/", controller.CreatePagesProject)
+			pagesRoute.POST("/:id/update", controller.UpdatePagesProject)
+			pagesRoute.POST("/:id/delete", controller.DeletePagesProject)
+			pagesRoute.GET("/:id/deployments", controller.ListPagesDeployments)
+			pagesRoute.POST("/:id/deployments/upload", controller.UploadPagesDeployment)
+			pagesRoute.POST("/:id/deployments/:deployment_id/activate", controller.ActivatePagesDeployment)
+			pagesRoute.POST("/:id/deployments/:deployment_id/delete", controller.DeletePagesDeployment)
+			pagesRoute.GET("/deployments/:deployment_id/files", controller.ListPagesDeploymentFiles)
+		}
 		managedDomainRoute := apiRouter.Group("/managed-domains")
 		managedDomainRoute.Use(middleware.AdminAuth())
 		{
@@ -227,6 +241,7 @@ func SetApiRouter(router *gin.Engine) {
 				authorizedRoute.GET("/ws", controller.AgentWebSocket)
 				authorizedRoute.POST("/nodes/heartbeat", controller.AgentHeartbeat)
 				authorizedRoute.GET("/config-versions/active", controller.AgentGetActiveConfig)
+				authorizedRoute.GET("/pages/deployments/:deployment_id/package", controller.AgentDownloadPagesDeploymentPackage)
 				authorizedRoute.POST("/waf/ip-groups/sync", controller.AgentSyncWAFIPGroups)
 				authorizedRoute.POST("/apply-logs", controller.AgentReportApplyLog)
 			}

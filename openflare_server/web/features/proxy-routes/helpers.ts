@@ -267,7 +267,10 @@ export function buildPayloadFromRoute(
   route: ProxyRouteItem,
   overrides: Partial<ProxyRouteMutationPayload>,
 ): ProxyRouteMutationPayload {
-  const primaryOrigin = parseOriginUrl(route.origin_url);
+  const primaryOrigin =
+    route.upstream_type === 'pages'
+      ? parseOriginUrl('http://127.0.0.1')
+      : parseOriginUrl(route.origin_url);
 
   return {
     site_name: route.site_name,
@@ -304,11 +307,17 @@ export function buildPayloadFromRoute(
     tunnel_node_id: route.tunnel_node_id ?? route.tunnel_id ?? null,
     tunnel_target_addr: route.tunnel_target_addr || '',
     tunnel_target_protocol: route.tunnel_target_protocol || '',
+    pages_project_id: route.pages_project_id ?? null,
     ...overrides,
   };
 }
 
 export function getUpstreamSummary(route: ProxyRouteItem) {
+  if (route.upstream_type === 'pages') {
+    return route.pages_project_id
+      ? `Pages 项目 #${route.pages_project_id}`
+      : 'Pages 项目未绑定';
+  }
   if (route.upstream_type === 'tunnel') {
     const protocol = route.tunnel_target_protocol || 'http';
     const target = route.tunnel_target_addr || '未配置目标';

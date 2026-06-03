@@ -23,6 +23,7 @@ const (
 	defaultCertDirRelativePath             = "etc/nginx/certs"
 	defaultLuaDirRelativePath              = "etc/nginx/lua"
 	defaultRuntimeConfigDirRelativePath    = "etc/openflare"
+	defaultPagesDirRelativePath            = "var/lib/openflare/pages"
 	defaultMMDBRelativePath                = "etc/openflare/GeoLite2-Country.mmdb"
 	defaultAccessLogRelativePath           = "var/log/openflare/access.log"
 	defaultStateRelativePath               = "var/lib/openflare/agent-state.json"
@@ -57,6 +58,7 @@ type Config struct {
 	LuaDir                     string              `json:"lua_dir"`
 	OpenrestyLuaDir            string              `json:"openresty_lua_dir"`
 	RuntimeConfigDir           string              `json:"runtime_config_dir"`
+	PagesDir                   string              `json:"pages_dir"`
 	MMDBPath                   string              `json:"mmdb_path"`
 	MMDBUpdateInterval         MillisecondDuration `json:"mmdb_update_interval"`
 	MMDBDownloadURL            string              `json:"mmdb_download_url"`
@@ -86,6 +88,7 @@ type configFile struct {
 	LuaDir                     string              `json:"lua_dir"`
 	OpenrestyLuaDir            string              `json:"openresty_lua_dir"`
 	RuntimeConfigDir           string              `json:"runtime_config_dir"`
+	PagesDir                   string              `json:"pages_dir"`
 	MMDBPath                   string              `json:"mmdb_path"`
 	MMDBUpdateInterval         MillisecondDuration `json:"mmdb_update_interval"`
 	MMDBDownloadURL            string              `json:"mmdb_download_url"`
@@ -128,6 +131,7 @@ func Load(path string) (*Config, error) {
 		LuaDir:                     file.LuaDir,
 		OpenrestyLuaDir:            file.OpenrestyLuaDir,
 		RuntimeConfigDir:           file.RuntimeConfigDir,
+		PagesDir:                   file.PagesDir,
 		MMDBPath:                   file.MMDBPath,
 		MMDBUpdateInterval:         file.MMDBUpdateInterval,
 		MMDBDownloadURL:            file.MMDBDownloadURL,
@@ -190,6 +194,9 @@ func applyDefaults(cfg *Config, baseDir string) {
 	if cfg.RuntimeConfigDir == "" {
 		cfg.RuntimeConfigDir = joinManagedPath(cfg.DataDir, defaultRuntimeConfigDirRelativePath)
 	}
+	if cfg.PagesDir == "" {
+		cfg.PagesDir = joinManagedPath(cfg.DataDir, defaultPagesDirRelativePath)
+	}
 	if cfg.MMDBPath == "" {
 		cfg.MMDBPath = joinManagedPath(cfg.DataDir, defaultMMDBRelativePath)
 	}
@@ -231,6 +238,7 @@ func normalizeManagedPaths(cfg *Config) {
 		&cfg.LuaDir,
 		&cfg.OpenrestyLuaDir,
 		&cfg.RuntimeConfigDir,
+		&cfg.PagesDir,
 		&cfg.StatePath,
 		&cfg.ObservabilityBufferPath,
 		&cfg.MMDBPath,
@@ -251,6 +259,7 @@ func hasEnvConfig() bool {
 		"OPENFLARE_NODE_IP",
 		"OPENFLARE_DATA_DIR",
 		"OPENFLARE_OPENRESTY_PATH",
+		"OPENFLARE_PAGES_DIR",
 		"OPENFLARE_HEARTBEAT_INTERVAL",
 		"OPENFLARE_REQUEST_TIMEOUT",
 		"OPENFLARE_OPENRESTY_OBSERVABILITY_PORT",
@@ -281,6 +290,7 @@ func applyEnvOverrides(cfg *Config) {
 	overrideString("OPENFLARE_NODE_IP", &cfg.NodeIP)
 	overrideString("OPENFLARE_DATA_DIR", &cfg.DataDir)
 	overrideString("OPENFLARE_OPENRESTY_PATH", &cfg.OpenrestyPath)
+	overrideString("OPENFLARE_PAGES_DIR", &cfg.PagesDir)
 	overrideString("OPENFLARE_MMDB_PATH", &cfg.MMDBPath)
 	overrideString("OPENFLARE_MMDB_DOWNLOAD_URL", &cfg.MMDBDownloadURL)
 	if value := strings.TrimSpace(os.Getenv("OPENFLARE_HEARTBEAT_INTERVAL")); value != "" {

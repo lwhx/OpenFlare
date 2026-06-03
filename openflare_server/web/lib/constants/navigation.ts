@@ -17,6 +17,11 @@ export const dashboardNavigation: NavigationItem[] = [
     icon: 'proxy',
   },
   {
+    href: '/pages',
+    label: 'Pages',
+    icon: 'pages',
+  },
+  {
     href: '/website',
     label: '网站',
     icon: 'website',

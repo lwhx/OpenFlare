@@ -1,0 +1,35 @@
+export interface PagesDeployment {
+  id: number;
+  project_id: number;
+  deployment_number: number;
+  checksum: string;
+  status: 'uploaded' | 'active';
+  file_count: number;
+  total_size: number;
+  entry_file: string;
+  created_by: string;
+  created_at: string;
+  activated_at?: string | null;
+}
+
+export interface PagesProject {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  enabled: boolean;
+  spa_fallback_enabled: boolean;
+  active_deployment_id?: number | null;
+  active_deployment?: PagesDeployment | null;
+  deployment_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PagesProjectPayload {
+  name: string;
+  slug: string;
+  description: string;
+  enabled: boolean;
+  spa_fallback_enabled: boolean;
+}

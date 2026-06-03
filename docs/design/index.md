@@ -32,6 +32,7 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 | 管理端前端 | 基于 Next.js 的正式管理端 |
 | 认证源登录 | 支持以认证源形式配置 GitHub 与标准 OIDC 登录入口，并允许第三方账号绑定已有本地用户 |
 | 内网穿透 | 通过 TunnelRelay 节点与 OpenFlared 客户端，将内网 HTTP 服务安全暴露到公网，复用 Agent 的 HTTPS/WAF 能力 |
+| Pages 静态托管 | 以 Pages 项目管理静态站点部署包，发布后由边缘 Agent 拉取并在本地 OpenResty 静态服务 |
 
 默认工作方式：
 
@@ -52,6 +53,7 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 | 证书托管 | 为不同域名绑定 TLS 证书 |
 | 基础观测 | 查看节点状态、请求聚合、访问分析和健康事件 |
 | 内网穿透 | 通过 Tunnel 将无法直接公网访问的内网 HTTP 服务暴露到互联网，享有 HTTPS、WAF 等全部防护能力 |
+| 静态站点托管 | 上传已构建的静态资源包，将网站规则上游绑定到 Pages 项目，在边缘节点本地服务静态文件 |
 
 
 ## 网站配置约束
@@ -72,12 +74,26 @@ OpenFlare 当前不定位为通用日志平台、服务网格、Kubernetes Ingre
 
 上游约束：
 
-* `proxy_routes` 至少包含一个上游地址（直连类型 `direct`），或关联一个 Tunnel（内网穿透类型 `tunnel`）。
+* `proxy_routes` 至少包含一个上游地址（直连类型 `direct`），或关联一个 Tunnel（内网穿透类型 `tunnel`），或关联一个 Pages 项目（静态托管类型 `pages`）。
 * 多上游负载均衡统一渲染为带 keepalive 的 named `upstream`。
 * 单上游允许附带 base path 或 query，并在 `proxy_pass` 中追加。多上游限定为纯 `scheme://host[:port]` 结构，且同一规则内的协议必须一致。
 * `proxy_routes.origin_host` 为可选字段，用于回源时覆盖 `Host` 请求头。
 * 所有直连类型上游地址都必须为合法的 `http://` 或 `https://`。
 * 内网穿透类型上游必须关联有效 `tunnel_id`，并指定内网目标地址与协议。
+* Pages 类型上游必须关联有效 Pages 项目，且项目必须存在已激活部署。Pages 站点不执行服务端构建、边缘函数或动态运行时代码，仅托管预构建静态资源。
+
+## Pages 静态托管约束
+
+OpenFlare Pages 面向边缘节点静态站点托管，采用“项目 + 不可变部署 + 网站规则绑定”的模型。
+
+约束：
+
+* Pages 项目保存名称、标识、启用状态、SPA fallback 选项和当前激活部署。
+* Pages 部署由管理端上传预构建 zip 包生成；部署包保存在 Server 本地 Pages 存储目录，数据库只保存部署元数据和文件清单，不保存大体积文件内容。
+* 只有项目存在激活部署后，`proxy_routes.upstream_type = 'pages'` 的网站规则才能绑定该项目。
+* Pages 网站继续复用网站规则的域名、HTTPS、WAF、PoW、Basic Auth、限流、缓存配置和配置版本发布机制。
+* 发布快照保存 Pages 项目、部署 ID、部署 checksum、入口文件和 SPA fallback 选项。Agent 拉取激活配置时按部署 checksum 下载并校验部署包，解压到本地 `pages_dir` 后再应用 OpenResty 配置。
+* V1 不支持 Git 自动构建、预览域名、边缘函数、动态 SSR、外部对象存储或多租户隔离。
 
 ## 内网穿透约束
 

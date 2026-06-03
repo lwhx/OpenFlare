@@ -34,6 +34,7 @@ type ProxyRoute struct {
 	TunnelNodeID         *uint     `json:"tunnel_node_id" gorm:"index"`
 	TunnelTargetAddr     string    `json:"tunnel_target_addr" gorm:"size:512"`
 	TunnelTargetProtocol string    `json:"tunnel_target_protocol" gorm:"size:16"`
+	PagesProjectID       *uint     `json:"pages_project_id" gorm:"index"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }
@@ -95,6 +96,7 @@ func (route *ProxyRoute) Update() error {
 		"tunnel_node_id":         route.TunnelNodeID,
 		"tunnel_target_addr":     route.TunnelTargetAddr,
 		"tunnel_target_protocol": route.TunnelTargetProtocol,
+		"pages_project_id":       route.PagesProjectID,
 	}).Error
 }
 

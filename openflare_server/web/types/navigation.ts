@@ -5,6 +5,7 @@ export type NavigationIconKey =
   | 'origin'
   | 'domain'
   | 'certificate'
+  | 'pages'
   | 'proxy'
   | 'waf'
   | 'release'

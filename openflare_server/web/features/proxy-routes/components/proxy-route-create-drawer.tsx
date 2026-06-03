@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { Drawer } from '@/components/ui/drawer';
 import { getManagedDomains } from '@/features/managed-domains/api/managed-domains';
+import { getPagesProjects } from '@/features/pages/api/pages';
 import { createProxyRoute } from '@/features/proxy-routes/api/proxy-routes';
 import {
   DomainListInput,
@@ -40,11 +41,12 @@ const createWebsiteSchema = z
   .object({
     site_name: z.string().trim().max(255, '站点标识不能超过 255 个字符'),
     domain_rows: z.array(domainRowSchema).min(1),
-    upstream_type: z.enum(['direct', 'tunnel']),
+    upstream_type: z.enum(['direct', 'tunnel', 'pages']),
     origin_urls_text: z.string().trim(),
     tunnel_id: z.string().optional(),
     tunnel_target_addr: z.string().trim().optional(),
     tunnel_target_protocol: z.enum(['http', 'https']).optional(),
+    pages_project_id: z.string().optional(),
     enabled: z.boolean(),
     redirect_http: z.boolean(),
     remark: z.string().max(255, '备注不能超过 255 个字符'),
@@ -79,7 +81,7 @@ const createWebsiteSchema = z
           });
         }
       }
-    } else {
+    } else if (value.upstream_type === 'tunnel') {
       if (!value.tunnel_id) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
@@ -94,6 +96,12 @@ const createWebsiteSchema = z
           message: '请填写内网服务地址 (如 127.0.0.1:8080)',
         });
       }
+    } else if (!value.pages_project_id) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['pages_project_id'],
+        message: '请选择 Pages 项目',
+      });
     }
 
     const selectedCertificateCount = new Set(
@@ -120,6 +128,7 @@ const defaultValues: CreateWebsiteFormValues = {
   tunnel_id: '',
   tunnel_target_addr: '',
   tunnel_target_protocol: 'http',
+  pages_project_id: '',
   enabled: true,
   redirect_http: false,
   remark: '',
@@ -177,7 +186,17 @@ export function ProxyRouteCreateDrawer({
     queryFn: getNodes,
     enabled: open,
   });
-  const tunnelClients = (tunnelsQuery.data ?? []).filter((node) => node.node_type === 'tunnel_client');
+  const pagesProjectsQuery = useQuery({
+    queryKey: ['pages-projects'],
+    queryFn: getPagesProjects,
+    enabled: open,
+  });
+  const tunnelClients = (tunnelsQuery.data ?? []).filter(
+    (node) => node.node_type === 'tunnel_client',
+  );
+  const pagesProjects = (pagesProjectsQuery.data ?? []).filter(
+    (project) => project.enabled && project.active_deployment_id,
+  );
 
   const combinedDomainSuggestions = useMemo(
     () => [
@@ -199,11 +218,11 @@ export function ProxyRouteCreateDrawer({
       const selectedCertIDs = normalizeSelectedCertificateIDs(
         values.domain_rows,
       );
-      
+
       let originUrl = '';
       const originHost = '';
       let upstreams: string[] = [];
-      
+
       if (values.upstream_type === 'direct') {
         const { urls } = parseOriginUrls(values.origin_urls_text);
         const primaryOrigin = parseOriginUrl(urls[0]);
@@ -214,8 +233,10 @@ export function ProxyRouteCreateDrawer({
           primaryOrigin.uri,
         );
         upstreams = urls.slice(1);
-      } else {
+      } else if (values.upstream_type === 'tunnel') {
         originUrl = `${values.tunnel_target_protocol}://${values.tunnel_target_addr}`;
+      } else {
+        originUrl = 'http://127.0.0.1';
       }
 
       return createProxyRoute({
@@ -224,10 +245,22 @@ export function ProxyRouteCreateDrawer({
         domains,
         origin_id: null,
         origin_url: originUrl,
-        origin_scheme: values.upstream_type === 'direct' ? parseOriginUrl(originUrl).scheme : 'http',
-        origin_address: values.upstream_type === 'direct' ? parseOriginUrl(originUrl).address : values.tunnel_target_addr || '',
-        origin_port: values.upstream_type === 'direct' ? parseOriginUrl(originUrl).port : '80',
-        origin_uri: values.upstream_type === 'direct' ? parseOriginUrl(originUrl).uri : '',
+        origin_scheme:
+          values.upstream_type === 'direct'
+            ? parseOriginUrl(originUrl).scheme
+            : 'http',
+        origin_address:
+          values.upstream_type === 'direct'
+            ? parseOriginUrl(originUrl).address
+            : values.tunnel_target_addr || '127.0.0.1',
+        origin_port:
+          values.upstream_type === 'direct'
+            ? parseOriginUrl(originUrl).port
+            : '80',
+        origin_uri:
+          values.upstream_type === 'direct'
+            ? parseOriginUrl(originUrl).uri
+            : '',
         origin_host: originHost,
         upstreams,
         enabled: values.enabled,
@@ -249,9 +282,20 @@ export function ProxyRouteCreateDrawer({
         basic_auth_enabled: false,
         remark: values.remark.trim(),
         upstream_type: values.upstream_type,
-        tunnel_node_id: values.upstream_type === 'tunnel' && values.tunnel_id ? Number(values.tunnel_id) : null,
-        tunnel_target_addr: values.upstream_type === 'tunnel' ? values.tunnel_target_addr : '',
-        tunnel_target_protocol: values.upstream_type === 'tunnel' ? values.tunnel_target_protocol : '',
+        tunnel_node_id:
+          values.upstream_type === 'tunnel' && values.tunnel_id
+            ? Number(values.tunnel_id)
+            : null,
+        tunnel_target_addr:
+          values.upstream_type === 'tunnel' ? values.tunnel_target_addr : '',
+        tunnel_target_protocol:
+          values.upstream_type === 'tunnel'
+            ? values.tunnel_target_protocol
+            : '',
+        pages_project_id:
+          values.upstream_type === 'pages' && values.pages_project_id
+            ? Number(values.pages_project_id)
+            : null,
       });
     },
     onSuccess: (route) => {
@@ -359,6 +403,15 @@ export function ProxyRouteCreateDrawer({
               />
               内网穿透 (Tunnel)
             </label>
+            <label className="flex items-center gap-2 text-sm text-[var(--foreground-primary)] cursor-pointer">
+              <input
+                type="radio"
+                value="pages"
+                {...form.register('upstream_type')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              Pages 静态站点
+            </label>
           </div>
         </div>
 
@@ -376,7 +429,7 @@ export function ProxyRouteCreateDrawer({
               {...form.register('origin_urls_text')}
             />
           </ResourceField>
-        ) : (
+        ) : form.watch('upstream_type') === 'tunnel' ? (
           <div className="p-4 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] space-y-4">
             <ResourceField
               label="选择内网穿透隧道"
@@ -419,6 +472,26 @@ export function ProxyRouteCreateDrawer({
                 placeholder="127.0.0.1:8080"
                 {...form.register('tunnel_target_addr')}
               />
+            </ResourceField>
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] space-y-4">
+            <ResourceField
+              label="选择 Pages 项目"
+              hint="仅显示已启用且已有激活部署的 Pages 项目。"
+              error={form.formState.errors.pages_project_id?.message}
+            >
+              <select
+                {...form.register('pages_project_id')}
+                className="block w-full rounded-xl border border-[var(--border-default)] bg-[var(--control-background)] px-4 py-2.5 text-sm text-[var(--foreground-primary)] placeholder-[var(--foreground-muted)] outline-none transition focus:border-[var(--border-strong)] focus:ring-1 focus:ring-[var(--border-strong)]"
+              >
+                <option value="">请选择...</option>
+                {pagesProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name} ({project.slug})
+                  </option>
+                ))}
+              </select>
             </ResourceField>
           </div>
         )}

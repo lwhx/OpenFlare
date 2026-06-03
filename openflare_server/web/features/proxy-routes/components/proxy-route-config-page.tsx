@@ -15,6 +15,7 @@ import { LoadingState } from '@/components/feedback/loading-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { AppCard } from '@/components/ui/app-card';
 import { getManagedDomains } from '@/features/managed-domains/api/managed-domains';
+import { getPagesProjects } from '@/features/pages/api/pages';
 import {
   getProxyRoute,
   updateProxyRoute,
@@ -157,12 +158,13 @@ const rateLimitSchema = z
 
 const reverseProxySchema = z
   .object({
-    upstream_type: z.enum(['direct', 'tunnel']),
+    upstream_type: z.enum(['direct', 'tunnel', 'pages']),
     origin_urls_text: z.string().trim(),
     origin_host: z.string(),
     tunnel_id: z.string().optional(),
     tunnel_target_addr: z.string().trim().optional(),
     tunnel_target_protocol: z.enum(['http', 'https']).optional(),
+    pages_project_id: z.string().optional(),
     custom_headers_text: z.string(),
     remark: z.string().max(255, '备注不能超过 255 个字符'),
   })
@@ -184,7 +186,7 @@ const reverseProxySchema = z
           });
         }
       }
-    } else {
+    } else if (value.upstream_type === 'tunnel') {
       if (!value.tunnel_id) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
@@ -199,6 +201,12 @@ const reverseProxySchema = z
           message: '请填写内网服务地址 (如 127.0.0.1:8080)',
         });
       }
+    } else if (!value.pages_project_id) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['pages_project_id'],
+        message: '请选择 Pages 项目',
+      });
     }
 
     const originHostError = validateOriginHost(value.origin_host);
@@ -552,8 +560,17 @@ function ReverseProxySection({
     queryKey: ['nodes'],
     queryFn: getNodes,
   });
-  
-  const tunnelClients = (tunnelsQuery.data ?? []).filter((node) => node.node_type === 'tunnel_client');
+  const pagesProjectsQuery = useQuery({
+    queryKey: ['pages-projects'],
+    queryFn: getPagesProjects,
+  });
+
+  const tunnelClients = (tunnelsQuery.data ?? []).filter(
+    (node) => node.node_type === 'tunnel_client',
+  );
+  const pagesProjects = (pagesProjectsQuery.data ?? []).filter(
+    (project) => project.enabled && project.active_deployment_id,
+  );
 
   const form = useForm<ReverseProxyValues>({
     resolver: zodResolver(reverseProxySchema),
@@ -564,6 +581,7 @@ function ReverseProxySection({
       tunnel_id: route.tunnel_node_id ? String(route.tunnel_node_id) : '',
       tunnel_target_addr: route.tunnel_target_addr || '',
       tunnel_target_protocol: (route.tunnel_target_protocol as 'http' | 'https') || 'http',
+      pages_project_id: route.pages_project_id ? String(route.pages_project_id) : '',
       custom_headers_text: customHeadersToText(route.custom_header_list),
       remark: route.remark || '',
     },
@@ -577,6 +595,7 @@ function ReverseProxySection({
       tunnel_id: route.tunnel_node_id ? String(route.tunnel_node_id) : '',
       tunnel_target_addr: route.tunnel_target_addr || '',
       tunnel_target_protocol: (route.tunnel_target_protocol as 'http' | 'https') || 'http',
+      pages_project_id: route.pages_project_id ? String(route.pages_project_id) : '',
       custom_headers_text: customHeadersToText(route.custom_header_list),
       remark: route.remark || '',
     });
@@ -609,12 +628,17 @@ function ReverseProxySection({
             originPort = primaryOrigin.port;
             originUri = primaryOrigin.uri;
             upstreams = urls.slice(1);
-          } else {
+          } else if (values.upstream_type === 'tunnel') {
             originUrl = `${values.tunnel_target_protocol}://${values.tunnel_target_addr}`;
             originScheme = values.tunnel_target_protocol as 'http' | 'https';
             originAddress = values.tunnel_target_addr || '';
+          } else {
+            originUrl = 'http://127.0.0.1';
+            originScheme = 'http';
+            originAddress = '127.0.0.1';
+            originPort = '80';
           }
-          
+
           const { headers } = parseCustomHeadersText(
             values.custom_headers_text,
           );
@@ -632,9 +656,22 @@ function ReverseProxySection({
               custom_headers: headers,
               remark: values.remark.trim(),
               upstream_type: values.upstream_type,
-              tunnel_node_id: values.upstream_type === 'tunnel' && values.tunnel_id ? Number(values.tunnel_id) : null,
-              tunnel_target_addr: values.upstream_type === 'tunnel' ? values.tunnel_target_addr : '',
-              tunnel_target_protocol: values.upstream_type === 'tunnel' ? values.tunnel_target_protocol : '',
+              tunnel_node_id:
+                values.upstream_type === 'tunnel' && values.tunnel_id
+                  ? Number(values.tunnel_id)
+                  : null,
+              tunnel_target_addr:
+                values.upstream_type === 'tunnel'
+                  ? values.tunnel_target_addr
+                  : '',
+              tunnel_target_protocol:
+                values.upstream_type === 'tunnel'
+                  ? values.tunnel_target_protocol
+                  : '',
+              pages_project_id:
+                values.upstream_type === 'pages' && values.pages_project_id
+                  ? Number(values.pages_project_id)
+                  : null,
             }),
             { message: '反向代理设置已保存。' },
           );
@@ -661,6 +698,15 @@ function ReverseProxySection({
               />
               内网穿透 (Tunnel)
             </label>
+            <label className="flex items-center gap-2 text-sm text-[var(--foreground-primary)] cursor-pointer">
+              <input
+                type="radio"
+                value="pages"
+                {...form.register('upstream_type')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+              Pages 静态站点
+            </label>
           </div>
         </div>
 
@@ -679,7 +725,7 @@ function ReverseProxySection({
               {...form.register('origin_urls_text')}
             />
           </ResourceField>
-        ) : (
+        ) : form.watch('upstream_type') === 'tunnel' ? (
           <div className="p-4 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] space-y-4">
             <ResourceField
               label="选择内网穿透隧道"
@@ -722,6 +768,26 @@ function ReverseProxySection({
                 placeholder="127.0.0.1:8080"
                 {...form.register('tunnel_target_addr')}
               />
+            </ResourceField>
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl border border-[var(--border-default)] bg-[var(--surface-muted)] space-y-4">
+            <ResourceField
+              label="选择 Pages 项目"
+              hint="仅显示已启用且已有激活部署的 Pages 项目。"
+              error={form.formState.errors.pages_project_id?.message}
+            >
+              <select
+                {...form.register('pages_project_id')}
+                className="block w-full rounded-xl border border-[var(--border-default)] bg-[var(--control-background)] px-4 py-2.5 text-sm text-[var(--foreground-primary)] placeholder-[var(--foreground-muted)] outline-none transition focus:border-[var(--border-strong)] focus:ring-1 focus:ring-[var(--border-strong)]"
+              >
+                <option value="">请选择...</option>
+                {pagesProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name} ({project.slug})
+                  </option>
+                ))}
+              </select>
             </ResourceField>
           </div>
         )}

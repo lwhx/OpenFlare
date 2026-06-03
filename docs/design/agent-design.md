@@ -98,10 +98,11 @@ Agent 对数据面 OpenResty 的管控实现了端到端的闭环，包含配置
 * `certs/`：证书存放目录（文件命名为 `{cert_id}.crt` 和 `{cert_id}.key`）。
 * `waf/` 与 `pow/`：WAF 及防 CC 挑战所需的专用 Lua 运行时脚本。
 * `waf_config.json` 与 `waf_ip_groups.json`：WAF 过滤引擎所需的结构化规则配置文件。
+* `pages_dir`：Pages 静态站点部署目录，默认位于 `data_dir/var/lib/openflare/pages`。当激活配置引用 Pages 部署时，Agent 会下载部署 zip、校验 checksum、解压到部署 release 目录，并切换 `deployments/{deployment_id}/current` 供 OpenResty `root`/`try_files` 读取。
 
 ### 2. 精细化的重载动作
 1. **备份当前配置**：在写入新文件之前，Agent 会将现有的配置文件复制到 `.backup` 临时目录下，保留完整的现场快照。
-2. **写入并替换占位符**：将最新拉取的模板写入，自动将模板中的绝对路径占位符（如 `__OPENFLARE_LUA_DIR__`）替换为本地实际运行路径。
+2. **写入并替换占位符**：将最新拉取的模板写入，自动将模板中的绝对路径占位符（如 `__OPENFLARE_LUA_DIR__`、`__OPENFLARE_PAGES_DIR__`）替换为本地实际运行路径。
 3. **语法校验**：调用 `openresty -t -c <temp_nginx.conf>` 进行严格的语法测试。
 4. **平滑重载**：若校验通过，将新配置移至正式路径，执行 `openresty -s reload`。若 OpenResty 处于未启动状态，则使用当前配置拉起进程。
 5. **捕获异常**：校验或重载失败时，Agent 会截获标准错误输出（stderr），提取前 2000 个字符的详细报错信息。
@@ -117,7 +118,7 @@ OpenFlare 摒弃了动态 Patch 节点配置的落后方式，采用 **不可变
 ```
 
 ### 1. 核心设计原则
-* **完整发布**：每次发布均是对当前控制面所有启用路由、证书、全局与局部 WAF 规则进行一次性全量编译，生成带唯一 `checksum` 的完整版本。
+* **完整发布**：每次发布均是对当前控制面所有启用路由、证书、Pages 部署引用、全局与局部 WAF 规则进行一次性全量编译，生成带唯一 `checksum` 的完整版本。
 * **版本格式**：采用 `YYYYMMDD-NNN` 递增格式，确保版本历史直观、具备单调递增性。
 * **全局单激活版本**：系统同时只有一个处于 `active` 状态的全局配置版本。回滚时无需逆向打补丁，只需将历史某个健康版本的状态改为 `active`，Agent 重新拉取应用即可。
 

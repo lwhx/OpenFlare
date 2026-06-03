@@ -18,6 +18,7 @@ function buildNode(overrides: Partial<NodeItem> = {}): NodeItem {
     relay_client_proxy_url: '',
     relay_auth_token: '',
     relay_status: 'healthy',
+    relay_web_server_enabled: false,
     relay_frps_connections: 0,
     relay_frps_proxy_count: 0,
     geo_name: '',

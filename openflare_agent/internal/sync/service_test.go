@@ -1,7 +1,11 @@
 package sync
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,10 +23,15 @@ type fakeExecutor struct {
 	reloadErr error
 }
 
+func testPagesSourceConfigJSON(deploymentID uint, checksum string) string {
+	return fmt.Sprintf(`{"routes":[{"id":1,"site_name":"pages","domain":"pages.example.com","domains":["pages.example.com"],"origin_url":"openflare-pages://project/1","upstreams":["openflare-pages://project/1"],"enabled":true,"upstream_type":"pages","pages_deployment":{"project_id":1,"project_slug":"pages","deployment_id":%d,"deployment_number":1,"checksum":"%s","entry_file":"index.html","spa_fallback_enabled":true,"local_root":"__OPENFLARE_PAGES_DIR__/deployments/%d/current"}}],"openresty_config":{"worker_processes":"auto","worker_connections":1024,"worker_rlimit_nofile":65535,"events_multi_accept_enabled":true,"keepalive_timeout":20,"keepalive_requests":1000,"client_header_timeout":15,"client_body_timeout":15,"client_max_body_size":"64m","large_client_header_buffers":"4 16k","send_timeout":30,"proxy_connect_timeout":3,"proxy_send_timeout":60,"proxy_read_timeout":60,"websocket_enabled":true,"proxy_request_buffering":false,"proxy_buffering_enabled":true,"proxy_buffers":"16 16k","proxy_buffer_size":"8k","proxy_busy_buffers_size":"64k","gzip_enabled":true,"gzip_min_length":1024,"gzip_comp_level":5,"cache_enabled":false,"cache_levels":"1:2","cache_inactive":"30m","cache_max_size":"1g","cache_key_template":"$scheme$host$request_uri","cache_lock_enabled":true,"cache_lock_timeout":"5s","cache_use_stale":"error timeout updating http_500 http_502 http_503 http_504","main_config_template":"worker_processes {{OpenRestyWorkerProcesses}};"},"waf":{"rule_groups":[],"bindings":[]}}`, deploymentID, checksum, deploymentID)
+}
+
 type fakeClient struct {
-	config     protocol.ActiveConfigResponse
-	reports    []protocol.ApplyLogPayload
-	fetchCalls int
+	config        protocol.ActiveConfigResponse
+	reports       []protocol.ApplyLogPayload
+	pagesPackages map[uint][]byte
+	fetchCalls    int
 }
 
 type fakeManager struct {
@@ -65,6 +74,13 @@ func (f *fakeExecutor) Restart(ctx context.Context) error {
 func (f *fakeClient) GetActiveConfig(ctx context.Context) (*protocol.ActiveConfigResponse, error) {
 	f.fetchCalls++
 	return &f.config, nil
+}
+
+func (f *fakeClient) DownloadPagesDeploymentPackage(ctx context.Context, deploymentID uint) ([]byte, error) {
+	if f.pagesPackages == nil {
+		return nil, fmt.Errorf("missing Pages package %d", deploymentID)
+	}
+	return f.pagesPackages[deploymentID], nil
 }
 
 func (f *fakeClient) ReportApplyLog(ctx context.Context, payload protocol.ApplyLogPayload) error {
@@ -176,6 +192,77 @@ func TestSyncOnceSuccess(t *testing.T) {
 	}
 	if client.reports[0].SupportFileCount != 4 {
 		t.Fatalf("expected support file count to be reported, got %d", client.reports[0].SupportFileCount)
+	}
+}
+
+func TestSyncOnceDownloadsPagesDeploymentBeforeApply(t *testing.T) {
+	packageBytes := testPagesPackage(t, map[string]string{"index.html": "hello"})
+	checksum := testBytesChecksum(packageBytes)
+	client := &fakeClient{
+		config: protocol.ActiveConfigResponse{
+			Version:          "20260309-101",
+			Checksum:         "pages-config-checksum",
+			SourceConfigJSON: testPagesSourceConfigJSON(7, checksum),
+			CreatedAt:        time.Now().Format(time.RFC3339),
+		},
+		pagesPackages: map[uint][]byte{7: packageBytes},
+	}
+	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	nodeID, err := stateStore.EnsureNodeID()
+	if err != nil {
+		t.Fatalf("EnsureNodeID failed: %v", err)
+	}
+	snapshot, _ := stateStore.Load()
+	snapshot.NodeID = nodeID
+	if err = stateStore.Save(snapshot); err != nil {
+		t.Fatalf("save state failed: %v", err)
+	}
+	manager := &fakeManager{currentChecksum: "old-checksum"}
+	service := New(client, manager, stateStore)
+	pagesDir := t.TempDir()
+	service.SetPagesDir(pagesDir)
+
+	if err = service.SyncOnce(context.Background(), &protocol.ActiveConfigMeta{Version: "20260309-101", Checksum: "pages-config-checksum"}); err != nil {
+		t.Fatalf("SyncOnce failed: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(pagesDir, "deployments", "7", "current", "index.html"))
+	if err != nil {
+		t.Fatalf("expected Pages file to be extracted: %v", err)
+	}
+	if string(data) != "hello" {
+		t.Fatalf("unexpected Pages file content: %s", string(data))
+	}
+	if len(manager.applyRouteContents) != 1 || !strings.Contains(manager.applyRouteContents[0], "__OPENFLARE_PAGES_DIR__/deployments/7/current") {
+		t.Fatalf("expected Pages placeholder in rendered route config, got %#v", manager.applyRouteContents)
+	}
+}
+
+func TestSyncOnceRejectsPagesZipSlipBeforeApply(t *testing.T) {
+	packageBytes := testPagesPackage(t, map[string]string{"../escape.html": "bad", "index.html": "ok"})
+	checksum := testBytesChecksum(packageBytes)
+	client := &fakeClient{
+		config: protocol.ActiveConfigResponse{
+			Version:          "20260309-102",
+			Checksum:         "pages-config-checksum",
+			SourceConfigJSON: testPagesSourceConfigJSON(8, checksum),
+			CreatedAt:        time.Now().Format(time.RFC3339),
+		},
+		pagesPackages: map[uint][]byte{8: packageBytes},
+	}
+	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	if _, err := stateStore.EnsureNodeID(); err != nil {
+		t.Fatalf("EnsureNodeID failed: %v", err)
+	}
+	manager := &fakeManager{currentChecksum: "old-checksum"}
+	service := New(client, manager, stateStore)
+	service.SetPagesDir(t.TempDir())
+
+	err := service.SyncOnce(context.Background(), &protocol.ActiveConfigMeta{Version: "20260309-102", Checksum: "pages-config-checksum"})
+	if err == nil || !strings.Contains(err.Error(), "escapes deployment root") {
+		t.Fatalf("expected zip-slip rejection, got %v", err)
+	}
+	if len(manager.applyRouteContents) != 0 {
+		t.Fatalf("OpenResty apply must not run after Pages package rejection")
 	}
 }
 
@@ -760,4 +847,28 @@ func TestSyncOnceSkipsFetchWhenHeartbeatChecksumMatches(t *testing.T) {
 	if len(client.reports) != 0 {
 		t.Fatal("expected no apply log when no config change is needed")
 	}
+}
+
+func testPagesPackage(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	for name, content := range files {
+		file, err := writer.Create(name)
+		if err != nil {
+			t.Fatalf("create zip file failed: %v", err)
+		}
+		if _, err := file.Write([]byte(content)); err != nil {
+			t.Fatalf("write zip file failed: %v", err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close zip failed: %v", err)
+	}
+	return buffer.Bytes()
+}
+
+func testBytesChecksum(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }

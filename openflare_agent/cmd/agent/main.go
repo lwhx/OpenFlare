@@ -71,6 +71,7 @@ func main() {
 		LuaDir:                       cfg.LuaDir,
 		NginxLuaDir:                  cfg.OpenrestyLuaDir,
 		RuntimeConfigDir:             cfg.RuntimeConfigDir,
+		PagesDir:                     cfg.PagesDir,
 		OpenrestyObservabilityListen: nginx.ObservabilityListenAddress(cfg.OpenrestyObservabilityPort),
 		OpenrestyObservabilityPort:   cfg.OpenrestyObservabilityPort,
 		OpenrestyResolverDirective:   "",
@@ -89,12 +90,14 @@ func main() {
 		slog.Error("ensure managed lua assets failed", "error", err)
 		os.Exit(1)
 	}
+	syncService := syncservice.New(client, runtimeManager, stateStore)
+	syncService.SetPagesDir(cfg.PagesDir)
 	runner := &agent.Runner{
 		Config:              cfg,
 		StateStore:          stateStore,
 		ObservabilityBuffer: observabilityBuffer,
 		HeartbeatService:    heartbeat.New(client),
-		SyncService:         syncservice.New(client, runtimeManager, stateStore),
+		SyncService:         syncService,
 		Updater:             updater.New(),
 		RuntimeManager:      runtimeManager,
 		WebSocketService:    wsClient,
