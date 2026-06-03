@@ -100,6 +100,56 @@ func validateAgentOption(key string, value string) error {
 	}
 }
 
+func validateUptimeKumaOption(key string, value string, state map[string]string) error {
+	trimmed := strings.TrimSpace(value)
+	switch key {
+	case "UptimeKumaEnabled":
+		if err := validateBooleanOption(key, trimmed); err != nil {
+			return err
+		}
+		if trimmed == "true" {
+			url := strings.TrimSpace(state["UptimeKumaUrl"])
+			username := strings.TrimSpace(state["UptimeKumaUsername"])
+			password := strings.TrimSpace(state["UptimeKumaPassword"])
+			if url == "" {
+				return fmt.Errorf("启用 Uptime Kuma 时地址不能为空")
+			}
+			if username == "" {
+				return fmt.Errorf("启用 Uptime Kuma 时用户名不能为空")
+			}
+			if password == "" && common.UptimeKumaPassword == "" {
+				return fmt.Errorf("启用 Uptime Kuma 时密码不能为空")
+			}
+		}
+	case "UptimeKumaUsername":
+		if trimmed == "" && state["UptimeKumaEnabled"] == "true" {
+			return fmt.Errorf("启用 Uptime Kuma 时用户名不能为空")
+		}
+	case "UptimeKumaPassword":
+		// No specific format checks needed
+	case "UptimeKumaUrl":
+		if trimmed != "" {
+			if !strings.HasPrefix(trimmed, "http://") && !strings.HasPrefix(trimmed, "https://") {
+				return fmt.Errorf("Uptime Kuma 地址必须以 http:// 或 https:// 开头")
+			}
+		}
+	case "UptimeKumaMonitorScope":
+		if trimmed != "all" && trimmed != "selected" {
+			return fmt.Errorf("监控范围必须为全部站点 (all) 或选择站点 (selected)")
+		}
+	case "UptimeKumaSyncInterval", "UptimeKumaInterval", "UptimeKumaRetryInterval", "UptimeKumaTimeout":
+		if err := validatePositiveIntegerOption(key, trimmed); err != nil {
+			return err
+		}
+	case "UptimeKumaRetry":
+		intValue, err := strconv.Atoi(trimmed)
+		if err != nil || intValue < 0 {
+			return fmt.Errorf("%s 必须为大于等于 0 的整数", key)
+		}
+	}
+	return nil
+}
+
 func validateOpenRestyOption(key string, value string) error {
 	trimmed := strings.TrimSpace(value)
 
@@ -263,6 +313,9 @@ func validateOptionWithState(option model.Option, state map[string]string) error
 	if err := validateAgentOption(option.Key, option.Value); err != nil {
 		return err
 	}
+	if err := validateUptimeKumaOption(option.Key, option.Value, state); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -292,9 +345,9 @@ func updateOptions(options []model.Option) error {
 // @Router /api/option/ [get]
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
-	common.OptionMapRWMutex.Lock()
+	common.OptionMapRWMutex.RLock()
 	for k, v := range common.OptionMap {
-		if strings.Contains(k, "Token") || strings.Contains(k, "Secret") {
+		if strings.Contains(k, "Token") || strings.Contains(k, "Secret") || strings.Contains(k, "Password") {
 			continue
 		}
 		options = append(options, &model.Option{
@@ -302,7 +355,7 @@ func GetOptions(c *gin.Context) {
 			Value: utils.Interface2String(v),
 		})
 	}
-	common.OptionMapRWMutex.Unlock()
+	common.OptionMapRWMutex.RUnlock()
 	respondSuccess(c, options)
 }
 
@@ -320,35 +373,8 @@ func UpdateOption(c *gin.Context) {
 	if !bindJSON(c, &option) {
 		return
 	}
-	switch option.Key {
-	case "GitHubOAuthEnabled":
-		if option.Value == "true" && common.GitHubClientId == "" {
-			respondFailure(c, "无法启用 GitHub OAuth，请先填入 GitHub Client ID 以及 GitHub Client Secret！")
-			return
-		}
-	case "WeChatAuthEnabled":
-		if option.Value == "true" && common.WeChatServerAddress == "" {
-			respondFailure(c, "无法启用微信登录，请先填入微信登录相关配置信息！")
-			return
-		}
-	}
-	if err := validateRateLimitOption(option.Key, option.Value); err != nil {
-		respondFailure(c, err.Error())
-		return
-	}
-	if err := validateOpenRestyOption(option.Key, option.Value); err != nil {
-		respondFailure(c, err.Error())
-		return
-	}
-	if err := validateGeoIPOption(option.Key, option.Value); err != nil {
-		respondFailure(c, err.Error())
-		return
-	}
-	if err := validateDatabaseCleanupOption(option.Key, option.Value); err != nil {
-		respondFailure(c, err.Error())
-		return
-	}
-	if err := validateAgentOption(option.Key, option.Value); err != nil {
+	state := buildOptionValidationState([]model.Option{option})
+	if err := validateOptionWithState(option, state); err != nil {
 		respondFailure(c, err.Error())
 		return
 	}

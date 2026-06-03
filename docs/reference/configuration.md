@@ -95,6 +95,17 @@ go run . --port 3000 --log-dir ./logs
 | `GlobalApiRateLimitNum` / `GlobalApiRateLimitDuration` | 全局 API 限流次数 / 时间窗口 | `300` / `180` |
 | `GlobalWebRateLimitNum` / `GlobalWebRateLimitDuration` | 全局 Web 限流次数 / 时间窗口 | `300` / `180` |
 | `CriticalRateLimitNum` / `CriticalRateLimitDuration` | 敏感接口限流次数 / 时间窗口 | `100` / `1200` |
+| `UptimeKumaEnabled` | 是否启用 Uptime Kuma 自动同步 | `false` |
+| `UptimeKumaUrl` | Uptime Kuma 实例地址 | 空 |
+| `UptimeKumaUsername` | Uptime Kuma 登录用户名 | 空 |
+| `UptimeKumaPassword` | Uptime Kuma 登录密码（写专，接口不回显） | 空 |
+| `UptimeKumaMonitorScope` | 监控范围，支持 `all` (全部站点) 或 `selected` (选择站点) | `all` |
+| `UptimeKumaSelectedSites` | 已选择监控站点的名称列表（英文逗号分隔） | 空 |
+| `UptimeKumaSyncInterval` | 自动差分同步间隔（分钟） | `5` |
+| `UptimeKumaInterval` | 监控心跳检测频率（秒） | `60` |
+| `UptimeKumaRetry` | 监控最大重试次数 | `0` |
+| `UptimeKumaRetryInterval` | 监控重试间隔时间（秒） | `60` |
+| `UptimeKumaTimeout` | 监控请求超时断开时间（秒） | `48` |
 
 说明：
 

@@ -67,6 +67,11 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/geoip/lookup", controller.LookupGeoIP)
 			optionRoute.POST("/database/cleanup", controller.CleanupDatabaseObservability)
 		}
+		uptimekumaRoute := apiRouter.Group("/uptimekuma")
+		uptimekumaRoute.Use(middleware.RootAuth(), middleware.NoTokenAuth())
+		{
+			uptimekumaRoute.POST("/sync", controller.SyncUptimeKuma)
+		}
 		authSourceRoute := apiRouter.Group("/auth-sources")
 		authSourceRoute.Use(middleware.RootAuth(), middleware.NoTokenAuth())
 		{

@@ -126,3 +126,9 @@ export function bindEmail(email: string, code: string) {
 export function getAboutContent() {
   return apiRequest<string>('/about');
 }
+
+export function syncUptimeKuma() {
+  return apiRequest<void>('/uptimekuma/sync', {
+    method: 'POST',
+  });
+}

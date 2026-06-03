@@ -31,8 +31,10 @@ import {
   rotateBootstrapToken,
   updateOptions,
   updateSelf,
+  syncUptimeKuma,
 } from '@/features/settings/api/settings';
 import { AuthSourceModal } from '@/features/settings/components/auth-source-modal';
+import { UptimeKumaSiteSelectModal } from './uptimekuma-modal';
 import type {
   BootstrapTokenPayload,
   DatabaseCleanupResult,
@@ -87,6 +89,17 @@ const defaultOperationFields = {
   NodeOfflineThreshold: '120000',
   AgentUpdateRepo: 'Rain-kl/OpenFlare',
   GeoIPProvider: 'ipinfo',
+  UptimeKumaEnabled: false,
+  UptimeKumaUrl: '',
+  UptimeKumaUsername: '',
+  UptimeKumaPassword: '',
+  UptimeKumaMonitorScope: 'all',
+  UptimeKumaSelectedSites: '',
+  UptimeKumaSyncInterval: '5',
+  UptimeKumaInterval: '60',
+  UptimeKumaRetry: '0',
+  UptimeKumaRetryInterval: '60',
+  UptimeKumaTimeout: '48',
   OpenRestyDefaultServerReturnStatus: '421',
   OpenRestyWorkerProcesses: 'auto',
   OpenRestyWorkerConnections: '4096',
@@ -255,6 +268,7 @@ export function SettingsPage() {
   const [cleanupModalState, setCleanupModalState] =
     useState<CleanupModalState | null>(null);
   const [cleanupRetentionDays, setCleanupRetentionDays] = useState('');
+  const [uptimeKumaModalOpen, setUptimeKumaModalOpen] = useState(false);
 
   const isRoot = (user?.role ?? 0) >= 100;
 
@@ -428,6 +442,17 @@ export function SettingsPage() {
       GlobalWebRateLimitDuration: optionMap.GlobalWebRateLimitDuration ?? '180',
       CriticalRateLimitNum: optionMap.CriticalRateLimitNum ?? '100',
       CriticalRateLimitDuration: optionMap.CriticalRateLimitDuration ?? '1200',
+      UptimeKumaEnabled: toBoolean(optionMap.UptimeKumaEnabled, false),
+      UptimeKumaUrl: optionMap.UptimeKumaUrl ?? '',
+      UptimeKumaUsername: optionMap.UptimeKumaUsername ?? '',
+      UptimeKumaPassword: '',
+      UptimeKumaMonitorScope: optionMap.UptimeKumaMonitorScope ?? 'all',
+      UptimeKumaSelectedSites: optionMap.UptimeKumaSelectedSites ?? '',
+      UptimeKumaSyncInterval: optionMap.UptimeKumaSyncInterval ?? '5',
+      UptimeKumaInterval: optionMap.UptimeKumaInterval ?? '60',
+      UptimeKumaRetry: optionMap.UptimeKumaRetry ?? '0',
+      UptimeKumaRetryInterval: optionMap.UptimeKumaRetryInterval ?? '60',
+      UptimeKumaTimeout: optionMap.UptimeKumaTimeout ?? '48',
       ServerAddress: resolvedServerAddress,
     });
 
@@ -653,6 +678,64 @@ export function SettingsPage() {
 
     void runBusyAction(`toggle-${key}`, async () => {
       await saveOptionEntries([[key, String(nextValue)]], '系统开关已更新。');
+    });
+  };
+
+  const handleUptimeKumaSave = () => {
+    void runBusyAction('uptimekuma-save', async () => {
+      const syncInt = Number.parseInt(operationFields.UptimeKumaSyncInterval, 10);
+      const interval = Number.parseInt(operationFields.UptimeKumaInterval, 10);
+      const retry = Number.parseInt(operationFields.UptimeKumaRetry, 10);
+      const retryInt = Number.parseInt(operationFields.UptimeKumaRetryInterval, 10);
+      const timeout = Number.parseInt(operationFields.UptimeKumaTimeout, 10);
+
+      if (operationFields.UptimeKumaEnabled) {
+        if (!operationFields.UptimeKumaUrl.trim()) {
+          throw new Error('请输入 Uptime Kuma 地址。');
+        }
+        if (!operationFields.UptimeKumaUsername.trim()) {
+          throw new Error('请输入 Uptime Kuma 用户名。');
+        }
+      }
+      if (Number.isNaN(syncInt) || syncInt <= 0) {
+        throw new Error('同步间隔必须为正整数。');
+      }
+      if (Number.isNaN(interval) || interval <= 0) {
+        throw new Error('心跳间隔必须为正整数。');
+      }
+      if (Number.isNaN(retry) || retry < 0) {
+        throw new Error('重试次数必须为非负整数。');
+      }
+      if (Number.isNaN(retryInt) || retryInt <= 0) {
+        throw new Error('心跳重试间隔必须为正整数。');
+      }
+      if (Number.isNaN(timeout) || timeout <= 0) {
+        throw new Error('请求超时必须为正整数。');
+      }
+
+      await saveOptionEntries(
+        [
+          ['UptimeKumaEnabled', String(operationFields.UptimeKumaEnabled)],
+          ['UptimeKumaUrl', operationFields.UptimeKumaUrl.trim()],
+          ['UptimeKumaUsername', operationFields.UptimeKumaUsername.trim()],
+          ['UptimeKumaPassword', operationFields.UptimeKumaPassword],
+          ['UptimeKumaMonitorScope', operationFields.UptimeKumaMonitorScope],
+          ['UptimeKumaSelectedSites', operationFields.UptimeKumaSelectedSites],
+          ['UptimeKumaSyncInterval', String(syncInt)],
+          ['UptimeKumaInterval', String(interval)],
+          ['UptimeKumaRetry', String(retry)],
+          ['UptimeKumaRetryInterval', String(retryInt)],
+          ['UptimeKumaTimeout', String(timeout)],
+        ],
+        'Uptime Kuma 设置已保存。',
+      );
+    });
+  };
+
+  const handleUptimeKumaSync = () => {
+    void runBusyAction('uptimekuma-sync', async () => {
+      await syncUptimeKuma();
+      setFeedback({ tone: 'success', message: '同步任务已成功执行！' });
     });
   };
 
@@ -1307,6 +1390,198 @@ export function SettingsPage() {
                 </div>
               )}
             </AppCard>
+
+            <AppCard
+              title="Uptime Kuma 集成"
+              description="通过 API 将 OpenFlare 反代站点同步至 Uptime Kuma 监控。"
+              action={
+                <div className="flex flex-wrap gap-2">
+                  <SecondaryButton
+                    type="button"
+                    onClick={handleUptimeKumaSync}
+                    disabled={busyKey === 'uptimekuma-sync' || !operationFields.UptimeKumaEnabled}
+                  >
+                    {busyKey === 'uptimekuma-sync' ? '同步中...' : '立即同步'}
+                  </SecondaryButton>
+                  <PrimaryButton
+                    type="button"
+                    onClick={handleUptimeKumaSave}
+                    disabled={busyKey === 'uptimekuma-save'}
+                  >
+                    {busyKey === 'uptimekuma-save' ? '保存中...' : '保存设置'}
+                  </PrimaryButton>
+                </div>
+              }
+            >
+              <div className="space-y-6">
+                <ToggleField
+                  label="开启 Uptime Kuma"
+                  description="启用后会自动差分同步反代规则站点到 Uptime Kuma 实例。"
+                  checked={operationFields.UptimeKumaEnabled}
+                  onChange={(checked) =>
+                    setOperationFields((previous) => ({
+                      ...previous,
+                      UptimeKumaEnabled: checked,
+                    }))
+                  }
+                />
+
+                {operationFields.UptimeKumaEnabled ? (
+                  <div className="space-y-5 border-t border-[var(--border-default)] pt-5">
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <ResourceField label="Uptime Kuma 地址" hint="例如 http://192.168.1.100:3001">
+                        <ResourceInput
+                          value={operationFields.UptimeKumaUrl}
+                          onChange={(event) =>
+                            setOperationFields((previous) => ({
+                              ...previous,
+                              UptimeKumaUrl: event.target.value,
+                            }))
+                          }
+                          placeholder="http://localhost:3001"
+                        />
+                      </ResourceField>
+
+                      <ResourceField label="Uptime Kuma 用户名">
+                        <ResourceInput
+                          value={operationFields.UptimeKumaUsername}
+                          onChange={(event) =>
+                            setOperationFields((previous) => ({
+                              ...previous,
+                              UptimeKumaUsername: event.target.value,
+                            }))
+                          }
+                          placeholder="请输入用户名"
+                        />
+                      </ResourceField>
+                    </div>
+
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <ResourceField
+                        label="Uptime Kuma 密码"
+                        hint="安全原因不显示历史密码，留空表示不更新。"
+                      >
+                        <ResourceInput
+                          type="password"
+                          value={operationFields.UptimeKumaPassword}
+                          onChange={(event) =>
+                            setOperationFields((previous) => ({
+                              ...previous,
+                              UptimeKumaPassword: event.target.value,
+                            }))
+                          }
+                          placeholder="请输入密码（留空表示不更新）"
+                        />
+                      </ResourceField>
+                      <ResourceField label="同步间隔 (分钟)">
+                        <ResourceInput
+                            type="number"
+                            value={operationFields.UptimeKumaSyncInterval}
+                            onChange={(event) =>
+                                setOperationFields((previous) => ({
+                                  ...previous,
+                                  UptimeKumaSyncInterval: event.target.value,
+                                }))
+                            }
+                        />
+                      </ResourceField>
+                      <ResourceField label="监控范围">
+                        <ResourceSelect
+                          value={operationFields.UptimeKumaMonitorScope}
+                          onChange={(event) =>
+                            setOperationFields((previous) => ({
+                              ...previous,
+                              UptimeKumaMonitorScope: event.target.value,
+                            }))
+                          }
+                        >
+                          <option value="all">全部站点</option>
+                          <option value="selected">选择站点</option>
+                        </ResourceSelect>
+                      </ResourceField>
+
+
+                    </div>
+
+                    {operationFields.UptimeKumaMonitorScope === 'selected' ? (
+                      <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-[var(--foreground-primary)]">已选站点</span>
+                          <SecondaryButton type="button" onClick={() => setUptimeKumaModalOpen(true)}>
+                            选择监控站点
+                          </SecondaryButton>
+                        </div>
+                        <div className="text-xs text-[var(--foreground-secondary)] break-all max-h-[80px] overflow-y-auto leading-5">
+                          {operationFields.UptimeKumaSelectedSites
+                            ? operationFields.UptimeKumaSelectedSites.split(',').join(', ')
+                            : '未选择任何站点，同步不会执行。'}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="border-t border-[var(--border-default)] pt-5 space-y-4">
+                      <p className="text-sm font-medium text-[var(--foreground-primary)]">
+                        Uptime Kuma 属性配置
+                      </p>
+                      <div className="grid gap-5 md:grid-cols-2">
+                        <ResourceField label="心跳间隔 (检测频率秒)" hint="服务检测频率，单位：秒">
+                          <ResourceInput
+                            type="number"
+                            value={operationFields.UptimeKumaInterval}
+                            onChange={(event) =>
+                              setOperationFields((previous) => ({
+                                ...previous,
+                                UptimeKumaInterval: event.target.value,
+                              }))
+                            }
+                          />
+                        </ResourceField>
+
+                        <ResourceField label="重试次数" hint="服务被标记为故障前的最大重试次数">
+                          <ResourceInput
+                            type="number"
+                            value={operationFields.UptimeKumaRetry}
+                            onChange={(event) =>
+                              setOperationFields((previous) => ({
+                                ...previous,
+                                UptimeKumaRetry: event.target.value,
+                              }))
+                            }
+                          />
+                        </ResourceField>
+
+                        <ResourceField label="心跳重试间隔 (秒)" hint="重试间隔时间，单位：秒">
+                          <ResourceInput
+                            type="number"
+                            value={operationFields.UptimeKumaRetryInterval}
+                            onChange={(event) =>
+                              setOperationFields((previous) => ({
+                                ...previous,
+                                UptimeKumaRetryInterval: event.target.value,
+                              }))
+                            }
+                          />
+                        </ResourceField>
+
+                        <ResourceField label="请求超时 (秒)" hint="超时断开时间，单位：秒">
+                          <ResourceInput
+                            type="number"
+                            value={operationFields.UptimeKumaTimeout}
+                            onChange={(event) =>
+                              setOperationFields((previous) => ({
+                                ...previous,
+                                UptimeKumaTimeout: event.target.value,
+                              }))
+                            }
+                          />
+                        </ResourceField>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </AppCard>
+
             <AppCard title="版本与构建信息">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-elevated)] px-4 py-4">
@@ -2048,6 +2323,22 @@ export function SettingsPage() {
             queryClient.invalidateQueries({ queryKey: ['public-status'] }),
           ]);
         }}
+      />
+
+      <UptimeKumaSiteSelectModal
+        isOpen={uptimeKumaModalOpen}
+        selectedSites={
+          operationFields.UptimeKumaSelectedSites
+            ? operationFields.UptimeKumaSelectedSites.split(',')
+            : []
+        }
+        onClose={() => setUptimeKumaModalOpen(false)}
+        onSave={(sites) =>
+          setOperationFields((previous) => ({
+            ...previous,
+            UptimeKumaSelectedSites: sites.join(','),
+          }))
+        }
       />
 
       <AppModal

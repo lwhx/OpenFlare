@@ -26,6 +26,14 @@ func InitCronJobs() {
 		slog.Info("registered WAF IP group sync cron job")
 	}
 
+	// Register Uptime Kuma sync job (check every minute)
+	_, err = cronRunner.AddJob("* * * * *", &UptimeKumaSyncJob{})
+	if err != nil {
+		slog.Error("failed to register Uptime Kuma sync cron job", "error", err)
+	} else {
+		slog.Info("registered Uptime Kuma sync cron job")
+	}
+
 	cronRunner.Start()
 }
 

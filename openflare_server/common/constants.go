@@ -57,6 +57,19 @@ var GeoIPProvider = "ipinfo"
 var DatabaseAutoCleanupEnabled = false
 var DatabaseAutoCleanupRetentionDays = 30
 
+// Uptime Kuma integration settings
+var UptimeKumaEnabled = false
+var UptimeKumaUrl = ""
+var UptimeKumaUsername = ""
+var UptimeKumaPassword = ""
+var UptimeKumaMonitorScope = "all" // "all" or "selected"
+var UptimeKumaSelectedSites = ""   // Comma-separated list of site names
+var UptimeKumaSyncInterval = 5     // minutes
+var UptimeKumaInterval = 60        // seconds
+var UptimeKumaRetry = 0
+var UptimeKumaRetryInterval = 60 // seconds
+var UptimeKumaTimeout = 48       // seconds
+
 // V5 OpenResty performance settings (hot-reloadable via Option table)
 
 var OpenRestyDefaultServerReturnStatus = 421

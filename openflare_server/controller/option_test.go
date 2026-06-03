@@ -1,6 +1,8 @@
 package controller
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestValidateOpenRestyOption(t *testing.T) {
 	testCases := []struct {
@@ -61,5 +63,57 @@ func TestValidateAgentOption(t *testing.T) {
 	}
 	if err := validateAgentOption("AgentWebsocketUpgradeEnabled", "on"); err == nil {
 		t.Fatal("expected websocket upgrade option to reject non-boolean value")
+	}
+}
+
+func TestValidateUptimeKumaOption(t *testing.T) {
+	state := map[string]string{
+		"UptimeKumaUrl":      "http://localhost:3001",
+		"UptimeKumaUsername": "admin",
+		"UptimeKumaPassword": "password",
+	}
+
+	testCases := []struct {
+		name    string
+		key     string
+		value   string
+		wantErr bool
+	}{
+		{name: "enabled true", key: "UptimeKumaEnabled", value: "true"},
+		{name: "enabled false", key: "UptimeKumaEnabled", value: "false"},
+		{name: "enabled invalid", key: "UptimeKumaEnabled", value: "on", wantErr: true},
+		{name: "url http valid", key: "UptimeKumaUrl", value: "http://192.168.1.100:3001"},
+		{name: "url https valid", key: "UptimeKumaUrl", value: "https://kuma.example.com"},
+		{name: "url invalid", key: "UptimeKumaUrl", value: "kuma.example.com", wantErr: true},
+		{name: "scope all", key: "UptimeKumaMonitorScope", value: "all"},
+		{name: "scope selected", key: "UptimeKumaMonitorScope", value: "selected"},
+		{name: "scope invalid", key: "UptimeKumaMonitorScope", value: "none", wantErr: true},
+		{name: "sync interval valid", key: "UptimeKumaSyncInterval", value: "5"},
+		{name: "sync interval invalid", key: "UptimeKumaSyncInterval", value: "0", wantErr: true},
+		{name: "interval valid", key: "UptimeKumaInterval", value: "60"},
+		{name: "interval invalid", key: "UptimeKumaInterval", value: "-60", wantErr: true},
+		{name: "retry valid", key: "UptimeKumaRetry", value: "0"},
+		{name: "retry positive valid", key: "UptimeKumaRetry", value: "3"},
+		{name: "retry invalid", key: "UptimeKumaRetry", value: "-1", wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		err := validateUptimeKumaOption(tc.key, tc.value, state)
+		if tc.wantErr && err == nil {
+			t.Fatalf("%s: expected error", tc.name)
+		}
+		if !tc.wantErr && err != nil {
+			t.Fatalf("%s: unexpected error: %v", tc.name, err)
+		}
+	}
+
+	// Test enabling Uptime Kuma when URL or credentials are empty in state
+	stateEmpty := map[string]string{
+		"UptimeKumaUrl":      "",
+		"UptimeKumaUsername": "",
+		"UptimeKumaPassword": "",
+	}
+	if err := validateUptimeKumaOption("UptimeKumaEnabled", "true", stateEmpty); err == nil {
+		t.Fatal("expected error when enabling Uptime Kuma with empty URL/credentials in state")
 	}
 }

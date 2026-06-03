@@ -52,6 +52,17 @@ func InitOptionMap() {
 	common.OptionMap["AgentUpdateRepo"] = common.AgentUpdateRepo
 	common.OptionMap["GeoIPProvider"] = common.GeoIPProvider
 	common.OptionMap["DatabaseAutoCleanupEnabled"] = strconv.FormatBool(common.DatabaseAutoCleanupEnabled)
+	common.OptionMap["UptimeKumaEnabled"] = strconv.FormatBool(common.UptimeKumaEnabled)
+	common.OptionMap["UptimeKumaUrl"] = common.UptimeKumaUrl
+	common.OptionMap["UptimeKumaUsername"] = common.UptimeKumaUsername
+	common.OptionMap["UptimeKumaPassword"] = common.UptimeKumaPassword
+	common.OptionMap["UptimeKumaMonitorScope"] = common.UptimeKumaMonitorScope
+	common.OptionMap["UptimeKumaSelectedSites"] = common.UptimeKumaSelectedSites
+	common.OptionMap["UptimeKumaSyncInterval"] = strconv.Itoa(common.UptimeKumaSyncInterval)
+	common.OptionMap["UptimeKumaInterval"] = strconv.Itoa(common.UptimeKumaInterval)
+	common.OptionMap["UptimeKumaRetry"] = strconv.Itoa(common.UptimeKumaRetry)
+	common.OptionMap["UptimeKumaRetryInterval"] = strconv.Itoa(common.UptimeKumaRetryInterval)
+	common.OptionMap["UptimeKumaTimeout"] = strconv.Itoa(common.UptimeKumaTimeout)
 	common.OptionMap["DatabaseAutoCleanupRetentionDays"] = strconv.Itoa(common.DatabaseAutoCleanupRetentionDays)
 	common.OptionMap["OpenRestyDefaultServerReturnStatus"] = strconv.Itoa(common.OpenRestyDefaultServerReturnStatus)
 	common.OptionMap["OpenRestyWorkerProcesses"] = common.OpenRestyWorkerProcesses
@@ -116,6 +127,9 @@ func UpdateOptions(options []Option) error {
 
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		for _, item := range options {
+			if item.Key == "UptimeKumaPassword" && strings.TrimSpace(item.Value) == "" {
+				continue
+			}
 			option := Option{
 				Key: item.Key,
 			}
@@ -133,6 +147,9 @@ func UpdateOptions(options []Option) error {
 	}
 
 	for _, item := range options {
+		if item.Key == "UptimeKumaPassword" && strings.TrimSpace(item.Value) == "" {
+			continue
+		}
 		updateOptionMap(item.Key, item.Value)
 	}
 	return nil
@@ -208,6 +225,38 @@ func updateOptionMap(key string, value string) {
 		if geoip.IsValidProvider(value) {
 			common.GeoIPProvider = value
 			shouldRefreshGeoIP = true
+		}
+	case "UptimeKumaEnabled":
+		common.UptimeKumaEnabled = value == "true"
+	case "UptimeKumaUrl":
+		common.UptimeKumaUrl = value
+	case "UptimeKumaUsername":
+		common.UptimeKumaUsername = value
+	case "UptimeKumaPassword":
+		common.UptimeKumaPassword = value
+	case "UptimeKumaMonitorScope":
+		common.UptimeKumaMonitorScope = value
+	case "UptimeKumaSelectedSites":
+		common.UptimeKumaSelectedSites = value
+	case "UptimeKumaSyncInterval":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.UptimeKumaSyncInterval = v
+		}
+	case "UptimeKumaInterval":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.UptimeKumaInterval = v
+		}
+	case "UptimeKumaRetry":
+		if v, err := strconv.Atoi(value); err == nil && v >= 0 {
+			common.UptimeKumaRetry = v
+		}
+	case "UptimeKumaRetryInterval":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.UptimeKumaRetryInterval = v
+		}
+	case "UptimeKumaTimeout":
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			common.UptimeKumaTimeout = v
 		}
 	case "DatabaseAutoCleanupEnabled":
 		common.DatabaseAutoCleanupEnabled = value == "true"
