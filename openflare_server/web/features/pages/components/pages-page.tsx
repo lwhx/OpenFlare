@@ -61,14 +61,6 @@ export function PagesPage() {
           <AppCard
             title="还没有 Pages 项目"
             description="先创建一个项目，再上传静态资源包。"
-            action={
-              <SecondaryButton
-                type="button"
-                onClick={() => setCreateModalOpen(true)}
-              >
-                新建 Pages 项目
-              </SecondaryButton>
-            }
           />
         ) : (
           (projectsQuery.data ?? []).map((project) => (

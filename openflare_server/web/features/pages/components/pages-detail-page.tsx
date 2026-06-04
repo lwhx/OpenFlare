@@ -159,16 +159,6 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
       <AppCard
         title="部署历史"
         description="部署不可变；激活后发布配置，Agent 才会拉取并切换静态资源。"
-        action={
-          (deploymentsQuery.data ?? []).length > 0 ? (
-            <PrimaryButton
-              type="button"
-              onClick={() => setUploadModalOpen(true)}
-            >
-              上传部署包
-            </PrimaryButton>
-          ) : null
-        }
       >
         {deploymentsQuery.isLoading ? (
           <p className="text-sm text-[var(--foreground-secondary)]">
@@ -183,12 +173,6 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
             title="暂无部署"
             description="上传 zip 部署包后，可以在这里激活某个部署版本。"
           >
-            <PrimaryButton
-              type="button"
-              onClick={() => setUploadModalOpen(true)}
-            >
-              上传部署包
-            </PrimaryButton>
           </EmptyState>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[var(--border-default)]">
