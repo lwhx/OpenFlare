@@ -130,7 +130,7 @@ export function VersionUpgradeModal({
       isOpen={isOpen}
       onClose={onClose}
       title="版本"
-      description="默认检查正式版更新；你也可以手动检查 preview 发布并选择升级，或上传 Server 二进制确认升级。升级开始后服务会短暂重启。"
+      description="默认检查正式版更新；你也可以手动检查 preview 发布并选择升级。升级开始后服务会短暂重启。"
       size="lg"
     >
       <div className="space-y-6">
@@ -319,7 +319,7 @@ export function VersionUpgradeModal({
           </AppCard>
         ) : null}
 
-        {canUpgrade ? (
+        {canUpgrade && (false as boolean) ? (
           <AppCard title="手动升级">
             <div className="space-y-4">
               <ResourceField
