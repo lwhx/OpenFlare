@@ -866,7 +866,7 @@ func TestEnsureDatabaseSchemaUpToDateDropsPagesDeploymentUnusedFields(t *testing
 	}
 
 	// Remove the migration record from goose_db_version table
-	const versionToRerun = 202606040003
+	const versionToRerun = 202606040004
 	if err := db.Exec("DELETE FROM goose_db_version WHERE version_id = ?", versionToRerun).Error; err != nil {
 		t.Fatalf("failed to delete migration record: %v", err)
 	}
