@@ -830,3 +830,57 @@ func TestAllGORMModelsAreRegistered(t *testing.T) {
 		}
 	}
 }
+
+func TestEnsureDatabaseSchemaUpToDateDropsPagesDeploymentUnusedFields(t *testing.T) {
+	db := openBareTestSQLiteDB(t, "drop-pages-deployment-unused-fields.db")
+	if err := registerSharding(db, "sqlite"); err != nil {
+		t.Fatalf("register sharding: %v", err)
+	}
+
+	if err := ensureDatabaseSchemaUpToDate(db, "sqlite"); err != nil {
+		t.Fatalf("first ensureDatabaseSchemaUpToDate: %v", err)
+	}
+
+	// Verify columns do not exist
+	if db.Migrator().HasColumn("pages_deployments", "root_dir") {
+		t.Fatal("expected root_dir column to be absent initially")
+	}
+	if db.Migrator().HasColumn("pages_deployments", "entry_file") {
+		t.Fatal("expected entry_file column to be absent initially")
+	}
+
+	// Manually add columns to simulate old state
+	if err := db.Exec("ALTER TABLE pages_deployments ADD COLUMN root_dir TEXT").Error; err != nil {
+		t.Fatalf("failed to add root_dir column: %v", err)
+	}
+	if err := db.Exec("ALTER TABLE pages_deployments ADD COLUMN entry_file TEXT").Error; err != nil {
+		t.Fatalf("failed to add entry_file column: %v", err)
+	}
+
+	// Verify columns were added
+	if !db.Migrator().HasColumn("pages_deployments", "root_dir") {
+		t.Fatal("expected root_dir column to be present after manual add")
+	}
+	if !db.Migrator().HasColumn("pages_deployments", "entry_file") {
+		t.Fatal("expected entry_file column to be present after manual add")
+	}
+
+	// Remove the migration record from goose_db_version table
+	const versionToRerun = 202606040003
+	if err := db.Exec("DELETE FROM goose_db_version WHERE version_id = ?", versionToRerun).Error; err != nil {
+		t.Fatalf("failed to delete migration record: %v", err)
+	}
+
+	// Run migration again
+	if err := ensureDatabaseSchemaUpToDate(db, "sqlite"); err != nil {
+		t.Fatalf("second ensureDatabaseSchemaUpToDate: %v", err)
+	}
+
+	// Verify columns were dropped successfully
+	if db.Migrator().HasColumn("pages_deployments", "root_dir") {
+		t.Fatal("expected root_dir column to be dropped after migration rerun")
+	}
+	if db.Migrator().HasColumn("pages_deployments", "entry_file") {
+		t.Fatal("expected entry_file column to be dropped after migration rerun")
+	}
+}

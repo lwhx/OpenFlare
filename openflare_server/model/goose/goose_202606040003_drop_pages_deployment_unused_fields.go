@@ -23,12 +23,12 @@ func migration202606040003(backend string, ctx Context) *presslygoose.Migration 
 func migratePagesDeploymentDropUnusedFields(ctx Context, db *gorm.DB, backend string) error {
 	// Drop columns root_dir and entry_file from pages_deployments
 	if db.Migrator().HasColumn("pages_deployments", "root_dir") {
-		if err := db.Migrator().DropColumn("pages_deployments", "root_dir"); err != nil {
+		if err := db.Exec("ALTER TABLE pages_deployments DROP COLUMN root_dir").Error; err != nil {
 			return fmt.Errorf("failed to drop pages_deployments.root_dir: %w", err)
 		}
 	}
 	if db.Migrator().HasColumn("pages_deployments", "entry_file") {
-		if err := db.Migrator().DropColumn("pages_deployments", "entry_file"); err != nil {
+		if err := db.Exec("ALTER TABLE pages_deployments DROP COLUMN entry_file").Error; err != nil {
 			return fmt.Errorf("failed to drop pages_deployments.entry_file: %w", err)
 		}
 	}
