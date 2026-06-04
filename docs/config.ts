@@ -11,7 +11,7 @@ export default defineAdditionalConfig({
       '/guide/': { base: '/guide/', items: sidebarGuide() },
       '/reference/': { base: '/reference/', items: sidebarReference() },
       '/design/': { base: '/design/', items: sidebarDesign() },
-      '/changelog/': false
+      '/changelog/': { base: '/changelog/', items: [] }
     },
 
     editLink: {
