@@ -1,9 +1,12 @@
+import type { ReactNode } from 'react';
+
 interface EmptyStateProps {
   title: string;
   description?: string;
+  children?: ReactNode;
 }
 
-export function EmptyState({ title, description }: EmptyStateProps) {
+export function EmptyState({ title, description, children }: EmptyStateProps) {
   return (
     <div className="rounded-2xl border border-dashed border-[var(--border-default)] bg-[var(--surface-muted)] px-5 py-6 text-sm">
       <p className="text-base font-semibold text-[var(--foreground-primary)]">
@@ -14,6 +17,8 @@ export function EmptyState({ title, description }: EmptyStateProps) {
           {description}
         </p>
       ) : null}
+      {children ? <div className="mt-4">{children}</div> : null}
     </div>
   );
 }
+

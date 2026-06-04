@@ -134,10 +134,8 @@ export function PagesPage() {
 export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [file, setFile] = useState<File | null>(null);
-  const [entryFile, setEntryFile] = useState('index.html');
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isUploadModalOpen, setUploadModalOpen] = useState(false);
 
   const parsedProjectId = Number(projectId);
   const projectQuery = useQuery({
@@ -151,29 +149,6 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
     enabled: projectId !== '' && Number.isFinite(parsedProjectId),
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: () => {
-      if (!file) {
-        throw new Error('请选择 zip 文件');
-      }
-      setUploadProgress(0);
-      return uploadPagesDeployment(parsedProjectId, file, entryFile, (percent) => {
-        setUploadProgress(percent);
-      });
-    },
-    onSuccess: () => {
-      setFile(null);
-      setUploadProgress(null);
-      queryClient.invalidateQueries({
-        queryKey: deploymentsQueryKey(parsedProjectId),
-      });
-      queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
-      queryClient.invalidateQueries({ queryKey: projectsQueryKey });
-    },
-    onError: () => {
-      setUploadProgress(null);
-    },
-  });
   const activateMutation = useMutation({
     mutationFn: (deploymentId: number) =>
       activatePagesDeployment(parsedProjectId, deploymentId),
@@ -262,6 +237,12 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
             >
               编辑项目
             </SecondaryButton>
+            <PrimaryButton
+              type="button"
+              onClick={() => setUploadModalOpen(true)}
+            >
+              上传部署包
+            </PrimaryButton>
             <DangerButton
               type="button"
               disabled={deleteProjectMutation.isPending}
@@ -273,148 +254,270 @@ export function PagesProjectDetailPage({ projectId }: { projectId: string }) {
         }
       />
 
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-        <AppCard
-          title="上传部署包"
-          description="上传已构建的 zip 静态资源包，默认入口 index.html。"
-        >
-          <div className="space-y-4">
-            <ResourceField
-              label="部署包"
-              hint="仅支持 zip，Server 会校验文件数量、体积、路径逃逸和入口文件。"
-            >
-              <ResourceInput
-                type="file"
-                accept=".zip,application/zip"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              />
-            </ResourceField>
-            <ResourceField label="入口文件">
-              <ResourceInput
-                value={entryFile}
-                onChange={(event) => setEntryFile(event.target.value)}
-              />
-            </ResourceField>
-            {uploadProgress !== null && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-medium text-[var(--foreground-secondary)]">
-                  <span>上传进度</span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-muted)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--brand-primary)] transition-all duration-300 ease-out"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
+      <AppCard
+        title="部署历史"
+        description="部署不可变；激活后发布配置，Agent 才会拉取并切换静态资源。"
+        action={
+          (deploymentsQuery.data ?? []).length > 0 ? (
             <PrimaryButton
               type="button"
-              disabled={!file || uploadMutation.isPending}
-              onClick={() => uploadMutation.mutate()}
+              onClick={() => setUploadModalOpen(true)}
             >
-              {uploadMutation.isPending
-                ? `上传中 (${uploadProgress ?? 0}%)...`
-                : '上传部署'}
+              上传部署包
             </PrimaryButton>
-            {uploadMutation.error ? (
-              <p className="text-sm text-[var(--status-danger-foreground)]">
-                {uploadMutation.error.message}
-              </p>
-            ) : null}
-          </div>
-        </AppCard>
-
-        <AppCard
-          title="部署历史"
-          description="部署不可变；激活后发布配置，Agent 才会拉取并切换静态资源。"
-        >
-          {deploymentsQuery.isLoading ? (
-            <p className="text-sm text-[var(--foreground-secondary)]">
-              加载中...
-            </p>
-          ) : deploymentsQuery.isError ? (
-            <p className="text-sm text-[var(--status-danger-foreground)]">
-              {deploymentsQuery.error.message}
-            </p>
-          ) : (deploymentsQuery.data ?? []).length === 0 ? (
-            <EmptyState
-              title="暂无部署"
-              description="上传 zip 部署包后，可以在这里激活某个部署版本。"
-            />
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-[var(--border-default)]">
-              {(deploymentsQuery.data ?? []).map((deployment) => (
-                <div
-                  key={deployment.id}
-                  className="flex flex-col gap-3 border-b border-[var(--border-default)] p-4 last:border-b-0 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-[var(--foreground-primary)]">
-                      #{deployment.deployment_number}{' '}
-                      {deployment.status === 'active' ? '· 已激活' : ''}
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--foreground-secondary)]">
-                      {deployment.checksum.slice(0, 16)} ·{' '}
-                      {deployment.file_count} files ·{' '}
-                      {formatBytes(deployment.total_size)}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <SecondaryButton
-                      type="button"
-                      disabled={
-                        deployment.status === 'active' ||
-                        activateMutation.isPending
-                      }
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `确认激活部署 #${deployment.deployment_number} 吗？`,
-                          )
-                        ) {
-                          activateMutation.mutate(deployment.id);
-                        }
-                      }}
-                    >
-                      激活
-                    </SecondaryButton>
-                    <DangerButton
-                      type="button"
-                      disabled={
-                        deployment.status === 'active' ||
-                        deleteDeploymentMutation.isPending
-                      }
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `确认删除部署 #${deployment.deployment_number} 吗？`,
-                          )
-                        ) {
-                          deleteDeploymentMutation.mutate(deployment.id);
-                        }
-                      }}
-                    >
-                      删除
-                    </DangerButton>
-                  </div>
+          ) : null
+        }
+      >
+        {deploymentsQuery.isLoading ? (
+          <p className="text-sm text-[var(--foreground-secondary)]">
+            加载中...
+          </p>
+        ) : deploymentsQuery.isError ? (
+          <p className="text-sm text-[var(--status-danger-foreground)]">
+            {deploymentsQuery.error.message}
+          </p>
+        ) : (deploymentsQuery.data ?? []).length === 0 ? (
+          <EmptyState
+            title="暂无部署"
+            description="上传 zip 部署包后，可以在这里激活某个部署版本。"
+          >
+            <PrimaryButton
+              type="button"
+              onClick={() => setUploadModalOpen(true)}
+            >
+              上传部署包
+            </PrimaryButton>
+          </EmptyState>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-[var(--border-default)]">
+            {(deploymentsQuery.data ?? []).map((deployment) => (
+              <div
+                key={deployment.id}
+                className="flex flex-col gap-3 border-b border-[var(--border-default)] p-4 last:border-b-0 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-medium text-[var(--foreground-primary)]">
+                    #{deployment.deployment_number}{' '}
+                    {deployment.status === 'active' ? '· 已激活' : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--foreground-secondary)]">
+                    {deployment.checksum.slice(0, 16)} ·{' '}
+                    {deployment.file_count} files ·{' '}
+                    {formatBytes(deployment.total_size)}
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </AppCard>
-      </div>
+                <div className="flex gap-2">
+                  <SecondaryButton
+                    type="button"
+                    disabled={
+                      deployment.status === 'active' ||
+                      activateMutation.isPending
+                    }
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `确认激活部署 #${deployment.deployment_number} 吗？`,
+                        )
+                      ) {
+                        activateMutation.mutate(deployment.id);
+                      }
+                    }}
+                  >
+                    激活
+                  </SecondaryButton>
+                  <DangerButton
+                    type="button"
+                    disabled={
+                      deployment.status === 'active' ||
+                      deleteDeploymentMutation.isPending
+                    }
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `确认删除部署 #${deployment.deployment_number} 吗？`,
+                        )
+                      ) {
+                        deleteDeploymentMutation.mutate(deployment.id);
+                      }
+                    }}
+                  >
+                    删除
+                  </DangerButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </AppCard>
 
       <PagesProjectEditModal
         isOpen={isEditModalOpen}
         onClose={() => setEditModalOpen(false)}
         project={project}
       />
+
+      <PagesDeploymentUploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        projectId={parsedProjectId}
+      />
     </div>
   );
 }
+
+function PagesDeploymentUploadModal({
+  isOpen,
+  onClose,
+  projectId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  projectId: number;
+}) {
+  const queryClient = useQueryClient();
+  const [file, setFile] = useState<File | null>(null);
+  const [entryFile, setEntryFile] = useState('index.html');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setFile(null);
+    setEntryFile('index.html');
+    setUploadProgress(null);
+    setErrorMessage(null);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const uploadMutation = useMutation({
+    mutationFn: async ({ shouldActivate }: { shouldActivate: boolean }) => {
+      if (!file) {
+        throw new Error('请选择 zip 文件');
+      }
+      setUploadProgress(0);
+      setErrorMessage(null);
+
+      const deployment = await uploadPagesDeployment(
+        projectId,
+        file,
+        entryFile,
+        (percent) => {
+          setUploadProgress(percent);
+        }
+      );
+
+      if (shouldActivate) {
+        await activatePagesDeployment(projectId, deployment.id);
+      }
+      return deployment;
+    },
+    onSuccess: () => {
+      resetForm();
+      queryClient.invalidateQueries({
+        queryKey: deploymentsQueryKey(projectId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: projectQueryKey(projectId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: projectsQueryKey,
+      });
+      onClose();
+    },
+    onError: (error) => {
+      setUploadProgress(null);
+      setErrorMessage(error instanceof Error ? error.message : '上传失败');
+    },
+  });
+
+  const handleUploadOnly = () => {
+    uploadMutation.mutate({ shouldActivate: false });
+  };
+
+  const handleUploadAndDeploy = () => {
+    uploadMutation.mutate({ shouldActivate: true });
+  };
+
+  return (
+    <AppModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="上传部署包"
+      description="上传已构建的 zip 静态资源包，默认入口为 index.html。"
+      footer={
+        <div className="flex flex-wrap justify-end gap-3">
+          <SecondaryButton
+            type="button"
+            onClick={handleClose}
+            disabled={uploadMutation.isPending}
+          >
+            取消
+          </SecondaryButton>
+          <SecondaryButton
+            type="button"
+            disabled={!file || uploadMutation.isPending}
+            onClick={handleUploadOnly}
+          >
+            {uploadMutation.isPending && !uploadMutation.variables?.shouldActivate
+              ? `上传中 (${uploadProgress ?? 0}%)...`
+              : '上传'}
+          </SecondaryButton>
+          <PrimaryButton
+            type="button"
+            disabled={!file || uploadMutation.isPending}
+            onClick={handleUploadAndDeploy}
+          >
+            {uploadMutation.isPending && uploadMutation.variables?.shouldActivate
+              ? `上传并部署中 (${uploadProgress ?? 0}%)...`
+              : '上传并部署'}
+          </PrimaryButton>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <ResourceField
+          label="部署包"
+          hint="仅支持 zip，Server 会校验文件数量、体积、路径逃逸和入口文件。"
+        >
+          <ResourceInput
+            type="file"
+            accept=".zip,application/zip"
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          />
+        </ResourceField>
+        <ResourceField label="入口文件">
+          <ResourceInput
+            value={entryFile}
+            onChange={(event) => setEntryFile(event.target.value)}
+          />
+        </ResourceField>
+        {uploadProgress !== null && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-medium text-[var(--foreground-secondary)]">
+              <span>上传进度</span>
+              <span>{uploadProgress}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-muted)]">
+              <div
+                className="h-full rounded-full bg-[var(--brand-primary)] transition-all duration-300 ease-out"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+        {errorMessage ? (
+          <p className="text-sm text-[var(--status-danger-foreground)]">
+            {errorMessage}
+          </p>
+        ) : null}
+      </div>
+    </AppModal>
+  );
+}
+
 
 function PagesProjectEditModal({
   isOpen,
