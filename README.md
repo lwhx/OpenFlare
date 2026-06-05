@@ -2,9 +2,9 @@
 
 # OpenFlare
 
-**[📖 English](./README.md) | [中文](./README.zh-CN.md)**
+**[📖 中文](./README.md) | [English](./README.en.md)**
 
-OpenFlare is an open-source CDN orchestration and edge security platform. It supports reverse proxies, centralized configuration synchronization, secure intranet penetration (Tunnels), dynamic WAF protection, and anti-CC challenges.
+OpenFlare 是开源 CDN 编排与边缘安全平台。它支持反向代理、集中式配置同步、内网穿透（Tunnels）、动态 WAF 防护以及防 CC 挑战。
 
 </div>
 
@@ -21,36 +21,36 @@ OpenFlare is an open-source CDN orchestration and edge security platform. It sup
 </p>
 
 > [!WARNING]
-> After logging in for the first time with the `root` user, make sure to change the default password `123456`.
-> 
-> The BETA version is a temporary product for the development and testing phase. It may contain unknown issues and should not be used in production environments.
+> 使用 `root` 用户初次登录系统后，务必修改默认密码 `123456`。
+>
+> BETA 版本为开发测试阶段的临时产物，可能存在未知问题，请勿在生产环境使用。
 
-## Documentation
+## 文档
 
 **https://open-flare.pages.dev**
 
-Quick links:
+常用入口：
 
-* [Quick Start](https://open-flare.pages.dev/en/guide/quick-start)
-* [Deployment Guide](https://open-flare.pages.dev/en/guide/deployment)
-* [Configuration Reference](https://open-flare.pages.dev/reference/configuration)
-* [System Design](https://open-flare.pages.dev/design/)
+* [快速开始](https://open-flare.pages.dev/guide/quick-start)
+* [部署说明](https://open-flare.pages.dev/deployment/deployment)
+* [配置项参考](https://open-flare.pages.dev/reference/configuration)
+* [系统设计](https://open-flare.pages.dev/design/)
 
-## Core Features
+## 核心能力
 
-* **Centralized Real-Time Config Sync**: Sync configurations across all nodes in real time via WebSockets and heartbeats with sub-second hot reload. Instantly retrieve alerts and statuses. No manual SSH login or online patching required.
-* **Distributed CDN Orchestration**: Orchestrate scattered and independent OpenResty nodes into a highly collaborative distributed Content Delivery Network (CDN) fleet, supporting website-level multi-domain aggregation, upstream Keepalive, and multi-origin load balancing.
-* **Secure Intranet Penetration (Tunnels)**: An open-source alternative to Cloudflare Tunnels. Expose local intranet services securely to the public network without a public IP or exposing inbound ports.
-* **Edge WAF Safety Protection**: Provides global and custom rule groups, supporting IP/CIDR filtering, MaxMind GeoIP country-level regional access control, asynchronous differential synchronization of IP group members without Nginx reloads, and custom block responses.
-* **Anti-CC & Human-Machine Challenge (PoW)**: Built-in high-performance client-side cryptographic Proof of Work challenges (similar to Turnstile) to block and intercept botnets and scrapers at the gateway edge in seconds.
-* **Publish & Sync Model**: Based on immutable configuration versions (`YYYYMMDD-NNN`), preview and compare differences before publishing, a single globally active version, and one-click sub-second rollbacks.
-* **Three-Stage Disaster Recovery & Rollback**: Supports automatic node backup rollback, a built-in safety fallback page (Port 80/503 keeping status monitoring and security interception active), and an abnormal configuration blocklist.
-* **Automated Certificate Hosting**: Supports dynamic certificate upload, automatic multi-domain certificate matching and binding, ACME automatic renewal, and full lifecycle status tracking.
-* **Unified Observability**: Aggregates node request counts, provides real-time access analysis, host/Nginx resource snapshots, health logs, and a re-upload buffer for network fluctuations.
+* **反代配置管理**：以网站规则为聚合边界，支持多域名绑定与多上游负载均衡，统一管理所有 OpenResty 节点的反代配置。
+* **安全内网穿透（Tunnels）**：开源版的 Cloudflare Tunnels。无须公网 IP 或暴露入向端口，通过 Relay 中继节点与 OpenFlared 客户端安全反向穿透内网 Web 服务至公网。
+* **边缘 WAF 安全防护**：提供全局与自定义规则组，支持手动/自动/订阅型 IP 组、MaxMind GeoIP 国家级地域准入、IP 组成员 Checksum 差分同步（无需 Nginx 重载）以及自定义拦截响应。
+* **防 CC 与人机挑战（PoW）**：内置高性能客户端密码学 Proof of Work 挑战（类似 Turnstile），在网关边缘秒级拦截并阻断僵尸网络与爬虫。
+* **Pages 静态托管**：直接上传预构建 ZIP 包，由边缘 Agent 拉取并通过 OpenResty 本地提供服务，支持 SPA Fallback 与内置 API 反向代理配置。
+* **TLS 证书自动化**：支持证书动态上传、多域名证书自动匹配绑定，以及通过 ACME 协议向 Let's Encrypt 自动申请与续期证书。
+* **Uptime Kuma 监控同步**：与 Uptime Kuma 集成，自动差分同步监控站点列表，实时感知节点存活与服务可用状态。
+* **SSO 单点登录**：支持 GitHub OAuth 与标准 OIDC 协议，无缝接入企业身份提供商实现统一登录。
+* **统一观测**：聚合节点请求指标、实时访问日志明细、宿主机与 Nginx 资源快照、健康事件以及网络波动补传缓冲。
 
-## Quick Start
+## 快速开始
 
-### 1. Launch Server
+### 1. 启动 Server
 
 ```yaml
 services:
@@ -91,36 +91,36 @@ volumes:
 docker compose up -d
 ```
 
-Access at: `http://localhost:3000`
+访问地址：`http://localhost:3000`
 
-Default credentials:
+默认账号：
 
-* Username: `root`
-* Password: `123456`
+* 用户名：`root`
+* 密码：`123456`
 
-### 2. Install Agent
+### 2. 安装 Agent
 
-Before installing an Agent, please install OpenResty on the target node first, or use the Agent Docker image with OpenResty built-in.
+安装 Agent 前请先在节点上安装 OpenResty，或改用内置 OpenResty 的 Agent Docker 镜像。
 
-You can copy the installation command from **Node Management -> Details -> Node Info -> Node Token & Deployment** in the control panel, or directly use the scripts below:
+你可以在控制面板的节点管理->详情->节点信息->节点标识与部署复制安装命令，或直接使用下面的脚本：
 
-#### Docker Deployment
+#### Docker 部署
 
-For Docker deployment, you can directly run the Agent image:
+Docker 部署可直接运行 Agent 镜像：
 
 ```bash
 docker pull ghcr.io/rain-kl/openflare-agent:latest
 docker rm -f openflare-agent 2>/dev/null || true
 docker run -d --name openflare-agent --restart unless-stopped \
-  -p 80:80 -p 443:443 \
+  -p 80:80 -p 443:443/tcp -p 443:443/udp \
   -e OPENFLARE_SERVER_URL=http://your-server:3000 \
   -e OPENFLARE_AGENT_TOKEN=YOUR_AGENT_TOKEN \
   ghcr.io/rain-kl/openflare-agent:latest
 ```
 
-#### Local Installation
+#### 本地部署
 
-Using `discovery_token` to register:
+使用 `discovery_token` 接入：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
@@ -128,7 +128,7 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
   --discovery-token YOUR_DISCOVERY_TOKEN
 ```
 
-Using node-specific `agent_token`:
+使用节点专属 `agent_token`：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
@@ -136,62 +136,67 @@ curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/inst
   --agent-token YOUR_AGENT_TOKEN
 ```
 
-The installation script defaults to `/opt/openflare-agent`, creates a `openflare-agent.service`, automatically searches for `openresty`, and can be executed repeatedly to reinstall or upgrade the Agent.
+安装脚本默认写入 `/opt/openflare-agent`，创建 `openflare-agent.service`，自动查找 `openresty`，并可重复执行以重装或升级 Agent。
 
-### 3. Uninstall Agent
+### 3. 卸载 Agent
 
-To completely uninstall the Agent and clear local data, run:
+如需彻底卸载 Agent 并清空本地数据，可执行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/uninstall-agent.sh | bash
 ```
 
-The uninstallation script will stop and remove the `openflare-agent.service`, and delete the entire `/opt/openflare-agent` directory. It will not delete the local OpenResty installation.
+卸载脚本会先停止并移除 `openflare-agent.service`、删除整个 `/opt/openflare-agent` 目录，不会删除本机 OpenResty。
 
-### 4. Publish Your First Configuration
+### 4. 发布第一份配置
 
-1. Log in to the management panel and add a reverse proxy rule.
-2. View the preview or change summary before publishing.
-3. Activate the new version.
-4. Agents will receive the configuration and apply it via WebSocket notification or subsequent heartbeats.
+1. 登录管理端并新增反代规则
+2. 在发布前查看预览或变更摘要
+3. 激活新版本
+4. Agent 通过 WebSocket 通知或后续 heartbeat 拉取并应用配置
 
-The version number format is fixed as `YYYYMMDD-NNN`. Historical versions are immutable, and rollback is achieved by reactivating an older version.
+版本号格式固定为 `YYYYMMDD-NNN`，历史版本不可变，回滚通过重新激活旧版本完成。
 
-## UI Preview
 
-### Dashboard Overview
+## 界面预览
+
+### 仪表盘总览
 
 ![OpenFlare dashboard overview](./docs/assets/readme/dashboard-overview.png)
 
-### Node Details
+### 节点详情
 
 ![OpenFlare node detail](./docs/assets/readme/node-detail.png)
 
-### Proxy Configuration
+### 配置新增
 
 ![OpenFlare version release](./docs/assets/readme/proxy-route-detail.png)
 
-## Management Panel & API
+## 管理端与接口
 
-The management panel includes:
+管理端当前覆盖：
 
-* Reverse Proxy Rules
-* Configuration Versions
-* Node Management
-* Application Records
-* TLS Certificates
-* Domain Management
-* WAF Rule Groups
-* User Management
-* Settings
-* Version Updates
-* POW Rules
+* 反代规则
+* 配置版本
+* 节点管理
+* 应用记录
+* TLS 证书
+* 域名管理
+* Pages 静态托管
+* WAF 规则组
+* 内网穿透（Tunnels）
+* Uptime Kuma 监控同步
+* SSO 登录配置
+* 用户管理
+* 设置
+* 版本更新
+* PoW 规则
 
-After logging in to the dashboard, access Swagger UI at: `/swagger/index.html`
+登录管理端后，可访问 Swagger UI：`/swagger/index.html`
 
-## License
+## 开源协议
 
-This project is licensed under [Apache License 2.0](./LICENSE).
+本项目采用 [Apache License 2.0](./LICENSE) 开源。
 
 ## Star History
 

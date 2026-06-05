@@ -36,4 +36,5 @@
    * 正在进行的开发计划或 AI 接手交接发生变化时，在 `docs/plan/` 下更新对应的开发计划或接手文档，并使用相应模板初始化。
 4. **文档与变更日志**：
    * 当相关内容发生变化时，同步更新对应的**中文文档**（不要同步英文文档）。
-   * 任何代码、配置或文档变更完成后，必须在 [`docs/changelog/index.md`](./docs/changelog/index.md) 的 `[Unreleased]` 区块补充对应变更条目。
+   * 代码或配置变更完成后，必须在 [`docs/changelog/index.md`](./docs/changelog/index.md) 的 `[Unreleased]` 区块补充对应变更条目。
+   * **纯文档变更（如 `docs/` 下的 Markdown 文档、README 等）不需要写入 changelog。**
