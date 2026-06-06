@@ -31,10 +31,16 @@ func SetApiRouter(router *gin.Engine) {
 			externalAccountRoute.POST("/:id/delete", controller.DeleteExternalAccount)
 		}
 
+		capRoute := apiRouter.Group("/cap")
+		{
+			capRoute.POST("/challenge", middleware.CriticalRateLimit(), controller.GetCapChallenge)
+			capRoute.POST("/redeem", middleware.CriticalRateLimit(), controller.RedeemCapChallenge)
+		}
+
 		userRoute := apiRouter.Group("/user")
 		{
 			userRoute.POST("/register", middleware.CriticalRateLimit(), controller.Register)
-			userRoute.POST("/login", middleware.CriticalRateLimit(), controller.Login)
+			userRoute.POST("/login", middleware.CriticalRateLimit(), middleware.CapAuth("login"), controller.Login)
 			userRoute.GET("/logout", controller.Logout)
 
 			selfRoute := userRoute.Group("/")

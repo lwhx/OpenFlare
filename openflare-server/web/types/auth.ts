@@ -13,6 +13,7 @@ export interface AuthUser {
 export interface LoginPayload {
   username: string;
   password: string;
+  cap_token?: string;
 }
 
 export interface RegisterPayload {

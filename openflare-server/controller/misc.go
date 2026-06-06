@@ -39,6 +39,7 @@ func GetStatus(c *gin.Context) {
 		"wechat_login":              common.WeChatAuthEnabled,
 		"server_address":            common.ServerAddress,
 		"password_register_enabled": common.PasswordRegisterEnabled,
+		"cap_login_enabled":         common.CapLoginEnabled,
 		"auth_sources":              authSources,
 	})
 }

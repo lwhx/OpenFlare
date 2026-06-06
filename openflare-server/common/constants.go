@@ -27,6 +27,7 @@ var OptionMapRWMutex sync.RWMutex
 var ItemsPerPage = 10
 
 var PasswordLoginEnabled = true
+var CapLoginEnabled = true
 var PasswordRegisterEnabled = false
 var EmailVerificationEnabled = false
 var GitHubOAuthEnabled = false

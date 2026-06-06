@@ -4,7 +4,7 @@ import {zodResolver} from '@hookform/resolvers/zod';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import Link from 'next/link';
 import {useRouter, useSearchParams} from 'next/navigation';
-import {useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {useForm} from 'react-hook-form';
 import {z} from 'zod';
 
@@ -15,6 +15,22 @@ import {getOAuthAuthorizeUrl, login} from '@/features/auth/api/auth';
 import {getPublicStatus} from '@/features/auth/api/public';
 import {AuthButton, AuthFormField, AuthInput, SecondaryButton,} from '@/features/auth/components/auth-form-primitives';
 import {PublicAuthGuard} from '@/features/auth/components/public-auth-guard';
+
+declare module 'react' {
+  /* eslint-disable-next-line @typescript-eslint/no-namespace */
+  namespace JSX {
+    interface IntrinsicElements {
+      'cap-widget': React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          ref?: React.RefObject<unknown> | React.Ref<unknown>;
+          onsolve?: (e: CustomEvent<{ token: string }>) => void;
+          'data-cap-api-endpoint'?: string;
+        },
+        HTMLElement
+      >;
+    }
+  }
+}
 
 const TEXT = {
   usernameRequired: '\u8bf7\u8f93\u5165\u7528\u6237\u540d',
@@ -43,6 +59,8 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const { setUser } = useAuth();
   const [errorMessage, setErrorMessage] = useState('');
+  const [capToken, setCapToken] = useState('');
+  const capWidgetRef = useRef<HTMLElement & { reset?: () => void }>(null);
   const redirect = searchParams?.get('redirect') || '/';
 
   const form = useForm<LoginFormValues>({
@@ -58,6 +76,19 @@ export function LoginForm() {
     queryFn: getPublicStatus,
   });
 
+  useEffect(() => {
+    if (statusQuery.data?.cap_login_enabled) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/cap-widget';
+      script.type = 'module';
+      script.async = true;
+      document.head.appendChild(script);
+      return () => {
+        document.head.removeChild(script);
+      };
+    }
+  }, [statusQuery.data?.cap_login_enabled]);
+
   const loginMutation = useMutation({
     mutationFn: login,
     onSuccess: (user) => {
@@ -66,6 +97,10 @@ export function LoginForm() {
     },
     onError: (error: Error) => {
       setErrorMessage(error.message || TEXT.loginFailed);
+      setCapToken('');
+      if (capWidgetRef.current && typeof capWidgetRef.current.reset === 'function') {
+        capWidgetRef.current.reset();
+      }
     },
   });
 
@@ -81,7 +116,10 @@ export function LoginForm() {
 
   const handleSubmit = form.handleSubmit((values) => {
     setErrorMessage('');
-    loginMutation.mutate(values);
+    loginMutation.mutate({
+      ...values,
+      cap_token: capToken || undefined,
+    });
   });
 
   const handleOAuthLogin = (sourceName: string) => {
@@ -118,12 +156,27 @@ export function LoginForm() {
             ) : null}
           </AuthFormField>
 
+          {statusQuery.data?.cap_login_enabled ? (
+            <div className="flex justify-center py-2">
+              <cap-widget
+                ref={capWidgetRef}
+                data-cap-api-endpoint="/api/cap/"
+                onsolve={(e: CustomEvent<{ token: string }>) => {
+                  setCapToken(e.detail.token);
+                }}
+              />
+            </div>
+          ) : null}
+
           {errorMessage ? (
             <InlineMessage tone="danger" message={errorMessage} />
           ) : null}
 
           <div>
-            <AuthButton type="submit" disabled={loginMutation.isPending}>
+            <AuthButton
+              type="submit"
+              disabled={loginMutation.isPending || (statusQuery.data?.cap_login_enabled && !capToken)}
+            >
               {loginMutation.isPending ? TEXT.loginPending : TEXT.login}
             </AuthButton>
           </div>

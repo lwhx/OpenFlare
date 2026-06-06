@@ -1,23 +1,21 @@
-import { apiRequest } from '@/lib/api/client';
-import {
-  clearStoredOpenFlareToken,
-  setStoredOpenFlareToken,
-} from '@/lib/api/auth-token';
-import type {
-  AuthUser,
-  LoginPayload,
-  PasswordResetRequestPayload,
-  RegisterPayload,
-} from '@/types/auth';
+import {apiRequest} from '@/lib/api/client';
+import {clearStoredOpenFlareToken, setStoredOpenFlareToken,} from '@/lib/api/auth-token';
+import type {AuthUser, LoginPayload, PasswordResetRequestPayload, RegisterPayload,} from '@/types/auth';
 
 export function getCurrentUser() {
   return apiRequest<AuthUser>('/user/self');
 }
 
 export function login(payload: LoginPayload) {
+  const { cap_token, ...body } = payload;
+  const headers: Record<string, string> = {};
+  if (cap_token) {
+    headers['X-Cap-Token'] = cap_token;
+  }
   return apiRequest<AuthUser>('/user/login', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    headers,
+    body: JSON.stringify(body),
   }).then((user) => {
     if (user.token) {
       setStoredOpenFlareToken(user.token);

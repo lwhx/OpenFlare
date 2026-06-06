@@ -1,22 +1,19 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import {useEffect, useMemo, useState} from 'react';
 
-import { EmptyState } from '@/components/feedback/empty-state';
-import { ErrorState } from '@/components/feedback/error-state';
-import { InlineMessage } from '@/components/feedback/inline-message';
-import { LoadingState } from '@/components/feedback/loading-state';
-import { AppModal } from '@/components/ui/app-modal';
-import { useAuth } from '@/components/providers/auth-provider';
-import { PageHeader } from '@/components/layout/page-header';
-import { AppCard } from '@/components/ui/app-card';
-import { StatusBadge } from '@/components/ui/status-badge';
-import {
-  getOAuthAuthorizeUrl,
-  sendEmailVerification,
-} from '@/features/auth/api/auth';
-import { getPublicStatus } from '@/features/auth/api/public';
+import {EmptyState} from '@/components/feedback/empty-state';
+import {ErrorState} from '@/components/feedback/error-state';
+import {InlineMessage} from '@/components/feedback/inline-message';
+import {LoadingState} from '@/components/feedback/loading-state';
+import {AppModal} from '@/components/ui/app-modal';
+import {useAuth} from '@/components/providers/auth-provider';
+import {PageHeader} from '@/components/layout/page-header';
+import {AppCard} from '@/components/ui/app-card';
+import {StatusBadge} from '@/components/ui/status-badge';
+import {getOAuthAuthorizeUrl, sendEmailVerification,} from '@/features/auth/api/auth';
+import {getPublicStatus} from '@/features/auth/api/public';
 import {
   bindEmail,
   cleanupDatabaseObservability,
@@ -29,12 +26,12 @@ import {
   getSettingsProfile,
   lookupGeoIP,
   rotateBootstrapToken,
+  syncUptimeKuma,
   updateOptions,
   updateSelf,
-  syncUptimeKuma,
 } from '@/features/settings/api/settings';
-import { AuthSourceModal } from '@/features/settings/components/auth-source-modal';
-import { UptimeKumaSiteSelectModal } from './uptimekuma-modal';
+import {AuthSourceModal} from '@/features/settings/components/auth-source-modal';
+import {UptimeKumaSiteSelectModal} from './uptimekuma-modal';
 import type {
   BootstrapTokenPayload,
   DatabaseCleanupResult,
@@ -54,7 +51,7 @@ import {
   SecondaryButton,
   ToggleField,
 } from '@/features/shared/components/resource-primitives';
-import { formatDateTime } from '@/lib/utils/date';
+import {formatDateTime} from '@/lib/utils/date';
 
 const settingsQueryKey = ['settings', 'options'] as const;
 const authSourcesQueryKey = ['settings', 'auth-sources'] as const;
@@ -68,6 +65,7 @@ const installerScriptUrl =
 const defaultSystemFields = {
   ServerAddress: '',
   PasswordLoginEnabled: true,
+  CapLoginEnabled: true,
   PasswordRegisterEnabled: true,
   EmailVerificationEnabled: false,
   GitHubOAuthEnabled: false,
@@ -358,6 +356,7 @@ export function SettingsPage() {
     setSystemFields({
       ServerAddress: resolvedServerAddress,
       PasswordLoginEnabled: toBoolean(optionMap.PasswordLoginEnabled, true),
+      CapLoginEnabled: toBoolean(optionMap.CapLoginEnabled, true),
       PasswordRegisterEnabled: toBoolean(
         optionMap.PasswordRegisterEnabled,
         true,
@@ -1840,6 +1839,15 @@ export function SettingsPage() {
                   handleToggleOption('PasswordLoginEnabled', checked)
                 }
                 disabled={busyKey === 'toggle-PasswordLoginEnabled'}
+              />
+              <ToggleField
+                label="启用登录人机验证"
+                description="开启后，密码登录前必须完成 Proof-of-Work 人机验证，防止暴力破解。"
+                checked={systemFields.CapLoginEnabled}
+                onChange={(checked) =>
+                  handleToggleOption('CapLoginEnabled', checked)
+                }
+                disabled={busyKey === 'toggle-CapLoginEnabled'}
               />
               <ToggleField
                 label="允许密码注册"

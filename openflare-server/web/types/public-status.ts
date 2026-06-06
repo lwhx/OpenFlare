@@ -20,5 +20,6 @@ export interface PublicStatus {
   wechat_login: boolean;
   server_address: string;
   password_register_enabled: boolean;
+  cap_login_enabled?: boolean;
   auth_sources: PublicAuthSource[];
 }

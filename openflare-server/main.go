@@ -74,6 +74,7 @@ func main() {
 
 	// Initialize options
 	model.InitOptionMap()
+	service.InitCap()
 	middleware.InitJWTMiddleware()
 	geoip.InitGeoIP(common.GeoIPProvider)
 	backgroundCtx, cancelBackgroundTasks := context.WithCancel(context.Background())
