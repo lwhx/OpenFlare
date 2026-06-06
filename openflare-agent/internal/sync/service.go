@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	openrestyrender "github.com/rain-kl/openflare/openflare-server/utils/render/openresty"
+	openrestyrender "github.com/rain-kl/openflare/pkg/render/openresty"
 
 	"github.com/rain-kl/openflare/openflare-agent/internal/nginx"
 	"github.com/rain-kl/openflare/openflare-agent/internal/protocol"

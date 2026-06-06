@@ -82,6 +82,7 @@ OpenResty (Agent, TLS/WAF)
 * 包含配置编译器（Compiler），将数据库中的规则、证书与全局参数统一编译为不可变的配置快照及 OpenResty 物理配置文件文本。
 * 存储 Pages 部署 ZIP 包于本地 Artifacts 目录，并向 Agent 提供受控的下载接口。
 * 后台集成 Uptime Kuma 监控同步服务，自动为可用站点维护 HTTP 探测任务。
+* Go 物理结构采用 `cmd/server` 启动入口、`internal` 私有应用层与根级 `pkg` 共享能力包，跨组件协议类型统一放在 `pkg/protocol`。
 * *详细设计请参阅：[Agent 与发布模型设计](./agent-design.md) 以及 [Uptime Kuma 监控同步设计](./kuma-design.md)*
 
 ### 2. Agent (配置落地端)

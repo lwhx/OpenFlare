@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rain-kl/openflare/openflare-server/service"
+	service "github.com/rain-kl/openflare/pkg/protocol"
 )
 
 // Helper to write control file for the dummy script

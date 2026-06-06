@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/rain-kl/openflare/openflare-agent/internal/protocol"
-	shared "github.com/rain-kl/openflare/openflare-server/utils/wsclient"
+	shared "github.com/rain-kl/openflare/pkg/wsclient"
 )
 
 type WSMessage = shared.WSMessage

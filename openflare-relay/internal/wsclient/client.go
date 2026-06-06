@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/rain-kl/openflare/openflare-server/service"
-	shared "github.com/rain-kl/openflare/openflare-server/utils/wsclient"
+	service "github.com/rain-kl/openflare/pkg/protocol"
+	shared "github.com/rain-kl/openflare/pkg/wsclient"
 )
 
 type WSMessage = shared.WSMessage

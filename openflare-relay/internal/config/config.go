@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rain-kl/openflare/openflare-server/utils/geoip"
-	"github.com/rain-kl/openflare/openflare-server/utils/geoip/iputil"
+	"github.com/rain-kl/openflare/pkg/geoip"
+	"github.com/rain-kl/openflare/pkg/geoip/iputil"
 )
 
 type MillisecondDuration time.Duration

@@ -16,7 +16,7 @@ import (
 	"github.com/rain-kl/openflare/openflare-relay/internal/config"
 	"github.com/rain-kl/openflare/openflare-relay/internal/frps"
 	"github.com/rain-kl/openflare/openflare-relay/internal/state"
-	"github.com/rain-kl/openflare/openflare-server/service"
+	service "github.com/rain-kl/openflare/pkg/protocol"
 )
 
 func BuildProfile(cfg *config.Config, stateStore *state.Store) *service.AgentNodeSystemProfile {

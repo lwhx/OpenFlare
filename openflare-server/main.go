@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -8,14 +8,14 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/rain-kl/openflare/openflare-server/common"
 	_ "github.com/rain-kl/openflare/openflare-server/docs"
-	"github.com/rain-kl/openflare/openflare-server/job"
-	"github.com/rain-kl/openflare/openflare-server/middleware"
-	"github.com/rain-kl/openflare/openflare-server/model"
-	"github.com/rain-kl/openflare/openflare-server/router"
-	"github.com/rain-kl/openflare/openflare-server/service"
-	"github.com/rain-kl/openflare/openflare-server/utils/geoip"
+	"github.com/rain-kl/openflare/openflare-server/internal/common"
+	"github.com/rain-kl/openflare/openflare-server/internal/job"
+	"github.com/rain-kl/openflare/openflare-server/internal/middleware"
+	"github.com/rain-kl/openflare/openflare-server/internal/model"
+	"github.com/rain-kl/openflare/openflare-server/internal/router"
+	"github.com/rain-kl/openflare/openflare-server/internal/service"
+	"github.com/rain-kl/openflare/pkg/geoip"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -42,7 +42,7 @@ var indexPage []byte
 // @in header
 // @name X-Agent-Token
 // @description Agent API 使用节点专属 Agent Token 或全局 Discovery Token
-func main() {
+func Run() {
 	common.ParseFlags()
 	common.SetupGinLog()
 	slog.Info("OpenFlare started", "version", common.Version)

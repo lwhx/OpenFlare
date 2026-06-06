@@ -135,7 +135,6 @@ jobs:
           go-version-file: go.mod
 
       - name: Build Server
-        working-directory: openflare-server
         env:
           CGO_ENABLED: 0
           GOOS: ${{ matrix.goos }}
@@ -144,8 +143,8 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           go mod download
-          mkdir -p ../dist
-          go build -trimpath -ldflags "-s -w -X 'github.com/rain-kl/openflare/openflare-server/common.Version=$VERSION'" -o "../dist/$ASSET_NAME" .
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X 'github.com/rain-kl/openflare/openflare-server/internal/common.Version=$VERSION'" -o "dist/$ASSET_NAME" ./openflare-server/cmd/server
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4

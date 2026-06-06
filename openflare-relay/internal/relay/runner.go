@@ -12,7 +12,7 @@ import (
 	"github.com/rain-kl/openflare/openflare-relay/internal/httpclient"
 	"github.com/rain-kl/openflare/openflare-relay/internal/state"
 	"github.com/rain-kl/openflare/openflare-relay/internal/wsclient"
-	"github.com/rain-kl/openflare/openflare-server/service"
+	service "github.com/rain-kl/openflare/pkg/protocol"
 )
 
 type Runner struct {

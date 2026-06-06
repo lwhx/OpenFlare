@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rain-kl/openflare/openflare-server/utils"
-	"github.com/rain-kl/openflare/openflare-server/utils/geoip"
-	"github.com/rain-kl/openflare/openflare-server/utils/geoip/iputil"
+	"github.com/rain-kl/openflare/pkg/geoip"
+	"github.com/rain-kl/openflare/pkg/geoip/iputil"
+	"github.com/rain-kl/openflare/pkg/utils"
 )
 
 const (

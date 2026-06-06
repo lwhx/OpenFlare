@@ -18,6 +18,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY openflare-server ./openflare-server
 COPY openflare-agent ./openflare-agent
+COPY pkg ./pkg
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath -ldflags "-s -w -X 'github.com/rain-kl/openflare/openflare-agent/internal/config.Version=$VERSION'" -o /build/bin/openflare-agent ./openflare-agent/cmd/agent
@@ -37,4 +38,3 @@ COPY --from=builder /build/bin/openflare-agent /usr/local/bin/openflare-agent
 EXPOSE 80 443 18081
 ENTRYPOINT ["/usr/local/bin/openflare-agent"]
 CMD ["-config", "/etc/openflare/agent.json"]
-

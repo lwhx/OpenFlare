@@ -13,6 +13,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY openflare-server/ ./openflare-server/
 COPY openflared/ ./openflared/
+COPY pkg/ ./pkg/
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w -X 'github.com/rain-kl/openflare/openflared/internal/config.Version=$VERSION'" -o flared ./openflared/cmd/flared
@@ -30,4 +31,3 @@ ENV OPENFLARE_FRPC_PATH=/usr/bin/frpc
 
 ENTRYPOINT ["/app/flared"]
 CMD []
-

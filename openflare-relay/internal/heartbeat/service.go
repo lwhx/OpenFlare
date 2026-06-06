@@ -11,7 +11,7 @@ import (
 	"github.com/rain-kl/openflare/openflare-relay/internal/observability"
 	"github.com/rain-kl/openflare/openflare-relay/internal/state"
 	"github.com/rain-kl/openflare/openflare-relay/internal/updater"
-	"github.com/rain-kl/openflare/openflare-server/service"
+	service "github.com/rain-kl/openflare/pkg/protocol"
 )
 
 type Service struct {

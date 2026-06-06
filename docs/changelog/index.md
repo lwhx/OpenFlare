@@ -16,6 +16,9 @@ sidebar: false
 
 ## [Unreleased]
 
+### 变更
+
+- 标准化 Server Go 目录结构，引入 `cmd/server`、`openflare-server/internal` 与根级 `pkg` 分层，并拆分原 `utils` 公共能力包。
 
 ## [v2.3.3] - 2026-06-06
 

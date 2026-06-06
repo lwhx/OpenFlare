@@ -12,6 +12,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY openflare-server ./openflare-server
 COPY openflare-relay ./openflare-relay
+COPY pkg ./pkg
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w -X 'github.com/rain-kl/openflare/openflare-relay/internal/config.Version=$VERSION'" -o /build/bin/openflare-relay ./openflare-relay/cmd/relay
@@ -30,4 +31,3 @@ ENV OPENFLARE_FRPS_PATH=/usr/bin/frps
 ENV OPENFLARE_DATA_DIR=/app/data
 
 ENTRYPOINT ["/app/openflare-relay"]
-

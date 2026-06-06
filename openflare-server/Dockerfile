@@ -21,12 +21,13 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 COPY openflare-server ./openflare-server
+COPY pkg ./pkg
 COPY --from=web-builder /build/build ./openflare-server/web/build
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath \
-      -ldflags "-s -w -X 'github.com/rain-kl/openflare/openflare-server/common.Version=$VERSION'" \
-      -o openflare ./openflare-server
+      -ldflags "-s -w -X 'github.com/rain-kl/openflare/openflare-server/internal/common.Version=$VERSION'" \
+      -o openflare ./openflare-server/cmd/server
 
 FROM alpine:latest
 RUN apk add --no-cache ca-certificates tzdata \

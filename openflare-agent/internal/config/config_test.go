@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rain-kl/openflare/openflare-server/utils/geoip"
+	"github.com/rain-kl/openflare/pkg/geoip"
 )
 
 func TestLoadDefaultsToManagedBinaryPaths(t *testing.T) {

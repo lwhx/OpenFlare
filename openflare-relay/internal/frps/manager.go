@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rain-kl/openflare/openflare-server/service"
+	service "github.com/rain-kl/openflare/pkg/protocol"
 )
 
 type Manager struct {

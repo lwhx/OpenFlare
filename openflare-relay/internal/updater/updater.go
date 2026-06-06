@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rain-kl/openflare/openflare-server/utils"
+	"github.com/rain-kl/openflare/pkg/utils"
 
 	"github.com/rain-kl/openflare/openflare-relay/internal/config"
 )

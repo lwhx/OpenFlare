@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rain-kl/openflare/openflare-server/utils"
-	openrestyrender "github.com/rain-kl/openflare/openflare-server/utils/render/openresty"
+	openrestyrender "github.com/rain-kl/openflare/pkg/render/openresty"
+	"github.com/rain-kl/openflare/pkg/utils"
 
 	"github.com/rain-kl/openflare/openflare-agent/internal/protocol"
 )

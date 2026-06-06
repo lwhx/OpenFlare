@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/rain-kl/openflare/openflare-agent/internal/geoipdata"
-	"github.com/rain-kl/openflare/openflare-server/utils/geoip"
+	"github.com/rain-kl/openflare/pkg/geoip"
 )
 
 type Updater struct {
