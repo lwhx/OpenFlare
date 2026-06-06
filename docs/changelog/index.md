@@ -16,6 +16,9 @@ sidebar: false
 
 ## [Unreleased]
 
+
+## [v2.3.3] - 2026-06-06
+
 ### 说明
 
 ### 新增
