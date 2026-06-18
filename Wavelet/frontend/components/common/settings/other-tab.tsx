@@ -42,8 +42,7 @@ const MENU_GROUPS: MenuGroup[] = [
   {
     name: "基础菜单",
     items: [
-      { path: "/home", label: "首页", description: "系统控制台/个人首页", icon: Home },
-      { path: "/files", label: "我的文件", description: "用户个人文件管理与上传", icon: FolderOpen },
+      { path: "/", label: "总览", description: "OpenFlare 控制台总览", icon: Home },
     ]
   },
   {

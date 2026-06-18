@@ -4,7 +4,7 @@ import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {usePathname} from 'next/navigation';
 
-import {VersionUpgradeDialog} from '@/app/(main)/openflare/components/version-upgrade-dialog';
+import {VersionUpgradeDialog} from '@/app/(main)/components/version-upgrade-dialog';
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
 import {useUser} from '@/contexts/user-context';
@@ -12,6 +12,7 @@ import {
   openflareLatestReleaseQueryKey,
   openflarePublicStatusQueryKey,
 } from '@/lib/hooks/use-openflare-server-upgrade';
+import {isOpenFlareConsoleRoute} from '@/lib/navigation/openflare-nav';
 import {StatusService, UpdateService} from '@/lib/services/openflare';
 
 export function OpenFlareVersionEntry() {
@@ -19,7 +20,7 @@ export function OpenFlareVersionEntry() {
   const {user} = useUser();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const isOpenFlareRoute = pathname.startsWith('/openflare');
+  const isOpenFlareRoute = isOpenFlareConsoleRoute(pathname);
   const canUpgrade = Boolean(user?.is_admin);
 
   const statusQuery = useQuery({

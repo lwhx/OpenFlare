@@ -62,7 +62,7 @@ export const HeroSection = React.memo(function HeroSection({ className }: HeroSe
               transition={{ duration: 0.6, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col sm:flex-row items-center gap-4"
             >
-              <Link href="/home" className="w-full sm:w-auto">
+              <Link href="/" className="w-full sm:w-auto">
                 <Button
                   size="lg"
                   className="w-full rounded-full bg-primary hover:bg-primary/90 font-medium transition-all active:scale-95"

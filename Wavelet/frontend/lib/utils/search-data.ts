@@ -45,14 +45,14 @@ export interface SearchItem {
  * 包含所有可搜索的页面和功能
  */
 export const searchData: SearchItem[] = [
-  // ==================== 首页 ====================
+  // ==================== 总览 ====================
   {
     id: 'home',
-    title: '首页',
-    description: '返回首页控制台',
-    url: '/home',
+    title: '总览',
+    description: '返回控制台总览',
+    url: '/',
     category: 'page',
-    keywords: ['home', '主页', '首页', 'dashboard'],
+    keywords: ['home', '主页', '首页', 'dashboard', '总览'],
   },
 
   // ==================== 文档库 ====================

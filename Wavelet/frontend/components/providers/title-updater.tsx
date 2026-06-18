@@ -23,10 +23,8 @@ export function SiteTitleUpdater() {
       suffix = " - 注册"
     } else if (pathname.startsWith("/admin")) {
       suffix = " - 后台管理"
-    } else if (pathname === "/home") {
-      suffix = " - 控制台"
     } else if (pathname === "/") {
-      suffix = ""
+      suffix = " - 总览"
     }
 
     document.title = `${siteName}${suffix}`

@@ -53,7 +53,6 @@ import {
   FileQuestionMark,
   FileText,
   FolderOpen,
-  Home,
   Layers,
   LogOut,
   Settings,
@@ -68,10 +67,6 @@ import {openflareNavItems} from "@/lib/navigation/openflare-nav"
 
 /* 导航数据 */
 const data = {
-  navMain: [
-    { title: "首页", url: "/home", icon: Home },
-    { title: "我的文件", url: "/files", icon: FolderOpen },
-  ],
   admin: [
     { title: "用户管理", url: "/admin/users", icon: UserRound },
     { title: "任务管理", url: "/admin/tasks", icon: Layers },
@@ -165,11 +160,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setIsLoggingOut(false)
     }
   }
-
-  const navMainFiltered = React.useMemo(() => {
-    const displayConfig = parseMenuDisplayConfig(config?.menu_display_config)
-    return data.navMain.filter((item) => displayConfig[item.url] !== false)
-  }, [config])
 
   const adminFiltered = React.useMemo(() => {
     const displayConfig = parseMenuDisplayConfig(config?.menu_display_config)
@@ -304,34 +294,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </DropdownMenu>
         </SidebarHeader>
         <SidebarContent className="group-data-[collapsible=icon]">
-          {navMainFiltered.length > 0 && (
-            <SidebarGroup className="py-0">
-              <SidebarGroupContent className="py-1">
-                <SidebarMenu className="gap-1">
-                  {navMainFiltered.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        tooltip={item.title}
-                        isActive={pathname === item.url}
-                        asChild
-                      >
-                        <Link href={item.url} onClick={handleCloseSidebar}>
-                          {item.icon && <item.icon />}
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
-
           {openflareNavItems.length > 0 && (
-            <SidebarGroup className="py-0 pt-4">
-              <SidebarGroupLabel className="text-xs font-normal text-muted-foreground">
-                OpenFlare
-              </SidebarGroupLabel>
+            <SidebarGroup className="py-0">
               <SidebarGroupContent className="py-1">
                 <SidebarMenu className="gap-1">
                   {openflareNavItems.map((item) => (
@@ -339,8 +303,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       <SidebarMenuButton
                         tooltip={item.title}
                         isActive={
-                          item.url === "/openflare"
-                            ? pathname === "/openflare"
+                          item.url === "/"
+                            ? pathname === "/"
                             : pathname === item.url || pathname.startsWith(`${item.url}/`)
                         }
                         asChild

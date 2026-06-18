@@ -96,7 +96,7 @@ export function generateTransactionCacheKey(params: {
  * 验证并净化重定向目标 URL，防止 Open Redirect 和 XSS 攻击。
  * 只允许以单个斜杠 "/" 开头的相对路径，拒绝 "//"、协议、反斜杠、控制字符等编码变体。
  */
-export function safeRedirectTarget(url: string | null | undefined, fallback = "/home"): string {
+export function safeRedirectTarget(url: string | null | undefined, fallback = "/"): string {
   if (!url) return fallback
 
   // 1. 拒绝包含控制字符、空白字符或反斜杠的 URL

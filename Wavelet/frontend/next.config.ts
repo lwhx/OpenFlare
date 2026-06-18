@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   experimental: {
   },
   ...(isExport ? { output: 'export' } : {
+    async redirects() {
+      return [
+        { source: '/openflare', destination: '/', permanent: true },
+        { source: '/openflare/:path*', destination: '/:path*', permanent: true },
+        { source: '/home', destination: '/', permanent: true },
+      ];
+    },
     async rewrites() {
       const backendUrl = process.env.WAVELET_BACKEND_URL || 'http://localhost:3000';
       return [

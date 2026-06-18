@@ -5,7 +5,7 @@
   "scripts": {
     "predev": "node scripts/generate-themes.js",
     "prebuild": "node scripts/generate-themes.js",
-    "dev": "next dev --turbopack -p 3010",
+    "dev": "next dev --turbopack -p 3001",
     "build": "next build",
     "build:embed": "NEXT_STANDALONE_EXPORT=true next build",
     "start": "next start -p 3010",

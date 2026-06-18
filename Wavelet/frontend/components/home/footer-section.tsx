@@ -35,7 +35,7 @@ export const FooterSection = React.memo(function FooterSection({ className }: Fo
           <div className="lg:col-span-1">
             <h3 className="font-semibold text-foreground mb-6">产品</h3>
             <ul className="space-y-4 text-sm text-muted-foreground">
-              <li><FooterLink href="/home">仪表盘</FooterLink></li>
+              <li><FooterLink href="/">仪表盘</FooterLink></li>
               <li><FooterLink href="/settings">个人设置</FooterLink></li>
             </ul>
           </div>

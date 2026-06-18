@@ -116,7 +116,7 @@ export function HomeMain() {
                     className="bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold px-4 shadow-sm h-7"
                     asChild
                   >
-                    <Link href="/home">开始使用</Link>
+                    <Link href="/">开始使用</Link>
                   </Button>
                   <Button
                     size="sm"

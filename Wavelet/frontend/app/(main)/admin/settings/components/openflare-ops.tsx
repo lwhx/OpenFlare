@@ -28,7 +28,7 @@ import {ErrorInline} from "@/components/layout/error"
 import {LoadingStateWithBorder} from "@/components/layout/loading"
 import type {DatabaseCleanupTarget} from "@/lib/services/openflare"
 import {NodeService, OptionService, StatusService, UpdateService, UptimeKumaService,} from "@/lib/services/openflare"
-import {VersionUpgradeDialog} from "@/app/(main)/openflare/components/version-upgrade-dialog"
+import {VersionUpgradeDialog} from "@/app/(main)/components/version-upgrade-dialog"
 import {openflareLatestReleaseQueryKey, openflarePublicStatusQueryKey,} from "@/lib/hooks/use-openflare-server-upgrade"
 
 import {
@@ -364,7 +364,7 @@ export function OpenFlareOpsSettings() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link href="/openflare/nodes">
+              <Link href="/nodes">
                 <ExternalLink className="size-3.5 mr-1" />
                 节点管理
               </Link>
