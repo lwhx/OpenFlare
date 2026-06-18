@@ -8,7 +8,7 @@
  */
 export function getApiBaseUrl(): string {
   if (typeof window === 'undefined') {
-    return process.env.WAVELET_BACKEND_URL || process.env.NEXT_PUBLIC_WAVELET_BACKEND_URL || 'http://localhost:8000';
+    return process.env.WAVELET_BACKEND_URL || process.env.NEXT_PUBLIC_WAVELET_BACKEND_URL || 'http://localhost:3000';
   }
   return process.env.NEXT_PUBLIC_WAVELET_BACKEND_URL || '';
 }

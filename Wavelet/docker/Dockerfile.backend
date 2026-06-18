@@ -36,7 +36,7 @@ WORKDIR /app
 COPY --from=builder /out/wavelet ./wavelet
 COPY docs ./docs
 
-EXPOSE 8000
+EXPOSE 3000
 
 ENTRYPOINT ["./wavelet"]
 CMD ["api"]

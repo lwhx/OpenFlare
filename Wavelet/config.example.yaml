@@ -6,7 +6,7 @@
 app:
   app_name: "wavelet"
   env: "development"          # development | testing | production
-  addr: ":8000"
+  addr: ":3000"
   node_id: 1                  # Snowflake node ID (0-1023). Must be unique per instance.
   graceful_shutdown_timeout: 30
   session_cookie_name: "wavelet_session_id"  # Change to something unique before deploy

@@ -68,7 +68,7 @@ export const howToUseSections: PolicySection[] = [
           <p className="font-semibold text-xs text-muted-foreground">方式一：Authorization Bearer 头</p>
           <CodeBlock
             code={`GET /api/v1/user/self HTTP/1.1
-Host: localhost:8000
+Host: localhost:3000
 Authorization: Bearer at_628d022b7a95e26b...`}
             language="http"
           />
@@ -77,7 +77,7 @@ Authorization: Bearer at_628d022b7a95e26b...`}
           <p className="font-semibold text-xs text-muted-foreground">方式二：X-Access-Token 自定义头</p>
           <CodeBlock
             code={`GET /api/v1/user/self HTTP/1.1
-Host: localhost:8000
+Host: localhost:3000
 X-Access-Token: at_628d022b7a95e26b...`}
             language="http"
           />
