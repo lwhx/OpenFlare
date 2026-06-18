@@ -9,7 +9,7 @@ export function isWSConnectedLastSeen(value: string | null | undefined) {
   return value === WS_CONNECTED_LAST_SEEN || value === FLARED_WS_CONNECTED_LAST_SEEN;
 }
 
-export function isMeaningfulTime(value: string | null | undefined) {
+export function isMeaningfulTime(value: string | null | undefined): value is string {
   return (
     Boolean(value) &&
     !isWSConnectedLastSeen(value) &&
@@ -95,4 +95,134 @@ export function getNodeTypeLabel(nodeType: NodeItem['node_type']) {
 
 export function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '请求失败，请稍后重试。';
+}
+
+export function getServerUrl(value: string) {
+  return value.trim().replace(/\/+$/, '');
+}
+
+const relayInstallerScriptUrl =
+  'https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-relay.sh';
+
+const flaredInstallerScriptUrl =
+  'https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-flared.sh';
+
+export function buildRelayInstallCommand(serverUrl: string, discoveryToken: string) {
+  return [
+    `curl -fsSL ${relayInstallerScriptUrl} | bash -s -- \\`,
+    `  --server-url ${serverUrl} \\`,
+    `  --discovery-token ${discoveryToken}`,
+  ].join('\n');
+}
+
+export function buildRelayDockerInstallCommand(serverUrl: string, discoveryToken: string) {
+  const image = 'ghcr.io/rain-kl/openflare-relay:latest';
+
+  return [
+    `docker pull ${image}`,
+    `docker rm -f openflare-relay 2>/dev/null || true`,
+    `docker run -d --name openflare-relay --net host --restart unless-stopped \\`,
+    `  -e OPENFLARE_SERVER_URL=${serverUrl} \\`,
+    `  -e OPENFLARE_DISCOVERY_TOKEN=${discoveryToken} \\`,
+    `  ${image}`,
+  ].join('\n');
+}
+
+export function buildTunnelInstallCommand(serverUrl: string, tunnelToken: string) {
+  return [
+    `curl -fsSL ${flaredInstallerScriptUrl} | bash -s -- \\`,
+    `  --server-url ${serverUrl} \\`,
+    `  --tunnel-token ${tunnelToken}`,
+  ].join('\n');
+}
+
+export function buildTunnelDockerInstallCommand(serverUrl: string, tunnelToken: string) {
+  const image = 'ghcr.io/rain-kl/openflared:latest';
+
+  return [
+    `docker pull ${image}`,
+    `docker rm -f openflared 2>/dev/null || true`,
+    `docker run -d --name openflared --restart unless-stopped \\`,
+    `  -e OPENFLARE_SERVER_URL=${serverUrl} \\`,
+    `  -e OPENFLARE_TUNNEL_TOKEN=${tunnelToken} \\`,
+    `  ${image}`,
+  ].join('\n');
+}
+
+export function formatBytes(bytes?: number | null, decimals = 1) {
+  if (!bytes || !Number.isFinite(bytes) || bytes <= 0) {
+    return '—';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / 1024 ** index;
+  return `${value.toFixed(decimals)} ${units[index]}`;
+}
+
+export function formatUsageRatio(used?: number | null, total?: number | null) {
+  if (!used || !total || total <= 0) {
+    return null;
+  }
+  return Math.max(0, Math.min(100, (used / total) * 100));
+}
+
+export function formatUptime(seconds?: number | null) {
+  if (!seconds || seconds <= 0) {
+    return '—';
+  }
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (days > 0) {
+    return `${days} 天 ${hours} 小时`;
+  }
+  if (hours > 0) {
+    return `${hours} 小时 ${minutes} 分钟`;
+  }
+  return `${minutes} 分钟`;
+}
+
+export function getHealthEventTone(
+  event: { status: string; severity: string },
+): StatusTone {
+  if (event.status === 'resolved') {
+    return 'success';
+  }
+  if (event.severity === 'critical') {
+    return 'danger';
+  }
+  if (event.severity === 'warning') {
+    return 'warning';
+  }
+  return 'info';
+}
+
+export function getHealthEventLabel(event: { event_type: string }) {
+  return event.event_type.replaceAll('_', ' ');
+}
+
+export function getFlaredStatusLabel(node: NodeItem) {
+  if (isWSConnectedLastSeen(node.last_seen_at)) {
+    return 'WS 已连接';
+  }
+  if (node.status === 'online') {
+    return '运行中';
+  }
+  if (node.status === 'pending') {
+    return '待接入';
+  }
+  return '离线';
+}
+
+export function getFlaredStatusTone(node: NodeItem): StatusTone {
+  if (isWSConnectedLastSeen(node.last_seen_at) || node.status === 'online') {
+    return 'success';
+  }
+  if (node.status === 'pending') {
+    return 'warning';
+  }
+  return 'danger';
 }

@@ -26,7 +26,24 @@ import {DbManageService} from './db-manage';
 import {PushService} from './push';
 import {AdminUploadService, UploadService} from './upload';
 import {UserService} from './user';
-import {ApplyLogService, ConfigVersionService, NodeService, ProxyRouteService,} from './openflare';
+import {
+  AccessLogService,
+  ApplyLogService,
+  ConfigVersionService,
+  DashboardService,
+  DnsAccountService,
+  NodeService,
+  OptionService,
+  OriginService,
+  PagesService,
+  ProxyRouteService,
+  StatusService,
+  TlsCertificateService,
+  UpdateService,
+  UptimeKumaService,
+  WafService,
+  WebsiteService,
+} from './openflare';
 
 const services = {
   auth: AuthService,
@@ -48,6 +65,18 @@ const services = {
   openflareProxyRoute: ProxyRouteService,
   openflareConfigVersion: ConfigVersionService,
   openflareApplyLog: ApplyLogService,
+  openflareDashboard: DashboardService,
+  openflareWaf: WafService,
+  openflareWebsite: WebsiteService,
+  openflareTls: TlsCertificateService,
+  openflareDns: DnsAccountService,
+  openflarePages: PagesService,
+  openflareOrigin: OriginService,
+  openflareAccessLog: AccessLogService,
+  openflareOption: OptionService,
+  openflareUptimeKuma: UptimeKumaService,
+  openflareUpdate: UpdateService,
+  openflareStatus: StatusService,
 } as const;
 
 export default services;
@@ -157,6 +186,18 @@ export {
   ProxyRouteService,
   ConfigVersionService,
   ApplyLogService,
+  DashboardService,
+  WafService,
+  WebsiteService,
+  TlsCertificateService,
+  DnsAccountService,
+  PagesService,
+  OriginService,
+  AccessLogService,
+  OptionService,
+  StatusService,
+  UpdateService,
+  UptimeKumaService,
 } from './openflare';
 
 export type {
@@ -169,4 +210,21 @@ export type {
   ConfigDiffResult,
   ConfigPreviewResult,
   ApplyLogList,
+  DashboardOverview,
+  WAFIPGroup,
+  WAFRuleGroup,
+  WAFSiteRuleGroups,
+  ManagedDomainItem,
+  TlsCertificateItem,
+  DnsAccountItem,
+  PagesProject,
+  PagesDeployment,
+  OriginItem,
+  OriginDetail,
+  AccessLogList,
+  OptionItem,
+  GeoIPLookupResult,
+  DatabaseCleanupResult,
+  LatestReleaseInfo,
+  OpenFlarePublicStatus,
 } from './openflare';

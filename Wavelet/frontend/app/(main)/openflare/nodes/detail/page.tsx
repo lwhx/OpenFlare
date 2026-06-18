@@ -1,103 +1,23 @@
-'use client';
+import {Suspense} from 'react';
 
-import Link from 'next/link';
-import {useMemo} from 'react';
-import {useSearchParams} from 'next/navigation';
-import {useQuery} from '@tanstack/react-query';
-import {ArrowLeft, Server} from 'lucide-react';
+import {Skeleton} from '@/components/ui/skeleton';
 
-import {Button} from '@/components/ui/button';
-import {EmptyStateWithBorder} from '@/components/layout/empty';
-import {ErrorInline} from '@/components/layout/error';
-import {LoadingStateWithBorder} from '@/components/layout/loading';
-import {NodeService} from '@/lib/services/openflare';
+import {NodeDetailPageClient} from './page-client';
 
-import {EdgeNodeDetail} from '../components/edge-node-detail';
-import {getErrorMessage} from '../components/node-utils';
-
-const nodesQueryKey = ['openflare', 'nodes'];
+function NodeDetailPageFallback() {
+  return (
+    <div className="py-6 px-1 space-y-6">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-10 w-full max-w-xl" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
 
 export default function NodeDetailPage() {
-  const searchParams = useSearchParams();
-  const nodeId = searchParams.get('id')?.trim() ?? '';
-
-  const nodesQuery = useQuery({
-    queryKey: nodesQueryKey,
-    queryFn: () => NodeService.listNodes(),
-    refetchInterval: 5000,
-  });
-
-  const node = useMemo(() => {
-    if (!nodeId) return null;
-    return (nodesQuery.data ?? []).find((item) => String(item.id) === nodeId) ?? null;
-  }, [nodeId, nodesQuery.data]);
-
-  if (!nodeId) {
-    return (
-      <div className="py-6 px-1">
-        <EmptyStateWithBorder
-          icon={Server}
-          description="缺少节点 ID，请从节点列表进入详情页。"
-        />
-      </div>
-    );
-  }
-
-  if (nodesQuery.isLoading) {
-    return (
-      <div className="py-6 px-1">
-        <LoadingStateWithBorder icon={Server} description="加载节点详情中..." />
-      </div>
-    );
-  }
-
-  if (nodesQuery.isError) {
-    return (
-      <div className="py-6 px-1">
-        <div className="p-8 border border-dashed rounded-lg">
-          <ErrorInline
-            message={getErrorMessage(nodesQuery.error)}
-            onRetry={() => void nodesQuery.refetch()}
-            className="justify-center"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (!node) {
-    return (
-      <div className="py-6 px-1 space-y-4">
-        <Button variant="ghost" size="sm" className="h-8 px-2" asChild>
-          <Link href="/openflare/nodes">
-            <ArrowLeft className="size-4 mr-1" />
-            返回节点列表
-          </Link>
-        </Button>
-        <EmptyStateWithBorder
-          icon={Server}
-          description="节点不存在，可能已被删除或 ID 无效。"
-        />
-      </div>
-    );
-  }
-
-  if (node.node_type !== 'edge_node') {
-    return (
-      <div className="py-6 px-1 space-y-4">
-        <Button variant="ghost" size="sm" className="h-8 px-2" asChild>
-          <Link href="/openflare/nodes">
-            <ArrowLeft className="size-4 mr-1" />
-            返回节点列表
-          </Link>
-        </Button>
-        <EmptyStateWithBorder
-          icon={Server}
-          description={`当前仅实现 Edge 节点详情骨架，${node.node_type} 详情将在后续任务中补齐。`}
-        />
-      </div>
-    );
-  }
-
-  return <EdgeNodeDetail node={node} />;
+  return (
+    <Suspense fallback={<NodeDetailPageFallback />}>
+      <NodeDetailPageClient />
+    </Suspense>
+  );
 }

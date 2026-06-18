@@ -26,6 +26,7 @@ export function ProxyRouteDetailPageClient() {
 
   const [route, setRoute] = useState<ProxyRouteItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sectionSaving, setSectionSaving] = useState(false);
 
   const handleSectionChange = useCallback(
     (section: ProxyRouteConfigSection) => {
@@ -35,6 +36,10 @@ export function ProxyRouteDetailPageClient() {
     },
     [router, searchParams],
   );
+
+  const handleRouteUpdate = useCallback((updatedRoute: ProxyRouteItem) => {
+    setRoute(updatedRoute);
+  }, []);
 
   useEffect(() => {
     if (!Number.isFinite(routeId) || routeId <= 0) {
@@ -99,9 +104,15 @@ export function ProxyRouteDetailPageClient() {
     );
   }
 
+  const sectionProps = {
+    route,
+    onRouteUpdate: handleRouteUpdate,
+    onSavingChange: setSectionSaving,
+  };
+
   return (
     <div className="py-6 px-1 space-y-6">
-      <RouteHeader route={route} />
+      <RouteHeader route={route} activeSection={activeSection} saving={sectionSaving} />
 
       <Tabs
         value={activeSection}
@@ -121,22 +132,22 @@ export function ProxyRouteDetailPageClient() {
         </TabsList>
 
         <TabsContent value="domains" className="focus-visible:outline-none">
-          <DomainSection route={route} />
+          <DomainSection {...sectionProps} />
         </TabsContent>
         <TabsContent value="limits" className="focus-visible:outline-none">
-          <LimitsSection route={route} />
+          <LimitsSection {...sectionProps} />
         </TabsContent>
         <TabsContent value="proxy" className="focus-visible:outline-none">
-          <ProxySection route={route} />
+          <ProxySection {...sectionProps} />
         </TabsContent>
         <TabsContent value="cache" className="focus-visible:outline-none">
-          <CacheSection route={route} />
+          <CacheSection {...sectionProps} />
         </TabsContent>
         <TabsContent value="waf" className="focus-visible:outline-none">
-          <WafSection route={route} />
+          <WafSection route={route} onSavingChange={setSectionSaving} />
         </TabsContent>
         <TabsContent value="auth" className="focus-visible:outline-none">
-          <AuthSection route={route} />
+          <AuthSection {...sectionProps} />
         </TabsContent>
       </Tabs>
     </div>

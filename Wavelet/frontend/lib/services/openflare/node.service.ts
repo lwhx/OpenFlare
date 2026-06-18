@@ -67,4 +67,12 @@ export class NodeService extends LegacyOpenFlareBaseService {
       limit: options?.limit,
     });
   }
+
+  static async cleanupHealthEvents(
+    id: number,
+  ): Promise<{ node_id: string; deleted_count: number }> {
+    return this.legacyPost<{ node_id: string; deleted_count: number }>(
+      `/${id}/observability/cleanup`,
+    );
+  }
 }

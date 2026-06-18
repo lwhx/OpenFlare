@@ -49,6 +49,11 @@ const SystemStatusManager = dynamic(
   { loading: () => tabFallback },
 )
 
+const OpenFlareOpsSettings = dynamic(
+  () => import("./components/openflare-ops").then((mod) => mod.OpenFlareOpsSettings),
+  { loading: () => tabFallback },
+)
+
 function systemConfigMap(configs: SystemConfig[]) {
   return configs.reduce<Record<string, SystemConfig>>((accumulator, config) => {
     accumulator[config.key] = config
@@ -118,6 +123,9 @@ export function AdminSettingsPageClient() {
           <TabsTrigger value="info" className="px-0 pb-2 text-xs font-semibold">
             系统信息
           </TabsTrigger>
+          <TabsTrigger value="openflare-ops" className="px-0 pb-2 text-xs font-semibold">
+            OpenFlare 运维
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="security" className="focus-visible:outline-none">
@@ -137,6 +145,9 @@ export function AdminSettingsPageClient() {
         </TabsContent>
         <TabsContent value="info" className="focus-visible:outline-none">
           <InfoTab />
+        </TabsContent>
+        <TabsContent value="openflare-ops" className="focus-visible:outline-none">
+          <OpenFlareOpsSettings />
         </TabsContent>
       </Tabs>
     </motion.div>

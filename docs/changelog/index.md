@@ -38,6 +38,9 @@ sidebar: false
 - 实装数据库可观测性手动/自动清理、WAF IP 组订阅/自动同步与测试接口、UptimeKuma 监控同步、TLS ACME 申请/续期（lego DNS-01）。
 - 修复 Wavelet Agent WebSocket 未处理 `status` 消息导致 WS 模式下 `last_seen_at` 停止更新、节点超时显示离线的问题；列表「最近心跳」恢复显示「WS 已连接」。
 - 修复节点「强制同步」仍为 stub 导致始终返回「节点不在线或通过 WebSocket 发送同步指令失败」的问题。
+- 将 OpenFlare 管理控制台从 `openflare-server/web` 迁移至 `Wavelet/frontend/app/(main)/openflare/`，复用 Wavelet shadcn 组件与 Session 鉴权；新增 `LegacyOpenFlareBaseService` 对接 `/api/*` 业务 API。
+- 实装节点、代理规则（6 Section）、配置发布、WAF、网站/证书/DNS、Pages、源站、访问/应用日志、仪表盘、性能调优等业务页面；Admin 设置新增 OpenFlare 运维扩展 Tab。
+- 修复静态导出构建中 `useSearchParams` 未包裹 Suspense 的问题；`pnpm build:embed` 全量 46 页通过。
 
 ## [v2.3.4] - 2026-06-17
 
