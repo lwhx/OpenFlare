@@ -2,7 +2,7 @@
 
 > **文档类型**：实现计划（Implementation Plan）  
 > **创建日期**：2026-06-18  
-> **状态**：规划中  
+> **状态**：实施中（阶段 0 基建 + 阶段 2 核心链路并行）
 > **前置阅读**：[`Wavelet/AGENTS.md`](../../Wavelet/AGENTS.md)、[`docs/plan/20260618-openflare-wavelet-backend-migration.md`](./20260618-openflare-wavelet-backend-migration.md)  
 > **依赖**：后端阶段一（旧路径 `/api/*` 兼容）完成后启动；阶段二可与后端阶段五并行
 
@@ -510,15 +510,15 @@ OpenFlare
 
 ## 9. 分阶段实施计划
 
-### 阶段 0：基建（1 周）
+### 阶段 0：基建（1 周）— ✅ 已完成
 
-| 任务 ID | 任务 | 产出 |
+| 任务 ID | 任务 | 状态 |
 |---|---|---|
-| F0-1 | 创建 `lib/services/openflare/` 骨架 | types + base |
-| F0-2 | 创建 `lib/navigation/openflare-nav.ts` | 导航配置 |
-| F0-3 | 扩展 `app-sidebar.tsx` | OpenFlare 导航组 |
-| F0-4 | 确认 embed 构建方案 | `Makefile` / `next.config.ts` |
-| F0-5 | 移除旧前端入口引用准备 | 文档记录 |
+| F0-1 | 创建 `lib/services/openflare/` 骨架 | ✅ `legacy-base.service.ts` + types |
+| F0-2 | 创建 `lib/navigation/openflare-nav.ts` | ✅ |
+| F0-3 | 扩展 `app-sidebar.tsx` | ✅ OpenFlare 导航组 |
+| F0-4 | 确认 embed 构建方案 | ⏳ |
+| F0-5 | 移除旧前端入口引用准备 | ⏳ |
 
 ### 阶段 1：认证与布局（1 周）
 
@@ -532,15 +532,16 @@ OpenFlare
 
 **验收**：Wavelet 登录后可看到 OpenFlare 空导航骨架。
 
-### 阶段 2：核心链路 UI（2–3 周）
+### 阶段 2：核心链路 UI（2–3 周）— 进行中
 
-| 任务 ID | 页面 | 依赖 API |
+| 任务 ID | 页面 | 状态 |
 |---|---|---|
-| F2-1 | 节点列表 + 详情（edge） | 后端 B2-5 |
-| F2-2 | 代理规则列表 + 详情 | 后端 B2-3 |
-| F2-3 | 配置发布 | 后端 B2-4 |
-| F2-4 | 应用日志 | 后端 B2-7 |
-| F2-5 | relay/tunnel 详情页 | 后端 B4-2 |
+| F2-1 | 节点列表 + 详情（edge） | ✅ 列表 + Edge 详情 |
+| F2-2 | 代理规则列表 + 详情 | ✅ 列表 + 6 Tab 骨架 |
+| F2-3 | 配置发布 | ✅ |
+| F2-4 | 应用日志 | ✅ |
+| F2-5 | relay/tunnel 详情页 | ⏳ |
+| F2-6 | 代理规则详情各 Section 表单实装 | ⏳ |
 
 **验收**：UI 完成节点→规则→发布闭环操作。
 

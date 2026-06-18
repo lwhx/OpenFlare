@@ -64,6 +64,7 @@ import {
 
 import {useUser} from "@/contexts/user-context"
 import {usePublicConfig} from "@/hooks/use-public-config"
+import {openflareNavItems} from "@/lib/navigation/openflare-nav"
 
 /* 导航数据 */
 const data = {
@@ -316,6 +317,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       >
                         <Link href={item.url} onClick={handleCloseSidebar}>
                           {item.icon && <item.icon />}
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+
+          {openflareNavItems.length > 0 && (
+            <SidebarGroup className="py-0 pt-4">
+              <SidebarGroupLabel className="text-xs font-normal text-muted-foreground">
+                OpenFlare
+              </SidebarGroupLabel>
+              <SidebarGroupContent className="py-1">
+                <SidebarMenu className="gap-1">
+                  {openflareNavItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        tooltip={item.title}
+                        isActive={
+                          item.url === "/openflare"
+                            ? pathname === "/openflare"
+                            : pathname === item.url || pathname.startsWith(`${item.url}/`)
+                        }
+                        asChild
+                      >
+                        <Link href={item.url} onClick={handleCloseSidebar}>
+                          <item.icon />
                           <span>{item.title}</span>
                         </Link>
                       </SidebarMenuButton>

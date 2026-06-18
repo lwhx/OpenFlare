@@ -26,6 +26,7 @@ import {DbManageService} from './db-manage';
 import {PushService} from './push';
 import {AdminUploadService, UploadService} from './upload';
 import {UserService} from './user';
+import {ApplyLogService, ConfigVersionService, NodeService, ProxyRouteService,} from './openflare';
 
 const services = {
   auth: AuthService,
@@ -43,6 +44,10 @@ const services = {
   adminUpload: AdminUploadService,
   dbManage: DbManageService,
   push: PushService,
+  openflareNode: NodeService,
+  openflareProxyRoute: ProxyRouteService,
+  openflareConfigVersion: ConfigVersionService,
+  openflareApplyLog: ApplyLogService,
 } as const;
 
 export default services;
@@ -143,3 +148,25 @@ export type { DBOverview, TableDataResponse, ExecuteSQLResponse } from './db-man
 
 export { PushService } from './push';
 export type { PushEvent, PushHistory, PushChannelConfig, ListPushHistoriesRequest, ListPushHistoriesResponse, UpdatePushEventRequest, TestPushRequest } from './push';
+
+// ==================== OpenFlare 业务服务导出 ====================
+
+export {
+  LegacyOpenFlareBaseService,
+  NodeService,
+  ProxyRouteService,
+  ConfigVersionService,
+  ApplyLogService,
+} from './openflare';
+
+export type {
+  LegacyApiResponse,
+  NodeItem,
+  ProxyRouteItem,
+  ProxyRouteConfigSection,
+  ConfigVersionSummary,
+  ConfigVersionDetail,
+  ConfigDiffResult,
+  ConfigPreviewResult,
+  ApplyLogList,
+} from './openflare';

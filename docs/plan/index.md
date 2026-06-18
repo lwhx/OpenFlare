@@ -16,6 +16,7 @@
 | [OpenFlare → Wavelet 后端迁移计划](./20260618-openflare-wavelet-backend-migration.md) | 将 `openflare-server` 后端迁移至 Wavelet 框架，保留 `/api/*` 路径，复用用户/认证等平台能力 |
 | [OpenFlare 后端迁移 — AI 接手](./handover-openflare-backend-migration.md) | 后端迁移当前进度、任务队列、定时任务、goose 版本与下一步行动（阶段 5 收尾） |
 | [OpenFlare → Wavelet 前端迁移计划](./20260618-openflare-wavelet-frontend-migration.md) | 将 `openflare-server/web` 业务 UI 按 Wavelet 设计风格重写，复用框架组件与 Admin 基建 |
+| [OpenFlare 前端迁移 — AI 委派](./handover-openflare-frontend-migration.md) | 前端迁移任务队列、Legacy API 适配规范、子智能体文件所有权与验收标准 |
 
 ## 使用建议
 
