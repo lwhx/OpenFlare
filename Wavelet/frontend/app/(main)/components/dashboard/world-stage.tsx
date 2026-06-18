@@ -226,30 +226,32 @@ export function WorldStage({
       </CardHeader>
 
       <CardContent className="pt-0">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12.5rem] lg:gap-4">
-          <div
-            ref={mapViewportRef}
-            className="relative h-[200px] min-h-[200px] min-w-0 overflow-hidden rounded-lg border border-dashed bg-muted/20 sm:h-[240px] sm:min-h-[240px] lg:h-[260px] lg:min-h-[260px]"
-          >
-            {shouldRenderMap ? (
-              <WorldStageMap nodes={nodes} sourceCountries={sourceCountries} />
-            ) : (
-              <div className="flex h-full items-center justify-center px-4">
-                <EmptyState
-                  title="地图准备中"
-                  description="进入可视区域后加载"
-                  iconSize="sm"
-                />
-              </div>
-            )}
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12.5rem] lg:gap-4 lg:items-center">
+          <div className="flex min-w-0 items-center justify-center">
+            <div
+              ref={mapViewportRef}
+              className="relative aspect-[2/3] h-[200px] w-auto overflow-hidden rounded-lg border border-dashed bg-muted/20 sm:h-[228px] lg:h-[252px]"
+            >
+              {shouldRenderMap ? (
+                <WorldStageMap nodes={nodes} sourceCountries={sourceCountries} />
+              ) : (
+                <div className="flex h-full items-center justify-center px-4">
+                  <EmptyState
+                    title="地图准备中"
+                    description="进入可视区域后加载"
+                    iconSize="sm"
+                  />
+                </div>
+              )}
 
-            {shouldRenderMap && nodes.length === 0 ? (
-              <div className="pointer-events-none absolute inset-x-3 bottom-2 z-10">
-                <p className="rounded-md border border-dashed bg-background/90 px-2.5 py-1.5 text-[10px] text-muted-foreground backdrop-blur-sm">
-                  暂无节点，接入后将展示地理分布
-                </p>
-              </div>
-            ) : null}
+              {shouldRenderMap && nodes.length === 0 ? (
+                <div className="pointer-events-none absolute inset-x-3 bottom-2 z-10">
+                  <p className="rounded-md border border-dashed bg-background/90 px-2.5 py-1.5 text-[10px] text-muted-foreground backdrop-blur-sm">
+                    暂无节点，接入后将展示地理分布
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1 lg:gap-0 lg:divide-y lg:divide-dashed lg:overflow-hidden lg:rounded-lg lg:border lg:border-dashed">
