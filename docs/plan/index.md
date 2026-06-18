@@ -9,6 +9,13 @@
 1. **[实现计划模板](./implementation-plan-template.md)**：用于新功能开发或重大重构前的技术方案规划。
 2. **[AI 接手计划模板](./handover-plan-template.md)**：用于在上下文截断、压缩或更换 AI 代理时，记录当前任务状态、已完成内容与下一步执行计划。
 
+## 正在进行的计划
+
+| 计划 | 说明 |
+| --- | --- |
+| [OpenFlare → Wavelet 后端迁移计划](./20260618-openflare-wavelet-backend-migration.md) | 将 `openflare-server` 后端迁移至 Wavelet 框架，保留 `/api/*` 路径，复用用户/认证等平台能力 |
+| [OpenFlare → Wavelet 前端迁移计划](./20260618-openflare-wavelet-frontend-migration.md) | 将 `openflare-server/web` 业务 UI 按 Wavelet 设计风格重写，复用框架组件与 Admin 基建 |
+
 ## 使用建议
 
 * **命名规范**：正在进行的开发计划建议命名为 `docs/plan/YYYYMMDD-[feature-name].md`，接手计划建议命名为 `docs/plan/handover-[task-name].md`。
