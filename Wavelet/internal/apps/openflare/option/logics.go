@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	"github.com/Rain-kl/Wavelet/internal/apps/openflare/geoip"
+	oftasks "github.com/Rain-kl/Wavelet/internal/apps/openflare/tasks"
+	"github.com/Rain-kl/Wavelet/internal/apps/openflare/uptimekuma"
 	"github.com/Rain-kl/Wavelet/internal/buildinfo"
 	"github.com/Rain-kl/Wavelet/internal/model"
 )
@@ -214,27 +216,31 @@ func lookupGeoIP(_ context.Context, provider, rawIP string) (*geoIPLookupView, e
 	}, nil
 }
 
-func cleanupDatabaseObservability(_ context.Context, input databaseCleanupInput) (*databaseCleanupResult, error) {
+func cleanupDatabaseObservability(ctx context.Context, input databaseCleanupInput) (*databaseCleanupResult, error) {
 	target := strings.TrimSpace(input.Target)
 	if target == "" {
 		return nil, errors.New(errInvalidParams)
 	}
-	if input.RetentionDays != nil && *input.RetentionDays <= 0 {
-		return nil, errors.New("retention_days 必须为大于 0 的整数")
+
+	result, err := oftasks.CleanupDatabaseObservability(ctx, oftasks.DatabaseCleanupInput{
+		Target:        target,
+		RetentionDays: input.RetentionDays,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return &databaseCleanupResult{
-		Target:        target,
-		TargetLabel:   target,
-		DeletedCount:  0,
-		DeleteAll:     input.RetentionDays == nil,
-		RetentionDays: input.RetentionDays,
+		Target:        result.Target,
+		TargetLabel:   result.TargetLabel,
+		DeletedCount:  result.DeletedCount,
+		DeleteAll:     result.DeleteAll,
+		RetentionDays: result.RetentionDays,
 	}, nil
 }
 
-func syncUptimeKuma(_ context.Context) error {
-	// Stub: full Uptime Kuma sync is implemented in T-MISC.
-	return nil
+func syncUptimeKuma(ctx context.Context) error {
+	return uptimekuma.SyncToUptimeKuma(ctx)
 }
 
 func isSecretOptionKey(key string) bool {

@@ -176,7 +176,7 @@ func DeleteCertificate(ctx context.Context, id uint) error {
 	return model.DeleteTLSCertificateRecord(ctx, id)
 }
 
-// ApplyCertificate 申请 ACME 证书（当前为占位实现）。
+// ApplyCertificate 申请 ACME 证书。
 func ApplyCertificate(ctx context.Context, input ApplyInput) (*model.TLSCertificate, error) {
 	cert := &model.TLSCertificate{
 		Provider: "acme",
@@ -193,10 +193,15 @@ func ApplyCertificate(ctx context.Context, input ApplyInput) (*model.TLSCertific
 		}
 		return nil, err
 	}
-	return markACMEStubFailure(ctx, cert)
+
+	go func(c *model.TLSCertificate) {
+		_ = obtainTLSCertificate(context.Background(), c)
+	}(cert)
+
+	return sanitizeCertificateForResponse(cert), nil
 }
 
-// UpdateACMECertificate 更新 ACME 证书配置（当前为占位实现）。
+// UpdateACMECertificate 更新 ACME 证书配置。
 func UpdateACMECertificate(ctx context.Context, id uint, input ApplyInput) (*model.TLSCertificate, error) {
 	cert, err := model.GetTLSCertificateByID(ctx, id)
 	if err != nil {
@@ -215,10 +220,15 @@ func UpdateACMECertificate(ctx context.Context, id uint, input ApplyInput) (*mod
 		}
 		return nil, err
 	}
-	return markACMEStubFailure(ctx, cert)
+
+	go func(c *model.TLSCertificate) {
+		_ = obtainTLSCertificate(context.Background(), c)
+	}(cert)
+
+	return sanitizeCertificateForResponse(cert), nil
 }
 
-// ConvertCertificateToACME 将上传证书转为 ACME 管理（当前为占位实现）。
+// ConvertCertificateToACME 将上传证书转为 ACME 管理。
 func ConvertCertificateToACME(ctx context.Context, id uint, input ApplyInput) (*model.TLSCertificate, error) {
 	cert, err := model.GetTLSCertificateByID(ctx, id)
 	if err != nil {
@@ -241,10 +251,25 @@ func ConvertCertificateToACME(ctx context.Context, id uint, input ApplyInput) (*
 		}
 		return nil, err
 	}
-	return markACMEStubFailure(ctx, cert)
+
+	go func(c *model.TLSCertificate) {
+		if err := obtainTLSCertificate(context.Background(), c); err != nil {
+			return
+		}
+		latest, err := model.GetTLSCertificateByID(context.Background(), c.ID)
+		if err != nil {
+			return
+		}
+		latest.Provider = "acme"
+		latest.ApplyStatus = "ready"
+		latest.ApplyMessage = ""
+		_ = model.SaveTLSCertificate(context.Background(), latest)
+	}(cert)
+
+	return sanitizeCertificateForResponse(cert), nil
 }
 
-// RenewCertificate 续期 ACME 证书（当前为占位实现）。
+// RenewCertificate 续期 ACME 证书。
 func RenewCertificate(ctx context.Context, id uint) (*model.TLSCertificate, error) {
 	cert, err := model.GetTLSCertificateByID(ctx, id)
 	if err != nil {
@@ -253,12 +278,17 @@ func RenewCertificate(ctx context.Context, id uint) (*model.TLSCertificate, erro
 	if cert.Provider != "acme" {
 		return nil, errors.New(errCertificateOnlyACMERenew)
 	}
+
+	go func(c *model.TLSCertificate) {
+		_ = obtainTLSCertificate(context.Background(), c)
+	}(cert)
+
 	cert.ApplyStatus = "applying"
 	cert.ApplyMessage = ""
 	if err := model.SaveTLSCertificate(ctx, cert); err != nil {
 		return nil, err
 	}
-	return markACMEStubFailure(ctx, cert)
+	return sanitizeCertificateForResponse(cert), nil
 }
 
 // ListDNSAccounts 列出 DNS 账号。
@@ -386,17 +416,7 @@ func fillAcmeCertificateFields(cert *model.TLSCertificate, input ApplyInput) {
 	cert.SkipDNS = input.SkipDNS
 	cert.DNS1 = strings.TrimSpace(input.DNS1)
 	cert.DNS2 = strings.TrimSpace(input.DNS2)
-	cert.Provider = "acme"
 	cert.ApplyStatus = "applying"
-}
-
-func markACMEStubFailure(ctx context.Context, cert *model.TLSCertificate) (*model.TLSCertificate, error) {
-	cert.ApplyStatus = "failed"
-	cert.ApplyMessage = errACMENotImplemented
-	if err := model.SaveTLSCertificate(ctx, cert); err != nil {
-		return nil, err
-	}
-	return sanitizeCertificateForResponse(cert), nil
 }
 
 func ensureCertificateNotReferenced(ctx context.Context, id uint) error {

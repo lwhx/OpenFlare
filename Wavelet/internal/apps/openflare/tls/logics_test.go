@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"math/big"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,8 +25,11 @@ import (
 	"gorm.io/gorm"
 )
 
+var tlsTestDBMu sync.Mutex
+
 func setupTLSTestDB(t *testing.T) func() {
 	t.Helper()
+	tlsTestDBMu.Lock()
 
 	sqliteDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
@@ -44,6 +48,7 @@ func setupTLSTestDB(t *testing.T) func() {
 	return func() {
 		db.SetDB(nil)
 		config.Config.App.SessionSecret = oldSecret
+		tlsTestDBMu.Unlock()
 	}
 }
 

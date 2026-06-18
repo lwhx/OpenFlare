@@ -23,6 +23,4 @@ const (
 	errManagedDomainCertNotFound    = "所选证书不存在"
 
 	errDNSAccountInUse = "该 DNS 账号已被证书使用，无法删除"
-
-	errACMENotImplemented = "ACME certificate obtain is not implemented yet"
 )

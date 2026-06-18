@@ -40,6 +40,24 @@ func GetAcmeAccountByID(ctx context.Context, id uint) (*AcmeAccount, error) {
 	return &account, nil
 }
 
+// CreateAcmeAccountRecord 创建 ACME 账号。
+func CreateAcmeAccountRecord(ctx context.Context, account *AcmeAccount) error {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return errors.New(errDatabaseNotInitialized)
+	}
+	return conn.Create(account).Error
+}
+
+// SaveAcmeAccount 保存 ACME 账号。
+func SaveAcmeAccount(ctx context.Context, account *AcmeAccount) error {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return errors.New(errDatabaseNotInitialized)
+	}
+	return conn.Save(account).Error
+}
+
 // GetDefaultAcmeAccount 获取默认 ACME 账号，不存在时创建占位记录。
 func GetDefaultAcmeAccount(ctx context.Context) (*AcmeAccount, error) {
 	conn := db.DB(ctx)

@@ -375,6 +375,70 @@ func ListOpenFlareHealthEvents(ctx context.Context, nodeID string, activeOnly bo
 	return rows, nil
 }
 
+// DeleteOpenFlareMetricSnapshotsBefore deletes metric snapshots captured before cutoff.
+func DeleteOpenFlareMetricSnapshotsBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return 0, errors.New(errDatabaseNotInitialized)
+	}
+	result := conn.Where("captured_at < ?", cutoff).Delete(&OpenFlareMetricSnapshot{})
+	if result.Error != nil {
+		if isMissingTableError(result.Error) {
+			return 0, nil
+		}
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
+// DeleteAllOpenFlareMetricSnapshots deletes all metric snapshots.
+func DeleteAllOpenFlareMetricSnapshots(ctx context.Context) (int64, error) {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return 0, errors.New(errDatabaseNotInitialized)
+	}
+	result := conn.Where("1 = 1").Delete(&OpenFlareMetricSnapshot{})
+	if result.Error != nil {
+		if isMissingTableError(result.Error) {
+			return 0, nil
+		}
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
+// DeleteOpenFlareRequestReportsBefore deletes request reports ending before cutoff.
+func DeleteOpenFlareRequestReportsBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return 0, errors.New(errDatabaseNotInitialized)
+	}
+	result := conn.Where("window_ended_at < ?", cutoff).Delete(&OpenFlareRequestReport{})
+	if result.Error != nil {
+		if isMissingTableError(result.Error) {
+			return 0, nil
+		}
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
+// DeleteAllOpenFlareRequestReports deletes all request reports.
+func DeleteAllOpenFlareRequestReports(ctx context.Context) (int64, error) {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return 0, errors.New(errDatabaseNotInitialized)
+	}
+	result := conn.Where("1 = 1").Delete(&OpenFlareRequestReport{})
+	if result.Error != nil {
+		if isMissingTableError(result.Error) {
+			return 0, nil
+		}
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 // DeleteOpenFlareHealthEventsByNodeID deletes all health events for a node.
 func DeleteOpenFlareHealthEventsByNodeID(ctx context.Context, nodeID string) (int64, error) {
 	conn := db.DB(ctx)

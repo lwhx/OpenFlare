@@ -18,6 +18,8 @@ import (
 	"unicode"
 
 	"github.com/Rain-kl/Wavelet/internal/model"
+
+	exprlang "github.com/expr-lang/expr"
 	"gorm.io/gorm"
 )
 
@@ -486,39 +488,29 @@ func DeleteIPGroup(ctx context.Context, id uint) error {
 	return model.DeleteOpenFlareWAFIPGroup(ctx, group.ID)
 }
 
-// SyncIPGroup is a stub that returns a successful sync result.
+// SyncIPGroup synchronizes a subscription or automatic WAF IP group.
 func SyncIPGroup(ctx context.Context, id uint) (*IPGroupSyncResult, error) {
 	group, err := model.GetOpenFlareWAFIPGroupByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now().UTC()
-	view, err := GetIPGroup(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	nextSyncAt := now.Add(time.Duration(normalizeIPGroupSyncInterval(group.SyncIntervalMinutes)) * time.Minute)
-	return &IPGroupSyncResult{
-		Group:      *view,
-		IPCount:    len(view.IPList),
-		SyncedAt:   now.Format(time.RFC3339),
-		NextSyncAt: nextSyncAt.Format(time.RFC3339),
-		Status:     "success",
-		Message:    "同步成功",
-	}, nil
+	return syncOpenFlareWAFIPGroup(ctx, group, time.Now().UTC())
 }
 
-// TestIPGroupAutoConfig is a stub that validates config and returns an empty match set.
+// TestIPGroupAutoConfig evaluates automatic IP group rules against recent access logs.
 func TestIPGroupAutoConfig(ctx context.Context, input IPGroupAutoTestInput) (*IPGroupAutoTestResult, error) {
-	_ = ctx
 	config, err := parseIPGroupAutoConfig(input.AutoConfig)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now().UTC()
+	ips, err := evaluateParsedIPGroupAutoConfig(ctx, config, now)
+	if err != nil {
+		return nil, err
+	}
 	return &IPGroupAutoTestResult{
-		MatchedIPs:      []string{},
-		MatchedCount:    0,
+		MatchedIPs:      ips,
+		MatchedCount:    len(ips),
 		LookbackMinutes: config.LookbackMinutes,
 		RuleCount:       len(config.Rules),
 		TestedAt:        now.Format(time.RFC3339),
@@ -1103,6 +1095,9 @@ func parseIPGroupAutoConfig(raw json.RawMessage) (ipGroupAutoConfig, error) {
 		rule.Expr = strings.TrimSpace(rule.Expr)
 		if rule.Expr == "" {
 			return ipGroupAutoConfig{}, fmt.Errorf("自动规则 %d 的 Expr 表达式不能为空", i+1)
+		}
+		if _, err := exprlang.Compile(rule.Expr, exprlang.Env(ipGroupAutoRuleEnv{}), exprlang.AsBool()); err != nil {
+			return ipGroupAutoConfig{}, fmt.Errorf("自动规则 %s Expr 无效: %w", displayIPGroupAutoRuleName(rule, i), err)
 		}
 		config.Rules[i] = rule
 	}

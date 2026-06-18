@@ -34,6 +34,8 @@ sidebar: false
 - 扩展 Relay/Flared heartbeat 载荷与可观测性持久化（frps 观测、健康事件）；新增 `of_node_obs_frpc` 单表。
 - Agent heartbeat 恢复 Geo 自动更新、访问日志地域解析与 90 天保留清理；对齐 config `support_files` 过滤规则。
 - 补全 OAuth 快捷路由（`/api/oauth/github`、`/api/oauth/wechat`、`/api/oauth/wechat/bind`、`/api/oauth/email/bind`）。
+- 新增 `internal/apps/openflare/tasks/` 集中承载 OpenFlare 定时/后台任务（主进程 cron，非 Asynq），含数据库可观测性自动清理、WAF IP 组周期同步、UptimeKuma 同步、ACME 证书自动续期。
+- 实装数据库可观测性手动/自动清理、WAF IP 组订阅/自动同步与测试接口、UptimeKuma 监控同步、TLS ACME 申请/续期（lego DNS-01）。
 
 ## [v2.3.4] - 2026-06-17
 

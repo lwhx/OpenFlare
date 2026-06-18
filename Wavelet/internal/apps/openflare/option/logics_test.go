@@ -6,6 +6,7 @@ package option
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Rain-kl/Wavelet/internal/db"
 	"github.com/Rain-kl/Wavelet/internal/model"
@@ -100,10 +101,31 @@ func TestLookupGeoIPDisabledProvider(t *testing.T) {
 	assert.Equal(t, "8.8.8.8", view.IP)
 }
 
-func TestCleanupDatabaseObservabilityStub(t *testing.T) {
+func TestCleanupDatabaseObservabilityDeletesRows(t *testing.T) {
 	cleanup := setupOptionTestDB(t)
 	defer cleanup()
 	ctx := context.Background()
+
+	sqliteDB := db.DB(ctx)
+	require.NoError(t, sqliteDB.AutoMigrate(&model.OpenFlareAccessLog{}))
+
+	now := time.Now().UTC()
+	require.NoError(t, sqliteDB.Create(&model.OpenFlareAccessLog{
+		NodeID:     "node-a",
+		LoggedAt:   now.Add(-10 * 24 * time.Hour),
+		RemoteAddr: "203.0.113.1",
+		Host:       "example.com",
+		Path:       "/old",
+		StatusCode: 200,
+	}).Error)
+	require.NoError(t, sqliteDB.Create(&model.OpenFlareAccessLog{
+		NodeID:     "node-a",
+		LoggedAt:   now.Add(-2 * time.Hour),
+		RemoteAddr: "203.0.113.2",
+		Host:       "example.com",
+		Path:       "/recent",
+		StatusCode: 200,
+	}).Error)
 
 	retention := 7
 	result, err := cleanupDatabaseObservability(ctx, databaseCleanupInput{
@@ -112,8 +134,14 @@ func TestCleanupDatabaseObservabilityStub(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "node_access_logs", result.Target)
-	assert.Equal(t, int64(0), result.DeletedCount)
+	assert.Equal(t, "访问日志", result.TargetLabel)
+	assert.Equal(t, int64(1), result.DeletedCount)
 	assert.False(t, result.DeleteAll)
 	require.NotNil(t, result.RetentionDays)
 	assert.Equal(t, 7, *result.RetentionDays)
+
+	rows, err := model.ListOpenFlareAccessLogs(ctx, model.OpenFlareAccessLogQuery{Page: 0, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "/recent", rows[0].Path)
 }

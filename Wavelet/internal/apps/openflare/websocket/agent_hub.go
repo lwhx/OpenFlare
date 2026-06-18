@@ -18,6 +18,7 @@ const (
 	AgentWSConnectedLastSeenValue = "__OPENFLARE_AGENT_WS_CONNECTED__"
 
 	agentMessageTypeForceSyncConfig = "force_sync_config"
+	agentMessageTypeWAFIPGroups     = "waf_ip_groups"
 )
 
 type agentClient struct {
@@ -100,6 +101,28 @@ func IsAgentConnected(nodeID string) bool {
 	default:
 		return true
 	}
+}
+
+// BroadcastWAFIPGroups pushes changed WAF IP groups to all connected agents.
+func BroadcastWAFIPGroups(payload any) int {
+	if payload == nil {
+		return 0
+	}
+	message := Message{Type: agentMessageTypeWAFIPGroups, Payload: payload}
+	defaultAgentHub.mu.RLock()
+	clients := make([]*agentClient, 0, len(defaultAgentHub.clients))
+	for _, client := range defaultAgentHub.clients {
+		clients = append(clients, client)
+	}
+	defaultAgentHub.mu.RUnlock()
+
+	success := 0
+	for _, client := range clients {
+		if client.enqueue(message) {
+			success++
+		}
+	}
+	return success
 }
 
 // SendForceSyncConfig notifies an agent to force sync configuration.

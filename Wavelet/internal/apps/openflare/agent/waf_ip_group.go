@@ -29,6 +29,11 @@ type activeConfigSnapshot struct {
 	WAF snapshotWAFSection `json:"waf"`
 }
 
+// WAFIPGroupsForAgent builds agent-facing WAF IP group payloads for the given ids.
+func WAFIPGroupsForAgent(ctx context.Context, ids []uint) ([]WAFIPGroup, error) {
+	return buildAgentWAFIPGroups(ctx, ids)
+}
+
 // ChangedWAFIPGroupsForAgent returns WAF IP groups whose checksums differ from the agent state.
 func ChangedWAFIPGroupsForAgent(ctx context.Context, ids []uint, checksums map[string]string) ([]WAFIPGroup, error) {
 	targetIDs := uniqueUintIDs(ids)

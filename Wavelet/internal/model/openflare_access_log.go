@@ -51,6 +51,11 @@ type openFlareAccessLogIPTrendRow struct {
 	RequestCount int64 `gorm:"column:request_count"`
 }
 
+// ListOpenFlareAccessLogsForWAFIPGroup lists access logs in a time window for automatic IP group rules.
+func ListOpenFlareAccessLogsForWAFIPGroup(ctx context.Context, query OpenFlareAccessLogQuery) ([]*OpenFlareAccessLog, error) {
+	return ListOpenFlareAccessLogs(ctx, query)
+}
+
 // ListOpenFlareAccessLogs lists access logs matching the query.
 func ListOpenFlareAccessLogs(ctx context.Context, query OpenFlareAccessLogQuery) ([]*OpenFlareAccessLog, error) {
 	conn := db.DB(ctx)
@@ -234,6 +239,22 @@ ORDER BY bucket_epoch ASC`, bucketExpr, openFlareAccessLogTable, queryClause)
 		return nil, err
 	}
 	return rows, nil
+}
+
+// DeleteAllOpenFlareAccessLogs deletes all access logs.
+func DeleteAllOpenFlareAccessLogs(ctx context.Context) (int64, error) {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return 0, errors.New(errDatabaseNotInitialized)
+	}
+	result := conn.Where("1 = 1").Delete(&OpenFlareAccessLog{})
+	if result.Error != nil {
+		if isMissingTableError(result.Error) {
+			return 0, nil
+		}
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }
 
 // DeleteOpenFlareAccessLogsBefore deletes access logs older than cutoff.

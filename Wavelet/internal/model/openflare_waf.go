@@ -246,6 +246,37 @@ func UpdateOpenFlareWAFIPGroup(ctx context.Context, group *OpenFlareWAFIPGroup) 
 	}).Error
 }
 
+// ListDueOpenFlareWAFIPGroups returns enabled automatic/subscription groups due for sync.
+func ListDueOpenFlareWAFIPGroups(ctx context.Context, now time.Time) ([]*OpenFlareWAFIPGroup, error) {
+	conn, err := wafDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var groups []*OpenFlareWAFIPGroup
+	err = conn.Where(
+		"enabled = ? AND (type = ? OR (type = ? AND subscription_url <> '')) AND (next_sync_at IS NULL OR next_sync_at <= ?)",
+		true, "automatic", "subscription", now,
+	).Order("id asc").Find(&groups).Error
+	return groups, err
+}
+
+// UpdateOpenFlareWAFIPGroupSyncResult persists IP group sync outcome fields.
+func UpdateOpenFlareWAFIPGroupSyncResult(ctx context.Context, group *OpenFlareWAFIPGroup) error {
+	conn, err := wafDB(ctx)
+	if err != nil {
+		return err
+	}
+	return conn.Model(&OpenFlareWAFIPGroup{}).Where("id = ?", group.ID).Updates(map[string]any{
+		"ip_list":             group.IPList,
+		"ext_ips":             group.ExtIPs,
+		"last_synced_at":      group.LastSyncedAt,
+		"next_sync_at":        group.NextSyncAt,
+		"last_sync_status":    group.LastSyncStatus,
+		"last_sync_message":   group.LastSyncMessage,
+		"subscription_format": group.SubscriptionFormat,
+	}).Error
+}
+
 // DeleteOpenFlareWAFIPGroup removes an IP group.
 func DeleteOpenFlareWAFIPGroup(ctx context.Context, id uint) error {
 	conn, err := wafDB(ctx)

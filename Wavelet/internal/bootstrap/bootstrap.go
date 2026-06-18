@@ -11,6 +11,8 @@ import (
 
 	admin_push "github.com/Rain-kl/Wavelet/internal/apps/admin/push"
 	"github.com/Rain-kl/Wavelet/internal/apps/admin/push/custom_events"
+	oftasks "github.com/Rain-kl/Wavelet/internal/apps/openflare/tasks"
+	_ "github.com/Rain-kl/Wavelet/internal/apps/openflare/waf"
 	"github.com/Rain-kl/Wavelet/internal/apps/risk_control"
 	taskhandlers "github.com/Rain-kl/Wavelet/internal/task/handlers"
 	"github.com/Rain-kl/Wavelet/pkg/logger"
@@ -23,10 +25,11 @@ type Options struct {
 }
 
 var (
-	registerTasksOnce            sync.Once
-	registerPushDomainEventsOnce sync.Once
-	registerTaskListenersOnce    sync.Once
-	initRuntimeOnce              sync.Once
+	registerTasksOnce                    sync.Once
+	registerPushDomainEventsOnce         sync.Once
+	registerTaskListenersOnce            sync.Once
+	registerOpenFlareBackgroundTasksOnce sync.Once
+	initRuntimeOnce                      sync.Once
 )
 
 // RegisterTasks registers all built-in task handlers and metadata.
@@ -50,10 +53,16 @@ func RegisterTaskListeners() {
 	})
 }
 
+// RegisterOpenFlareBackgroundTasks links OpenFlare in-process cron jobs registered via init().
+func RegisterOpenFlareBackgroundTasks() {
+	registerOpenFlareBackgroundTasksOnce.Do(func() {})
+}
+
 // RegisterAPI wires integrations required by the HTTP API process.
 func RegisterAPI() {
 	RegisterTasks()
 	RegisterPushDomainEvents()
+	RegisterOpenFlareBackgroundTasks()
 }
 
 // RegisterWorker wires integrations required by the task worker process.
@@ -72,6 +81,7 @@ func RegisterAll() {
 	RegisterTasks()
 	RegisterPushDomainEvents()
 	RegisterTaskListeners()
+	RegisterOpenFlareBackgroundTasks()
 }
 
 // Init runs shared runtime bootstrap exactly once per process.
@@ -83,6 +93,7 @@ func Init(ctx context.Context, opts Options) {
 		}
 		if opts.API {
 			risk_control.InitLogWriter(ctx)
+			oftasks.Start(ctx)
 		}
 	})
 }
