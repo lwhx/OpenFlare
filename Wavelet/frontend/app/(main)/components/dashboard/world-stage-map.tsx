@@ -100,8 +100,9 @@ type CountryRegionDatum = {
 let worldMapRegistrationAttempted = false;
 let worldMapRegistrationSucceeded = false;
 
-const baseWorldMapLayoutSizePercent = 168;
+const baseWorldMapLayoutSizePercent = 108;
 const baseWorldMapZoom = 1;
+const worldMapAspectRatio = 2 / 3;
 
 function buildNodeDetailHref(id?: number | null) {
   if (!id) {
@@ -378,17 +379,17 @@ export function WorldStageMap({
       return 1;
     }
 
-    const widthScale = Math.min(Math.max(width / 720, 0.48), 1.02);
-    const heightScale = Math.min(Math.max(height / 260, 0.65), 1.05);
-    const compactViewportScale = width < 640 ? 0.88 : 1;
+    const expectedWidth = height * worldMapAspectRatio;
+    const fitWidth = Math.min(width, expectedWidth);
+    const widthScale = Math.min(Math.max(fitWidth / 180, 0.72), 1.08);
+    const heightScale = Math.min(Math.max(height / 252, 0.72), 1.08);
 
-    return Number(
-      (Math.min(widthScale, heightScale) * compactViewportScale).toFixed(3),
-    );
+    return Number(Math.min(widthScale, heightScale).toFixed(3));
   }, [containerSize]);
 
   const computedLayoutSize = useMemo(
-    () => `${Math.round(baseWorldMapLayoutSizePercent * responsiveMapScale)}%`,
+    () =>
+      `${Math.round(baseWorldMapLayoutSizePercent * responsiveMapScale)}%`,
     [responsiveMapScale],
   );
   const computedZoom = useMemo(
