@@ -4,7 +4,7 @@
 
 # ─── Application ────────────────────────────────────────────────────────────────
 app:
-  app_name: "wavelet"
+  app_name: "openflare"
   env: "development"          # development | testing | production
   addr: ":3000"
   node_id: 1                  # Snowflake node ID (0-1023). Must be unique per instance.
@@ -34,7 +34,7 @@ database:
   log_level: "info"            # error | warn | info | debug | silent
   ssl_mode: "disable"
   time_zone: "UTC"
-  application_name: "wavelet-server"
+  application_name: "openflare-server"
   prefer_simple_protocol: false
   search_path: "public"
   statement_cache_capacity: 256
@@ -58,7 +58,7 @@ redis:
   db: 0                        # Ignored in Cluster mode
   cluster_mode: false          # Set true to enable Cluster mode
   master_name: ""              # Set non-empty to enable Sentinel mode
-  key_prefix: "wavelet:"
+  key_prefix: "openflare:"
   pool_size: 100
   min_idle_conn: 10
   dial_timeout: 5

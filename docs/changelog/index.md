@@ -26,6 +26,7 @@ sidebar: false
 - 新增 OpenFlare 可观测性表 goose 迁移（`of_node_system_profiles`、`of_node_metric_snapshots`、`of_node_request_reports`、`of_node_health_events`、`of_node_obs_openresty`、`of_node_obs_frps`、`of_node_access_logs`）。
 - Agent heartbeat 恢复可观测性数据持久化（系统画像、指标快照、流量报表、健康事件等）。
 - Wavelet 默认数据库名由 `wavelet` 调整为 `openflare`（PostgreSQL、ClickHouse、SQLite 后备路径同步更新）。
+- Wavelet 默认 PostgreSQL `application_name` 由 `wavelet-server` 调整为 `openflare-server`，Redis 键前缀由 `wavelet:` 调整为 `openflare:`。
 
 ## [v2.3.4] - 2026-06-17
 
