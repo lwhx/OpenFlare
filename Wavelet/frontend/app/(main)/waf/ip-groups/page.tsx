@@ -23,9 +23,10 @@ import {LoadingStateWithBorder} from '@/components/layout/loading';
 import type {WAFIPGroup, WAFIPGroupAutoTestResult, WAFIPGroupPayload,} from '@/lib/services/openflare';
 import {WafService} from '@/lib/services/openflare';
 
-import {getErrorMessage, parseAutomaticConfig} from '../components/helpers';
+import {buildIPGroupPayloadFromGroup, getErrorMessage, parseAutomaticConfig} from '../components/helpers';
 import {IPGroupDialog} from '../components/ip-group-dialog';
 import {IPGroupTestDialog} from '../components/ip-group-test-dialog';
+import {IPGroupViewDialog} from '../components/ip-group-view-dialog';
 import {IPGroupsTable} from '../components/ip-groups-table';
 
 const ipGroupsQueryKey = ['openflare', 'waf', 'ip-groups'];
@@ -38,6 +39,9 @@ export default function WafIPGroupsPage() {
   const [testOpen, setTestOpen] = useState(false);
   const [testResult, setTestResult] = useState<WAFIPGroupAutoTestResult | null>(null);
   const [syncingId, setSyncingId] = useState<number | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewingGroup, setViewingGroup] = useState<WAFIPGroup | null>(null);
+  const [removingIp, setRemovingIp] = useState<string | null>(null);
 
   const groupsQuery = useQuery({
     queryKey: ipGroupsQueryKey,
@@ -105,6 +109,33 @@ export default function WafIPGroupsPage() {
     },
   });
 
+  const viewGroupQuery = useQuery({
+    queryKey: ['openflare', 'waf', 'ip-groups', viewingGroup?.id],
+    queryFn: () => WafService.getIPGroup(viewingGroup!.id),
+    enabled: viewOpen && viewingGroup !== null,
+  });
+
+  const removeIpMutation = useMutation({
+    mutationFn: async ({ group, ip }: { group: WAFIPGroup; ip: string }) => {
+      const nextIpList = group.ip_list.filter((item) => item !== ip);
+      return WafService.updateIPGroup(group.id, buildIPGroupPayloadFromGroup(group, nextIpList));
+    },
+    onMutate: ({ ip }) => {
+      setRemovingIp(ip);
+    },
+    onSuccess: async (updatedGroup) => {
+      toast.success('IP 已移除');
+      setViewingGroup(updatedGroup);
+      await invalidate();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error));
+    },
+    onSettled: () => {
+      setRemovingIp(null);
+    },
+  });
+
   const testMutation = useMutation({
     mutationFn: (group: WAFIPGroup) =>
       WafService.testIPGroup({
@@ -146,7 +177,19 @@ export default function WafIPGroupsPage() {
     testMutation.mutate(group);
   };
 
+  const handleView = (group: WAFIPGroup) => {
+    setViewingGroup(group);
+    setViewOpen(true);
+  };
+
+  const handleRemoveIp = async (ip: string) => {
+    const group = viewGroupQuery.data ?? viewingGroup;
+    if (!group) return;
+    await removeIpMutation.mutateAsync({ group, ip });
+  };
+
   const groups = groupsQuery.data ?? [];
+  const viewGroup = viewGroupQuery.data ?? viewingGroup;
 
   return (
     <div className="py-6 px-1 space-y-6">
@@ -205,6 +248,7 @@ export default function WafIPGroupsPage() {
             <IPGroupsTable
               groups={groups}
               syncingId={syncingId}
+              onView={handleView}
               onEdit={handleEdit}
               onDelete={setDeleteTarget}
               onSync={(group) => syncMutation.mutate(group.id)}
@@ -232,6 +276,20 @@ export default function WafIPGroupsPage() {
         loading={testMutation.isPending}
         result={testResult}
         onOpenChange={setTestOpen}
+      />
+
+      <IPGroupViewDialog
+        open={viewOpen}
+        group={viewGroup}
+        loading={viewGroupQuery.isFetching && !viewGroupQuery.data}
+        removingIp={removingIp}
+        onOpenChange={(open) => {
+          setViewOpen(open);
+          if (!open) {
+            setViewingGroup(null);
+          }
+        }}
+        onRemoveIp={handleRemoveIp}
       />
 
       <AlertDialog

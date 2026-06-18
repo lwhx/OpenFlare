@@ -695,6 +695,11 @@ func buildIPGroup(group *model.OpenFlareWAFIPGroup, input IPGroupInput) (*model.
 	group.Type = groupType
 	group.Enabled = input.Enabled
 	group.IPList = string(ipListJSON)
+	if groupType == wafIPGroupTypeAutomatic {
+		if err := pruneIPGroupExtIPs(group, normalizedIPs); err != nil {
+			return nil, err
+		}
+	}
 	group.AutoConfig = autoConfig
 	group.SubscriptionURL = subscriptionURL
 	group.SubscriptionFormat = subscriptionFormat
@@ -783,6 +788,34 @@ func loadIPGroupReferenceCounts(ctx context.Context) (map[uint]int, error) {
 		}
 	}
 	return counts, nil
+}
+
+func pruneIPGroupExtIPs(group *model.OpenFlareWAFIPGroup, ipList []string) error {
+	if group == nil {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(ipList))
+	for _, ip := range ipList {
+		allowed[ip] = struct{}{}
+	}
+	var extIPs []ipGroupExtIP
+	if group.ExtIPs != "" && group.ExtIPs != "[]" {
+		if err := json.Unmarshal([]byte(group.ExtIPs), &extIPs); err != nil {
+			return err
+		}
+	}
+	pruned := make([]ipGroupExtIP, 0, len(extIPs))
+	for _, extIP := range extIPs {
+		if _, ok := allowed[extIP.IP]; ok {
+			pruned = append(pruned, extIP)
+		}
+	}
+	extIPsJSON, err := json.Marshal(pruned)
+	if err != nil {
+		return err
+	}
+	group.ExtIPs = string(extIPsJSON)
+	return nil
 }
 
 func normalizeIPList(items []string) ([]string, error) {

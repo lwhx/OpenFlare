@@ -1,4 +1,10 @@
-import type {ProxyRoutePoWConfig, WAFRuleGroup, WAFRuleGroupPayload,} from '@/lib/services/openflare';
+import type {
+  ProxyRoutePoWConfig,
+  WAFIPGroup,
+  WAFIPGroupPayload,
+  WAFRuleGroup,
+  WAFRuleGroupPayload,
+} from '@/lib/services/openflare';
 
 export type WAFTab = 'basic' | 'lists' | 'pow' | 'block';
 export type RuleListType = 'whitelist' | 'blacklist';
@@ -266,3 +272,63 @@ export const automaticPresetRules = [
     expr: 'ip_host_count > 50 && ip_host_ratio > 0.5',
   },
 ];
+
+export type IPGroupViewEntry = {
+  ip: string;
+  capturedAt?: string;
+  banRemaining?: string;
+};
+
+export function buildIPGroupPayloadFromGroup(
+  group: WAFIPGroup,
+  ipList: string[],
+): WAFIPGroupPayload {
+  return {
+    name: group.name,
+    type: group.type,
+    enabled: group.enabled,
+    ip_list: ipList,
+    auto_config: group.auto_config ?? {},
+    subscription_url: group.subscription_url ?? '',
+    subscription_format: group.subscription_format ?? 'text',
+    subscription_mapping_rule: group.subscription_mapping_rule ?? '',
+    sync_interval_minutes: group.sync_interval_minutes || 1440,
+    remark: group.remark ?? '',
+  };
+}
+
+export function formatIPGroupBanRemaining(
+  capturedAt: string,
+  ttlSeconds: number,
+  now = new Date(),
+): string {
+  if (ttlSeconds <= 0) {
+    return '永久';
+  }
+  const capturedDate = new Date(capturedAt);
+  if (Number.isNaN(capturedDate.getTime())) {
+    return '—';
+  }
+  const expireDate = new Date(capturedDate.getTime() + ttlSeconds * 1000);
+  if (expireDate.getTime() <= now.getTime()) {
+    return '已过期';
+  }
+  const diffMins = Math.round((expireDate.getTime() - now.getTime()) / (60 * 1000));
+  if (diffMins < 60) {
+    return `${diffMins} 分钟后`;
+  }
+  return `${Math.round(diffMins / 60)} 小时后`;
+}
+
+export function getIPGroupViewEntries(group: WAFIPGroup): IPGroupViewEntry[] {
+  if (group.type === 'automatic' && group.ext_ips && group.ext_ips.length > 0) {
+    const ttl =
+      typeof group.auto_config?.ttl === 'number' ? group.auto_config.ttl : -1;
+    return group.ext_ips.map((item) => ({
+      ip: item.ip,
+      capturedAt: item.captured_at,
+      banRemaining: formatIPGroupBanRemaining(item.captured_at, ttl),
+    }));
+  }
+  return (group.ip_list ?? []).map((ip) => ({ ip }));
+}

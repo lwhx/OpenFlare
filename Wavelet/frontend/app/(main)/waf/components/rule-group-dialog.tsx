@@ -202,21 +202,6 @@ export function RuleGroupDialog({
                     />
                     <FormField
                       control={form.control}
-                      name="enabled"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center justify-between rounded-lg border border-dashed p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel>启用规则组</FormLabel>
-                            <FormDescription>关闭后保留配置，但不会参与匹配。</FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
                       name="remark"
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
@@ -229,6 +214,20 @@ export function RuleGroupDialog({
                       )}
                     />
                   </div>
+                  <FormField
+                    control={form.control}
+                    name="enabled"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-lg border border-dashed p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel>启用规则组</FormLabel>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
                 </TabsContent>
 
                 <TabsContent value="lists" className="space-y-4 mt-4">

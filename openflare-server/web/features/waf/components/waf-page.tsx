@@ -1,18 +1,18 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Globe2, Network, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
+import type {ReactNode} from 'react';
+import {useEffect, useMemo, useState} from 'react';
+import {useRouter} from 'next/navigation';
+import {Globe2, Network, Plus, Save, ShieldCheck, Trash2} from 'lucide-react';
 
-import { EmptyState } from '@/components/feedback/empty-state';
-import { ErrorState } from '@/components/feedback/error-state';
-import { InlineMessage } from '@/components/feedback/inline-message';
-import { LoadingState } from '@/components/feedback/loading-state';
-import { PageHeader } from '@/components/layout/page-header';
-import { AppCard } from '@/components/ui/app-card';
-import { getProxyRoutes } from '@/features/proxy-routes/api/proxy-routes';
+import {EmptyState} from '@/components/feedback/empty-state';
+import {ErrorState} from '@/components/feedback/error-state';
+import {InlineMessage} from '@/components/feedback/inline-message';
+import {LoadingState} from '@/components/feedback/loading-state';
+import {PageHeader} from '@/components/layout/page-header';
+import {AppCard} from '@/components/ui/app-card';
+import {getProxyRoutes} from '@/features/proxy-routes/api/proxy-routes';
 import {
   DangerButton,
   PrimaryButton,
@@ -30,18 +30,14 @@ import {
   replaceWAFRuleGroupSites,
   updateWAFRuleGroup,
 } from '@/features/waf/api/waf';
-import type {
-  WAFIPGroup,
-  WAFRuleGroup,
-  WAFRuleGroupPayload,
-} from '@/features/waf/types';
-import { cn } from '@/lib/utils/cn';
+import type {WAFIPGroup, WAFRuleGroup, WAFRuleGroupPayload,} from '@/features/waf/types';
+import {cn} from '@/lib/utils/cn';
 
-import { RuleEntryModal } from './rule-entry-modal';
-import { SiteApplyDrawer } from './site-apply-drawer';
-import { PowTabPanel } from './pow-tab-panel';
-import { RuleListSection } from './rule-list-section';
-import { TabButton } from './tab-button';
+import {RuleEntryModal} from './rule-entry-modal';
+import {SiteApplyDrawer} from './site-apply-drawer';
+import {PowTabPanel} from './pow-tab-panel';
+import {RuleListSection} from './rule-list-section';
+import {TabButton} from './tab-button';
 import {
   buildCountryOptions,
   buildDraft,
@@ -56,12 +52,7 @@ import {
   textToList,
   updateDraftList,
 } from './helpers';
-import type {
-  FeedbackState,
-  ListFieldKey,
-  RuleModalState,
-  WAFTab,
-} from './types';
+import type {FeedbackState, ListFieldKey, RuleModalState, WAFTab,} from './types';
 
 export function WAFPage() {
   const router = useRouter();
@@ -444,7 +435,6 @@ export function WAFPage() {
                     </ResourceField>
                     <ToggleField
                       label="启用规则组"
-                      description="关闭后保留配置，但不会参与匹配。"
                       checked={draft.enabled}
                       onChange={(checked) =>
                         setDraft((current) => ({

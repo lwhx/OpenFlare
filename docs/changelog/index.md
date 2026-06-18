@@ -65,6 +65,7 @@ sidebar: false
 
 - 移除 Wavelet 顶栏 OpenFlare 服务端版本入口按钮；版本升级能力保留在 Admin 设置 OpenFlare 运维 Tab。
 - 将 Wavelet 默认上游仓库调整为 `Rain-kl/OpenFlare`，站点名称、邮件模板、前端默认标题与页脚品牌统一初始化为 OpenFlare；新增 goose 迁移回填既有环境的旧 Wavelet 默认值。
+- Wavelet WAF IP 组列表新增「查看」操作，支持在查看弹窗中浏览当前 IP 并移除单条 IP；自动类型同步裁剪 `ext_ips` 以与 `ip_list` 保持一致。
 
 ## [v2.3.4] - 2026-06-17
 

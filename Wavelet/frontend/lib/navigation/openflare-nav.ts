@@ -50,10 +50,10 @@ export const openflareWebsiteNavGroup: OpenFlareNavGroup = {
   title: '网站管理',
   icon: Globe,
   items: [
-    {title: '网站', url: '/websites', childUrls: ['/websites/detail']},
-    {title: '证书', url: '/websites/certificates'},
-    {title: 'DNS', url: '/websites/dns-accounts'},
-    {title: '源站', url: '/origins', childUrls: ['/origins/detail']},
+    {title: '域名列表', url: '/websites', childUrls: ['/websites/detail']},
+    {title: 'TLS证书', url: '/websites/certificates'},
+    {title: 'DNS账号', url: '/websites/dns-accounts'},
+    {title: '源站地址', url: '/origins', childUrls: ['/origins/detail']},
   ],
 };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import {Download, MoreHorizontal, Pencil, Play, Trash2} from 'lucide-react';
+import {Download, Eye, MoreHorizontal, Pencil, Play, Trash2} from 'lucide-react';
 
 import {Badge} from '@/components/ui/badge';
 import {Button} from '@/components/ui/button';
@@ -20,6 +20,7 @@ import {ipGroupTypeLabels} from './helpers';
 interface IPGroupsTableProps {
   groups: WAFIPGroup[];
   syncingId: number | null;
+  onView: (group: WAFIPGroup) => void;
   onEdit: (group: WAFIPGroup) => void;
   onDelete: (group: WAFIPGroup) => void;
   onSync: (group: WAFIPGroup) => void;
@@ -29,6 +30,7 @@ interface IPGroupsTableProps {
 export function IPGroupsTable({
   groups,
   syncingId,
+  onView,
   onEdit,
   onDelete,
   onSync,
@@ -78,6 +80,10 @@ export function IPGroupsTable({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onView(group)}>
+                    <Eye className="size-4 mr-2" />
+                    查看
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onEdit(group)}>
                     <Pencil className="size-4 mr-2" />
                     编辑
