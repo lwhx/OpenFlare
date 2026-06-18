@@ -60,6 +60,7 @@ export type {
   DashboardTraffic,
   DashboardCapacity,
   DistributionItem,
+  TrafficDistributions,
   TrafficTrendPoint,
   CapacityTrendPoint,
   NetworkTrendPoint,
