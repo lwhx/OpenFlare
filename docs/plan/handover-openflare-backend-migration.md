@@ -47,7 +47,7 @@
 go test ./internal/apps/openflare/... -count=1   # 全部通过
 ```
 
-**已知问题**：`go build ./...` 因 `github.com/boj/redistore` 与 `go-redis/v9` 版本不兼容失败（Wavelet 既有依赖问题，与 OpenFlare 迁移无关）。OpenFlare 包与 integration 测试均可独立编译通过。
+**依赖修复（2026-06-19）**：`replace github.com/rain-kl/openflare => ../` 会引入 OpenFlare 根 `go.mod` 的 `gomodule/redigo v2.0.0+incompatible`，与 `gin-contrib/sessions/redistore` 不兼容。已在 `Wavelet/go.mod` 添加 `exclude` 并锁定 `redigo v1.9.3`，`go build ./...` 正常。
 
 ## 源代码参考
 

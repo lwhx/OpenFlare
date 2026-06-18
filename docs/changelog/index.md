@@ -21,6 +21,7 @@ sidebar: false
 - 将 `openflare-server` 后端业务域迁移至 `Wavelet/internal/apps/openflare/`，通过 `/api/*` legacy 兼容层保持旧前端 API 路径不变。
 - 新增 OpenFlare 业务表 goose 迁移（`of_options`、`of_origins`、`of_proxy_routes`、`of_nodes`、`of_waf_*`、`of_tls_*`、`of_config_versions`、`of_pages_*`、`of_apply_logs` 等）。
 - 重叠职能复用 Wavelet 内置用户/OAuth/Cap/认证源能力；新增 `integration` 包覆盖认证、核心链路、安全、Agent 协议集成测试。
+- 修复 Wavelet 引入 `openflare` 模块后 `gomodule/redigo v2.0.0+incompatible` 导致 `redistore` 编译失败的问题。
 
 ## [v2.3.4] - 2026-06-17
 
