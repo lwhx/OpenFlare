@@ -18,7 +18,8 @@ sidebar: false
 
 ### 变更
 
-- `of_node_access_logs` 从 PostgreSQL/SQLite 迁移至 ClickHouse（数据库 `openflare`）；系统启动时强依赖 ClickHouse 连接与表结构自动初始化。
+- `of_node_access_logs` 从 PostgreSQL/SQLite 迁移至 ClickHouse（数据库 `openflare`）；ClickHouse 表结构改由 goose 独立迁移管线管理（`goose_clickhouse_version`），启动时在 `migrator.MigrateClickHouse()` 中执行，移除 `clickhouse_schema.go` 手写 DDL。
+- ClickHouse 分析库接入 GORM（`db.ChDB`）与 `internal/repository/analytics/`：用户访问日志（`w_user_access_logs`）读写、风控批量写入与管理端日志统计 API 统一经 repository 访问；新增 `internal/model/analytics/` 分析表模型。
 - ClickHouse 默认启用（`clickhouse.enabled: true`），`docker-compose` 默认启动 `clickhouse` 服务并纳入 `wavelet` 健康依赖。
 
 ### 移除
