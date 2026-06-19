@@ -27,7 +27,6 @@ import {PushService} from './push';
 import {AdminUploadService, UploadService} from './upload';
 import {UserService} from './user';
 import {
-  AboutService,
   AccessLogService,
   ApplyLogService,
   ConfigVersionService,
@@ -61,7 +60,6 @@ const services = {
   adminUpload: AdminUploadService,
   dbManage: DbManageService,
   push: PushService,
-  openflareAbout: AboutService,
   openflareNode: NodeService,
   openflareProxyRoute: ProxyRouteService,
   openflareConfigVersion: ConfigVersionService,
@@ -181,7 +179,6 @@ export type { PushEvent, PushHistory, PushChannelConfig, ListPushHistoriesReques
 // ==================== OpenFlare 业务服务导出 ====================
 
 export {
-  AboutService,
   OpenFlareBaseService,
   NodeService,
   ProxyRouteService,
