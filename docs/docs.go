@@ -4054,6 +4054,375 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/agent/apply-logs": {
+            "post": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "记录 Agent 配置下发与应用结果",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-agent"
+                ],
+                "summary": "上报配置应用日志",
+                "parameters": [
+                    {
+                        "description": "应用日志",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agent.ApplyLogPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "日志记录",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.OpenFlareApplyLog"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/agent/config-versions/active": {
+            "get": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "返回当前生效的完整配置包，供 Agent 拉取并应用",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-agent"
+                ],
+                "summary": "获取活跃配置版本",
+                "responses": {
+                    "200": {
+                        "description": "活跃配置",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agent.ConfigResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/agent/nodes/heartbeat": {
+            "post": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "上报节点状态、指标与健康事件，返回远程控制配置与活跃配置元信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-agent"
+                ],
+                "summary": "Agent 心跳上报",
+                "parameters": [
+                    {
+                        "description": "心跳数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agent.NodePayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "心跳成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agent.HeartbeatResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/agent/nodes/register": {
+            "post": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "使用节点 access token 重新注册，或使用全局 discovery token 发现新节点；请求头需携带 X-Agent-Token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-agent"
+                ],
+                "summary": "注册或发现 Agent 节点",
+                "parameters": [
+                    {
+                        "description": "节点上报数据",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agent.NodePayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "注册成功",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agent.RegistrationResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/agent/pages/deployments/{deployment_id}/package": {
+            "get": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "流式下载指定部署的静态资源压缩包，供 Agent 边缘分发",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "openflare-agent"
+                ],
+                "summary": "下载 Pages 部署包",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "部署 ID",
+                        "name": "deployment_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "部署包文件",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/agent/waf/ip-groups/sync": {
+            "post": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "按 ID 与校验和增量同步 WAF IP 组定义",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-agent"
+                ],
+                "summary": "同步 WAF IP 组",
+                "parameters": [
+                    {
+                        "description": "同步请求",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agent.WAFIPGroupSyncInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "同步结果",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/agent.WAFIPGroupSyncResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/agent/ws": {
+            "get": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "升级为 WebSocket 长连接，用于实时推送配置同步、WAF IP 组等指令；需携带 X-Agent-Token",
+                "tags": [
+                    "openflare-agent"
+                ],
+                "summary": "Agent WebSocket 连接",
+                "responses": {
+                    "401": {
+                        "description": "Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/config/public": {
             "get": {
                 "description": "返回系统配置表中 visibility 为 1 的配置键值集合",
@@ -4205,8 +4574,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -4280,8 +4649,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -4397,8 +4766,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -4520,8 +4889,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -4625,8 +4994,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -4718,8 +5087,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -4775,12 +5144,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -5479,8 +5842,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -5543,8 +5906,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -5616,8 +5979,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -5670,12 +6033,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -5762,12 +6119,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -5832,8 +6183,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -5905,8 +6256,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -5975,8 +6326,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -6029,12 +6380,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -6117,12 +6462,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7011,8 +7350,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7085,8 +7424,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7160,8 +7499,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7223,8 +7562,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7286,8 +7625,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7679,8 +8018,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7752,8 +8091,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7821,12 +8160,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -7901,12 +8234,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "项目不存在",
                         "schema": {
@@ -7961,12 +8288,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -8040,12 +8361,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -8130,12 +8445,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "项目不存在",
                         "schema": {
@@ -8213,12 +8522,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "项目或部署不存在",
                         "schema": {
@@ -8280,12 +8583,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -8368,12 +8665,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -8815,8 +9106,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -8888,8 +9179,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -8963,8 +9254,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9055,8 +9346,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9121,12 +9412,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9197,12 +9482,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9289,12 +9568,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -9349,12 +9622,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9425,12 +9692,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9517,12 +9778,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -9605,12 +9860,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -9675,8 +9924,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9739,8 +9988,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9812,8 +10061,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9887,8 +10136,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -9957,12 +10206,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -10017,12 +10260,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -10093,12 +10330,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -10185,12 +10416,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -10255,8 +10480,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -10328,8 +10553,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
+                    "404": {
+                        "description": "无权限或不存在",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -10398,12 +10623,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -10458,12 +10677,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -10550,12 +10763,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -10638,12 +10845,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Any"
                         }
                     },
-                    "403": {
-                        "description": "无管理员权限",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
                     "404": {
                         "description": "记录不存在",
                         "schema": {
@@ -10710,12 +10911,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -10796,12 +10991,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未登录",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "403": {
-                        "description": "无管理员权限",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -11221,6 +11410,324 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Redis 异常或构造 URL 失败",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/relay/heartbeat": {
+            "post": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "Relay 节点定期上报运行状态与 frps 观测数据，返回运行时配置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-relay"
+                ],
+                "summary": "上报 Relay 心跳",
+                "parameters": [
+                    {
+                        "description": "心跳载荷",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/relay.HeartbeatPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "心跳响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/relay.HeartbeatResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Agent Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "403": {
+                        "description": "节点类型不匹配",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/relay/ws": {
+            "get": {
+                "security": [
+                    {
+                        "AgentTokenAuth": []
+                    }
+                ],
+                "description": "将已认证的 Relay 连接升级为 WebSocket 长连接，用于配置推送",
+                "tags": [
+                    "openflare-relay"
+                ],
+                "summary": "升级 Relay WebSocket 连接",
+                "responses": {
+                    "401": {
+                        "description": "Agent Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "403": {
+                        "description": "节点类型不匹配",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tunnel/apply-log": {
+            "post": {
+                "security": [
+                    {
+                        "TunnelTokenAuth": []
+                    }
+                ],
+                "description": "Tunnel 客户端上报配置应用结果，服务端记录下发日志",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-tunnel"
+                ],
+                "summary": "上报 Tunnel 配置下发结果",
+                "parameters": [
+                    {
+                        "description": "下发结果载荷",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/flared.ApplyLogPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "下发日志记录",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.OpenFlareApplyLog"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Tunnel Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "403": {
+                        "description": "节点类型不匹配",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tunnel/config/active": {
+            "get": {
+                "security": [
+                    {
+                        "TunnelTokenAuth": []
+                    }
+                ],
+                "description": "返回 Tunnel 客户端当前应应用的完整路由配置（含中继列表与代理定义）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-tunnel"
+                ],
+                "summary": "获取活跃隧道配置",
+                "responses": {
+                    "200": {
+                        "description": "隧道配置",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/flared.TunnelConfigResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Tunnel Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "403": {
+                        "description": "节点类型不匹配",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tunnel/heartbeat": {
+            "post": {
+                "security": [
+                    {
+                        "TunnelTokenAuth": []
+                    }
+                ],
+                "description": "Tunnel 客户端定期上报运行状态与中继连接信息，返回活跃配置元数据与隧道设置",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "openflare-tunnel"
+                ],
+                "summary": "上报 Tunnel 心跳",
+                "parameters": [
+                    {
+                        "description": "心跳载荷",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/flared.HeartbeatPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "心跳响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Any"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/flared.HeartbeatResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "401": {
+                        "description": "Tunnel Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "403": {
+                        "description": "节点类型不匹配",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tunnel/ws": {
+            "get": {
+                "security": [
+                    {
+                        "TunnelTokenAuth": []
+                    }
+                ],
+                "description": "将已认证的 Tunnel 客户端连接升级为 WebSocket 长连接，用于配置推送",
+                "tags": [
+                    "openflare-tunnel"
+                ],
+                "summary": "升级 Tunnel WebSocket 连接",
+                "responses": {
+                    "401": {
+                        "description": "Tunnel Token 无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Any"
+                        }
+                    },
+                    "403": {
+                        "description": "节点类型不匹配",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
                         }
@@ -12183,6 +12690,265 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "agent.ActiveConfigMeta": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.ApplyLogPayload": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "type": "string"
+                },
+                "main_config_checksum": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "node_id": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "string"
+                },
+                "route_config_checksum": {
+                    "type": "string"
+                },
+                "support_file_count": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.ConfigResponse": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "source_config_json": {
+                    "type": "string"
+                },
+                "support_files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agent.SupportFile"
+                    }
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.HeartbeatResponse": {
+            "type": "object",
+            "properties": {
+                "active_config": {
+                    "$ref": "#/definitions/agent.ActiveConfigMeta"
+                },
+                "agent_settings": {
+                    "$ref": "#/definitions/agent.Settings"
+                },
+                "node": {
+                    "$ref": "#/definitions/model.OpenFlareNode"
+                },
+                "waf_ip_groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agent.WAFIPGroup"
+                    }
+                }
+            }
+        },
+        "agent.NodePayload": {
+            "type": "object",
+            "properties": {
+                "access_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeAccessLog"
+                    }
+                },
+                "buffered_observability": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.BufferedObservabilityRecord"
+                    }
+                },
+                "current_version": {
+                    "type": "string"
+                },
+                "ext_version": {
+                    "type": "string"
+                },
+                "health_events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeHealthEvent"
+                    }
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "node_id": {
+                    "type": "string"
+                },
+                "openresty_message": {
+                    "type": "string"
+                },
+                "openresty_observation": {
+                    "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeOpenrestyObservation"
+                },
+                "openresty_status": {
+                    "type": "string"
+                },
+                "profile": {
+                    "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeSystemProfile"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeMetricSnapshot"
+                },
+                "traffic_report": {
+                    "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeTrafficReport"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "waf_ip_group_checksums": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "agent.RegistrationResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "node_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.Settings": {
+            "type": "object",
+            "properties": {
+                "auto_update": {
+                    "type": "boolean"
+                },
+                "heartbeat_interval": {
+                    "type": "integer"
+                },
+                "restart_openresty_now": {
+                    "type": "boolean"
+                },
+                "update_channel": {
+                    "type": "string"
+                },
+                "update_now": {
+                    "type": "boolean"
+                },
+                "update_repo": {
+                    "type": "string"
+                },
+                "update_tag": {
+                    "type": "string"
+                },
+                "websocket_upgrade_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "agent.SupportFile": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.WAFIPGroup": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "agent.WAFIPGroupSyncInput": {
+            "type": "object",
+            "properties": {
+                "checksums": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "agent.WAFIPGroupSyncResult": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.WAFIPGroup"
+                    }
+                }
+            }
+        },
         "apply_log.CleanupInput": {
             "type": "object",
             "properties": {
@@ -12722,6 +13488,98 @@ const docTemplate = `{
                 }
             }
         },
+        "flared.ApplyLogPayload": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "type": "string"
+                },
+                "main_config_checksum": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "node_id": {
+                    "type": "string"
+                },
+                "result": {
+                    "type": "string"
+                },
+                "route_config_checksum": {
+                    "type": "string"
+                },
+                "support_file_count": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "flared.HeartbeatPayload": {
+            "type": "object",
+            "properties": {
+                "client_version": {
+                    "type": "string"
+                },
+                "connected_relays": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/protocol.FlaredConnectedRelay"
+                    }
+                },
+                "current_checksum": {
+                    "type": "string"
+                },
+                "current_version": {
+                    "type": "string"
+                },
+                "frp_version": {
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "tunnel_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "flared.HeartbeatResponse": {
+            "type": "object",
+            "properties": {
+                "active_config": {
+                    "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.ActiveConfigMeta"
+                },
+                "tunnel_settings": {
+                    "$ref": "#/definitions/protocol.RelaySettings"
+                }
+            }
+        },
+        "flared.TunnelConfigResponse": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "type": "string"
+                },
+                "proxies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/protocol.FlaredProxyEntry"
+                    }
+                },
+                "relays": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/protocol.FlaredRelayInfo"
+                    }
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_Rain-kl_Wavelet_internal_apps_cap.RedeemResponse": {
             "type": "object",
             "properties": {
@@ -12735,6 +13593,240 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.ActiveConfigMeta": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.BufferedObservabilityRecord": {
+            "type": "object",
+            "properties": {
+                "access_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeAccessLog"
+                    }
+                },
+                "openresty_observation": {
+                    "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeOpenrestyObservation"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeMetricSnapshot"
+                },
+                "traffic_report": {
+                    "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeTrafficReport"
+                },
+                "window_started_at_unix": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.NodeAccessLog": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "logged_at_unix": {
+                    "type": "integer"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "remote_addr": {
+                    "type": "string"
+                },
+                "status_code": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.NodeHealthEvent": {
+            "type": "object",
+            "properties": {
+                "event_type": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "triggered_at_unix": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.NodeMetricSnapshot": {
+            "type": "object",
+            "properties": {
+                "captured_at_unix": {
+                    "type": "integer"
+                },
+                "cpu_usage_percent": {
+                    "type": "number"
+                },
+                "disk_read_bytes": {
+                    "type": "integer"
+                },
+                "disk_write_bytes": {
+                    "type": "integer"
+                },
+                "memory_total_bytes": {
+                    "type": "integer"
+                },
+                "memory_used_bytes": {
+                    "type": "integer"
+                },
+                "network_rx_bytes": {
+                    "type": "integer"
+                },
+                "network_tx_bytes": {
+                    "type": "integer"
+                },
+                "storage_total_bytes": {
+                    "type": "integer"
+                },
+                "storage_used_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.NodeOpenrestyObservation": {
+            "type": "object",
+            "properties": {
+                "captured_at_unix": {
+                    "type": "integer"
+                },
+                "openresty_connections": {
+                    "type": "integer"
+                },
+                "openresty_rx_bytes": {
+                    "type": "integer"
+                },
+                "openresty_tx_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.NodeSystemProfile": {
+            "type": "object",
+            "properties": {
+                "architecture": {
+                    "type": "string"
+                },
+                "cpu_cores": {
+                    "type": "integer"
+                },
+                "cpu_model": {
+                    "type": "string"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "kernel_version": {
+                    "type": "string"
+                },
+                "os_name": {
+                    "type": "string"
+                },
+                "os_version": {
+                    "type": "string"
+                },
+                "reported_at_unix": {
+                    "type": "integer"
+                },
+                "total_disk_bytes": {
+                    "type": "integer"
+                },
+                "total_memory_bytes": {
+                    "type": "integer"
+                },
+                "uptime_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.NodeTrafficReport": {
+            "type": "object",
+            "properties": {
+                "error_count": {
+                    "type": "integer"
+                },
+                "request_count": {
+                    "type": "integer"
+                },
+                "source_countries": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "status_codes": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "top_domains": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "unique_visitor_count": {
+                    "type": "integer"
+                },
+                "window_ended_at_unix": {
+                    "type": "integer"
+                },
+                "window_started_at_unix": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.WAFIPGroup": {
+            "type": "object",
+            "properties": {
+                "checksum": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
                     "type": "string"
                 }
             }
@@ -13358,6 +14450,110 @@ const docTemplate = `{
                 },
                 "storage_used_bytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "model.OpenFlareNode": {
+            "type": "object",
+            "properties": {
+                "auto_update_enabled": {
+                    "type": "boolean"
+                },
+                "capabilities_json": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "current_version": {
+                    "type": "string"
+                },
+                "ext_version": {
+                    "type": "string"
+                },
+                "geo_latitude": {
+                    "type": "number"
+                },
+                "geo_longitude": {
+                    "type": "number"
+                },
+                "geo_manual_override": {
+                    "type": "boolean"
+                },
+                "geo_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "ip_manual_override": {
+                    "type": "boolean"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "last_seen_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "node_id": {
+                    "type": "string"
+                },
+                "node_type": {
+                    "type": "string"
+                },
+                "openresty_message": {
+                    "type": "string"
+                },
+                "openresty_status": {
+                    "type": "string"
+                },
+                "relay_agent_access_addr": {
+                    "type": "string"
+                },
+                "relay_bind_port": {
+                    "type": "integer"
+                },
+                "relay_client_access_addr": {
+                    "type": "string"
+                },
+                "relay_client_proxy_url": {
+                    "type": "string"
+                },
+                "relay_status": {
+                    "type": "string"
+                },
+                "relay_vhost_http_port": {
+                    "type": "integer"
+                },
+                "relay_web_server_enabled": {
+                    "type": "boolean"
+                },
+                "restart_openresty_requested": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "update_channel": {
+                    "type": "string"
+                },
+                "update_requested": {
+                    "type": "boolean"
+                },
+                "update_tag": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
                 }
             }
         },
@@ -14456,7 +15652,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "logged_at": {
                     "type": "string"
@@ -15254,6 +16450,228 @@ const docTemplate = `{
                 }
             }
         },
+        "protocol.AgentNodeHealthEvent": {
+            "type": "object",
+            "properties": {
+                "event_type": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "triggered_at_unix": {
+                    "type": "integer"
+                }
+            }
+        },
+        "protocol.AgentNodeMetricSnapshot": {
+            "type": "object",
+            "properties": {
+                "captured_at_unix": {
+                    "type": "integer"
+                },
+                "cpu_usage_percent": {
+                    "type": "number"
+                },
+                "disk_read_bytes": {
+                    "type": "integer"
+                },
+                "disk_write_bytes": {
+                    "type": "integer"
+                },
+                "memory_total_bytes": {
+                    "type": "integer"
+                },
+                "memory_used_bytes": {
+                    "type": "integer"
+                },
+                "network_rx_bytes": {
+                    "type": "integer"
+                },
+                "network_tx_bytes": {
+                    "type": "integer"
+                },
+                "storage_total_bytes": {
+                    "type": "integer"
+                },
+                "storage_used_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "protocol.AgentNodeSystemProfile": {
+            "type": "object",
+            "properties": {
+                "architecture": {
+                    "type": "string"
+                },
+                "cpu_cores": {
+                    "type": "integer"
+                },
+                "cpu_model": {
+                    "type": "string"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "kernel_version": {
+                    "type": "string"
+                },
+                "os_name": {
+                    "type": "string"
+                },
+                "os_version": {
+                    "type": "string"
+                },
+                "reported_at_unix": {
+                    "type": "integer"
+                },
+                "total_disk_bytes": {
+                    "type": "integer"
+                },
+                "total_memory_bytes": {
+                    "type": "integer"
+                },
+                "uptime_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "protocol.FlaredConnectedRelay": {
+            "type": "object",
+            "properties": {
+                "proxy_count": {
+                    "type": "integer"
+                },
+                "relay_node_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "protocol.FlaredProxyEntry": {
+            "type": "object",
+            "properties": {
+                "custom_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "local_addr": {
+                    "type": "string"
+                },
+                "local_port": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "protocol.FlaredRelayInfo": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "auth_token": {
+                    "type": "string"
+                },
+                "proxy_url": {
+                    "type": "string"
+                },
+                "relay_node_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "protocol.RelayConfig": {
+            "type": "object",
+            "properties": {
+                "auth_token": {
+                    "type": "string"
+                },
+                "bind_port": {
+                    "type": "integer"
+                },
+                "log_level": {
+                    "type": "string"
+                },
+                "vhost_http_port": {
+                    "type": "integer"
+                },
+                "web_server_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "protocol.RelayProxyStat": {
+            "type": "object",
+            "properties": {
+                "client_addr": {
+                    "type": "string"
+                },
+                "client_version": {
+                    "type": "string"
+                },
+                "last_close_time": {
+                    "type": "string"
+                },
+                "last_start_time": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "protocol.RelaySettings": {
+            "type": "object",
+            "properties": {
+                "auto_update": {
+                    "type": "boolean"
+                },
+                "heartbeat_interval": {
+                    "type": "integer"
+                },
+                "update_channel": {
+                    "type": "string"
+                },
+                "update_now": {
+                    "type": "boolean"
+                },
+                "update_repo": {
+                    "type": "string"
+                },
+                "update_tag": {
+                    "type": "string"
+                },
+                "websocket_upgrade_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "proxy_route.CustomHeaderInput": {
             "type": "object",
             "properties": {
@@ -15801,6 +17219,64 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "relay.HeartbeatPayload": {
+            "type": "object",
+            "properties": {
+                "frp_version": {
+                    "type": "string"
+                },
+                "frps_client_count": {
+                    "type": "integer"
+                },
+                "frps_connections": {
+                    "type": "integer"
+                },
+                "frps_proxies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/protocol.RelayProxyStat"
+                    }
+                },
+                "frps_proxy_count": {
+                    "type": "integer"
+                },
+                "health_events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/protocol.AgentNodeHealthEvent"
+                    }
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "profile": {
+                    "$ref": "#/definitions/protocol.AgentNodeSystemProfile"
+                },
+                "relay_status": {
+                    "type": "string"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/protocol.AgentNodeMetricSnapshot"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "relay.HeartbeatResponse": {
+            "type": "object",
+            "properties": {
+                "relay_config": {
+                    "$ref": "#/definitions/protocol.RelayConfig"
+                },
+                "relay_settings": {
+                    "$ref": "#/definitions/protocol.RelaySettings"
                 }
             }
         },

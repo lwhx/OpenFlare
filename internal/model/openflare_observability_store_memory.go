@@ -356,7 +356,7 @@ func sortOpenFlareMetricSnapshots(items []*OpenFlareMetricSnapshot) {
 		if compare := openFlareAccessLogCompareInt64(left.CapturedAt.Unix(), right.CapturedAt.Unix()); compare != 0 {
 			return compare > 0
 		}
-		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(left.ID), openFlareAccessLogUintToInt64(right.ID)) > 0
+		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(uint64(left.ID)), openFlareAccessLogUintToInt64(uint64(right.ID))) > 0
 	})
 }
 
@@ -370,7 +370,7 @@ func sortOpenFlareRequestReports(items []*OpenFlareRequestReport) {
 		if compare := openFlareAccessLogCompareInt64(left.WindowEndedAt.Unix(), right.WindowEndedAt.Unix()); compare != 0 {
 			return compare > 0
 		}
-		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(left.ID), openFlareAccessLogUintToInt64(right.ID)) > 0
+		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(uint64(left.ID)), openFlareAccessLogUintToInt64(uint64(right.ID))) > 0
 	})
 }
 
@@ -384,7 +384,7 @@ func sortOpenFlareNodeObservationOpenresty(items []*OpenFlareNodeObservationOpen
 		if compare := openFlareAccessLogCompareInt64(left.CapturedAt.Unix(), right.CapturedAt.Unix()); compare != 0 {
 			return compare > 0
 		}
-		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(left.ID), openFlareAccessLogUintToInt64(right.ID)) > 0
+		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(uint64(left.ID)), openFlareAccessLogUintToInt64(uint64(right.ID))) > 0
 	})
 }
 
@@ -398,7 +398,7 @@ func sortOpenFlareNodeObservationFrps(items []*OpenFlareNodeObservationFrps) {
 		if compare := openFlareAccessLogCompareInt64(left.CapturedAt.Unix(), right.CapturedAt.Unix()); compare != 0 {
 			return compare > 0
 		}
-		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(left.ID), openFlareAccessLogUintToInt64(right.ID)) > 0
+		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(uint64(left.ID)), openFlareAccessLogUintToInt64(uint64(right.ID))) > 0
 	})
 }
 
@@ -412,7 +412,7 @@ func sortOpenFlareNodeObservationFrpc(items []*OpenFlareNodeObservationFrpc) {
 		if compare := openFlareAccessLogCompareInt64(left.CapturedAt.Unix(), right.CapturedAt.Unix()); compare != 0 {
 			return compare > 0
 		}
-		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(left.ID), openFlareAccessLogUintToInt64(right.ID)) > 0
+		return openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(uint64(left.ID)), openFlareAccessLogUintToInt64(uint64(right.ID))) > 0
 	})
 }
 

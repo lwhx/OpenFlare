@@ -476,7 +476,7 @@ func openFlareAccessLogStatusCodeToInt32(code int) int32 {
 	}
 }
 
-func openFlareAccessLogUintToInt64(value uint) int64 {
+func openFlareAccessLogUintToInt64(value uint64) int64 {
 	if value > math.MaxInt64 {
 		return math.MaxInt64
 	}

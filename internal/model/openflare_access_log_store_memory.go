@@ -28,7 +28,7 @@ func (s *memoryAccessLogStore) InsertBatch(_ context.Context, records []*OpenFla
 		}
 		copyRecord := *record
 		if copyRecord.ID == 0 {
-			copyRecord.ID = uint(idgen.NextUint64ID())
+			copyRecord.ID = idgen.NextUint64ID()
 		}
 		if copyRecord.CreatedAt.IsZero() {
 			copyRecord.CreatedAt = now

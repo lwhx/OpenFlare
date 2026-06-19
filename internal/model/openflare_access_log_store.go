@@ -216,7 +216,7 @@ func toNodeAccessLogFilter(query OpenFlareAccessLogQuery) analyticsrepo.NodeAcce
 
 func toAnalyticsNodeAccessLog(record *OpenFlareAccessLog) analyticsmodel.NodeAccessLog {
 	return analyticsmodel.NodeAccessLog{
-		ID:         uint64(record.ID),
+		ID:         record.ID,
 		NodeID:     record.NodeID,
 		LoggedAt:   record.LoggedAt,
 		RemoteAddr: record.RemoteAddr,
@@ -232,7 +232,7 @@ func fromAnalyticsNodeAccessLogs(rows []analyticsmodel.NodeAccessLog) []*OpenFla
 	result := make([]*OpenFlareAccessLog, len(rows))
 	for index, row := range rows {
 		result[index] = &OpenFlareAccessLog{
-			ID:         uint(row.ID),
+			ID:         row.ID,
 			NodeID:     row.NodeID,
 			LoggedAt:   row.LoggedAt,
 			RemoteAddr: row.RemoteAddr,

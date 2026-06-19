@@ -1,5 +1,174 @@
 basePath: /
 definitions:
+  agent.ActiveConfigMeta:
+    properties:
+      checksum:
+        type: string
+      version:
+        type: string
+    type: object
+  agent.ApplyLogPayload:
+    properties:
+      checksum:
+        type: string
+      main_config_checksum:
+        type: string
+      message:
+        type: string
+      node_id:
+        type: string
+      result:
+        type: string
+      route_config_checksum:
+        type: string
+      support_file_count:
+        type: integer
+      version:
+        type: string
+    type: object
+  agent.ConfigResponse:
+    properties:
+      checksum:
+        type: string
+      created_at:
+        type: string
+      source_config_json:
+        type: string
+      support_files:
+        items:
+          $ref: '#/definitions/agent.SupportFile'
+        type: array
+      version:
+        type: string
+    type: object
+  agent.HeartbeatResponse:
+    properties:
+      active_config:
+        $ref: '#/definitions/agent.ActiveConfigMeta'
+      agent_settings:
+        $ref: '#/definitions/agent.Settings'
+      node:
+        $ref: '#/definitions/model.OpenFlareNode'
+      waf_ip_groups:
+        items:
+          $ref: '#/definitions/agent.WAFIPGroup'
+        type: array
+    type: object
+  agent.NodePayload:
+    properties:
+      access_logs:
+        items:
+          $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeAccessLog'
+        type: array
+      buffered_observability:
+        items:
+          $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.BufferedObservabilityRecord'
+        type: array
+      current_version:
+        type: string
+      ext_version:
+        type: string
+      health_events:
+        items:
+          $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeHealthEvent'
+        type: array
+      ip:
+        type: string
+      last_error:
+        type: string
+      name:
+        type: string
+      node_id:
+        type: string
+      openresty_message:
+        type: string
+      openresty_observation:
+        $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeOpenrestyObservation'
+      openresty_status:
+        type: string
+      profile:
+        $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeSystemProfile'
+      snapshot:
+        $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeMetricSnapshot'
+      traffic_report:
+        $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeTrafficReport'
+      version:
+        type: string
+      waf_ip_group_checksums:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  agent.RegistrationResponse:
+    properties:
+      access_token:
+        type: string
+      name:
+        type: string
+      node_id:
+        type: string
+    type: object
+  agent.Settings:
+    properties:
+      auto_update:
+        type: boolean
+      heartbeat_interval:
+        type: integer
+      restart_openresty_now:
+        type: boolean
+      update_channel:
+        type: string
+      update_now:
+        type: boolean
+      update_repo:
+        type: string
+      update_tag:
+        type: string
+      websocket_upgrade_enabled:
+        type: boolean
+    type: object
+  agent.SupportFile:
+    properties:
+      content:
+        type: string
+      path:
+        type: string
+    type: object
+  agent.WAFIPGroup:
+    properties:
+      checksum:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: integer
+      ip_list:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  agent.WAFIPGroupSyncInput:
+    properties:
+      checksums:
+        additionalProperties:
+          type: string
+        type: object
+      ids:
+        items:
+          type: integer
+        type: array
+    type: object
+  agent.WAFIPGroupSyncResult:
+    properties:
+      groups:
+        items:
+          $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.WAFIPGroup'
+        type: array
+    type: object
   apply_log.CleanupInput:
     properties:
       delete_all:
@@ -356,6 +525,66 @@ definitions:
       ttl_minutes:
         type: integer
     type: object
+  flared.ApplyLogPayload:
+    properties:
+      checksum:
+        type: string
+      main_config_checksum:
+        type: string
+      message:
+        type: string
+      node_id:
+        type: string
+      result:
+        type: string
+      route_config_checksum:
+        type: string
+      support_file_count:
+        type: integer
+      version:
+        type: string
+    type: object
+  flared.HeartbeatPayload:
+    properties:
+      client_version:
+        type: string
+      connected_relays:
+        items:
+          $ref: '#/definitions/protocol.FlaredConnectedRelay'
+        type: array
+      current_checksum:
+        type: string
+      current_version:
+        type: string
+      frp_version:
+        type: string
+      ip:
+        type: string
+      tunnel_status:
+        type: string
+    type: object
+  flared.HeartbeatResponse:
+    properties:
+      active_config:
+        $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.ActiveConfigMeta'
+      tunnel_settings:
+        $ref: '#/definitions/protocol.RelaySettings'
+    type: object
+  flared.TunnelConfigResponse:
+    properties:
+      checksum:
+        type: string
+      proxies:
+        items:
+          $ref: '#/definitions/protocol.FlaredProxyEntry'
+        type: array
+      relays:
+        items:
+          $ref: '#/definitions/protocol.FlaredRelayInfo'
+        type: array
+      version:
+        type: string
+    type: object
   github_com_Rain-kl_Wavelet_internal_apps_cap.RedeemResponse:
     properties:
       error:
@@ -365,6 +594,160 @@ definitions:
       success:
         type: boolean
       token:
+        type: string
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.ActiveConfigMeta:
+    properties:
+      checksum:
+        type: string
+      version:
+        type: string
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.BufferedObservabilityRecord:
+    properties:
+      access_logs:
+        items:
+          $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeAccessLog'
+        type: array
+      openresty_observation:
+        $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeOpenrestyObservation'
+      snapshot:
+        $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeMetricSnapshot'
+      traffic_report:
+        $ref: '#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.NodeTrafficReport'
+      window_started_at_unix:
+        type: integer
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.NodeAccessLog:
+    properties:
+      host:
+        type: string
+      logged_at_unix:
+        type: integer
+      path:
+        type: string
+      remote_addr:
+        type: string
+      status_code:
+        type: integer
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.NodeHealthEvent:
+    properties:
+      event_type:
+        type: string
+      message:
+        type: string
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      severity:
+        type: string
+      triggered_at_unix:
+        type: integer
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.NodeMetricSnapshot:
+    properties:
+      captured_at_unix:
+        type: integer
+      cpu_usage_percent:
+        type: number
+      disk_read_bytes:
+        type: integer
+      disk_write_bytes:
+        type: integer
+      memory_total_bytes:
+        type: integer
+      memory_used_bytes:
+        type: integer
+      network_rx_bytes:
+        type: integer
+      network_tx_bytes:
+        type: integer
+      storage_total_bytes:
+        type: integer
+      storage_used_bytes:
+        type: integer
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.NodeOpenrestyObservation:
+    properties:
+      captured_at_unix:
+        type: integer
+      openresty_connections:
+        type: integer
+      openresty_rx_bytes:
+        type: integer
+      openresty_tx_bytes:
+        type: integer
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.NodeSystemProfile:
+    properties:
+      architecture:
+        type: string
+      cpu_cores:
+        type: integer
+      cpu_model:
+        type: string
+      hostname:
+        type: string
+      kernel_version:
+        type: string
+      os_name:
+        type: string
+      os_version:
+        type: string
+      reported_at_unix:
+        type: integer
+      total_disk_bytes:
+        type: integer
+      total_memory_bytes:
+        type: integer
+      uptime_seconds:
+        type: integer
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.NodeTrafficReport:
+    properties:
+      error_count:
+        type: integer
+      request_count:
+        type: integer
+      source_countries:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      status_codes:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      top_domains:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      unique_visitor_count:
+        type: integer
+      window_ended_at_unix:
+        type: integer
+      window_started_at_unix:
+        type: integer
+    type: object
+  github_com_Rain-kl_Wavelet_pkg_protocol.WAFIPGroup:
+    properties:
+      checksum:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: integer
+      ip_list:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      type:
         type: string
     type: object
   handler.batchDownloadRequest:
@@ -775,6 +1158,75 @@ definitions:
         type: integer
       storage_used_bytes:
         type: integer
+    type: object
+  model.OpenFlareNode:
+    properties:
+      auto_update_enabled:
+        type: boolean
+      capabilities_json:
+        type: string
+      created_at:
+        type: string
+      current_version:
+        type: string
+      ext_version:
+        type: string
+      geo_latitude:
+        type: number
+      geo_longitude:
+        type: number
+      geo_manual_override:
+        type: boolean
+      geo_name:
+        type: string
+      id:
+        type: integer
+      ip:
+        type: string
+      ip_manual_override:
+        type: boolean
+      last_error:
+        type: string
+      last_seen_at:
+        type: string
+      name:
+        type: string
+      node_id:
+        type: string
+      node_type:
+        type: string
+      openresty_message:
+        type: string
+      openresty_status:
+        type: string
+      relay_agent_access_addr:
+        type: string
+      relay_bind_port:
+        type: integer
+      relay_client_access_addr:
+        type: string
+      relay_client_proxy_url:
+        type: string
+      relay_status:
+        type: string
+      relay_vhost_http_port:
+        type: integer
+      relay_web_server_enabled:
+        type: boolean
+      restart_openresty_requested:
+        type: boolean
+      status:
+        type: string
+      update_channel:
+        type: string
+      update_requested:
+        type: boolean
+      update_tag:
+        type: string
+      updated_at:
+        type: string
+      version:
+        type: string
     type: object
   model.OpenFlareNodeSystemProfile:
     properties:
@@ -1510,7 +1962,7 @@ definitions:
       host:
         type: string
       id:
-        type: integer
+        type: string
       logged_at:
         type: string
       node_id:
@@ -2031,6 +2483,151 @@ definitions:
       updated_at:
         type: string
     type: object
+  protocol.AgentNodeHealthEvent:
+    properties:
+      event_type:
+        type: string
+      message:
+        type: string
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      severity:
+        type: string
+      triggered_at_unix:
+        type: integer
+    type: object
+  protocol.AgentNodeMetricSnapshot:
+    properties:
+      captured_at_unix:
+        type: integer
+      cpu_usage_percent:
+        type: number
+      disk_read_bytes:
+        type: integer
+      disk_write_bytes:
+        type: integer
+      memory_total_bytes:
+        type: integer
+      memory_used_bytes:
+        type: integer
+      network_rx_bytes:
+        type: integer
+      network_tx_bytes:
+        type: integer
+      storage_total_bytes:
+        type: integer
+      storage_used_bytes:
+        type: integer
+    type: object
+  protocol.AgentNodeSystemProfile:
+    properties:
+      architecture:
+        type: string
+      cpu_cores:
+        type: integer
+      cpu_model:
+        type: string
+      hostname:
+        type: string
+      kernel_version:
+        type: string
+      os_name:
+        type: string
+      os_version:
+        type: string
+      reported_at_unix:
+        type: integer
+      total_disk_bytes:
+        type: integer
+      total_memory_bytes:
+        type: integer
+      uptime_seconds:
+        type: integer
+    type: object
+  protocol.FlaredConnectedRelay:
+    properties:
+      proxy_count:
+        type: integer
+      relay_node_id:
+        type: string
+      status:
+        type: string
+    type: object
+  protocol.FlaredProxyEntry:
+    properties:
+      custom_domains:
+        items:
+          type: string
+        type: array
+      local_addr:
+        type: string
+      local_port:
+        type: integer
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  protocol.FlaredRelayInfo:
+    properties:
+      address:
+        type: string
+      auth_token:
+        type: string
+      proxy_url:
+        type: string
+      relay_node_id:
+        type: string
+    type: object
+  protocol.RelayConfig:
+    properties:
+      auth_token:
+        type: string
+      bind_port:
+        type: integer
+      log_level:
+        type: string
+      vhost_http_port:
+        type: integer
+      web_server_enabled:
+        type: boolean
+    type: object
+  protocol.RelayProxyStat:
+    properties:
+      client_addr:
+        type: string
+      client_version:
+        type: string
+      last_close_time:
+        type: string
+      last_start_time:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+    type: object
+  protocol.RelaySettings:
+    properties:
+      auto_update:
+        type: boolean
+      heartbeat_interval:
+        type: integer
+      update_channel:
+        type: string
+      update_now:
+        type: boolean
+      update_repo:
+        type: string
+      update_tag:
+        type: string
+      websocket_upgrade_enabled:
+        type: boolean
+    type: object
   proxy_route.CustomHeaderInput:
     properties:
       key:
@@ -2398,6 +2995,44 @@ definitions:
         type: array
       total:
         type: integer
+    type: object
+  relay.HeartbeatPayload:
+    properties:
+      frp_version:
+        type: string
+      frps_client_count:
+        type: integer
+      frps_connections:
+        type: integer
+      frps_proxies:
+        items:
+          $ref: '#/definitions/protocol.RelayProxyStat'
+        type: array
+      frps_proxy_count:
+        type: integer
+      health_events:
+        items:
+          $ref: '#/definitions/protocol.AgentNodeHealthEvent'
+        type: array
+      ip:
+        type: string
+      name:
+        type: string
+      profile:
+        $ref: '#/definitions/protocol.AgentNodeSystemProfile'
+      relay_status:
+        type: string
+      snapshot:
+        $ref: '#/definitions/protocol.AgentNodeMetricSnapshot'
+      version:
+        type: string
+    type: object
+  relay.HeartbeatResponse:
+    properties:
+      relay_config:
+        $ref: '#/definitions/protocol.RelayConfig'
+      relay_settings:
+        $ref: '#/definitions/protocol.RelaySettings'
     type: object
   response.Any:
     properties:
@@ -5711,6 +6346,224 @@ paths:
       summary: 更新用户状态
       tags:
       - admin
+  /api/v1/agent/apply-logs:
+    post:
+      consumes:
+      - application/json
+      description: 记录 Agent 配置下发与应用结果
+      parameters:
+      - description: 应用日志
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/agent.ApplyLogPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 日志记录
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.OpenFlareApplyLog'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: 上报配置应用日志
+      tags:
+      - openflare-agent
+  /api/v1/agent/config-versions/active:
+    get:
+      description: 返回当前生效的完整配置包，供 Agent 拉取并应用
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 活跃配置
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/agent.ConfigResponse'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: 获取活跃配置版本
+      tags:
+      - openflare-agent
+  /api/v1/agent/nodes/heartbeat:
+    post:
+      consumes:
+      - application/json
+      description: 上报节点状态、指标与健康事件，返回远程控制配置与活跃配置元信息
+      parameters:
+      - description: 心跳数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/agent.NodePayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 心跳成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/agent.HeartbeatResponse'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: Agent 心跳上报
+      tags:
+      - openflare-agent
+  /api/v1/agent/nodes/register:
+    post:
+      consumes:
+      - application/json
+      description: 使用节点 access token 重新注册，或使用全局 discovery token 发现新节点；请求头需携带 X-Agent-Token
+      parameters:
+      - description: 节点上报数据
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/agent.NodePayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 注册成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/agent.RegistrationResponse'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: 注册或发现 Agent 节点
+      tags:
+      - openflare-agent
+  /api/v1/agent/pages/deployments/{deployment_id}/package:
+    get:
+      description: 流式下载指定部署的静态资源压缩包，供 Agent 边缘分发
+      parameters:
+      - description: 部署 ID
+        in: path
+        name: deployment_id
+        required: true
+        type: integer
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: 部署包文件
+          schema:
+            type: file
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: 下载 Pages 部署包
+      tags:
+      - openflare-agent
+  /api/v1/agent/waf/ip-groups/sync:
+    post:
+      consumes:
+      - application/json
+      description: 按 ID 与校验和增量同步 WAF IP 组定义
+      parameters:
+      - description: 同步请求
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/agent.WAFIPGroupSyncInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 同步结果
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/agent.WAFIPGroupSyncResult'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: 同步 WAF IP 组
+      tags:
+      - openflare-agent
+  /api/v1/agent/ws:
+    get:
+      description: 升级为 WebSocket 长连接，用于实时推送配置同步、WAF IP 组等指令；需携带 X-Agent-Token
+      responses:
+        "401":
+          description: Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: Agent WebSocket 连接
+      tags:
+      - openflare-agent
   /api/v1/config/public:
     get:
       consumes:
@@ -5800,8 +6653,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -5845,8 +6698,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -5918,8 +6771,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -5995,8 +6848,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -6060,8 +6913,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -6117,8 +6970,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -6151,10 +7004,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -6567,8 +7416,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -6605,8 +7454,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -6649,8 +7498,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -6684,10 +7533,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -6740,10 +7585,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -6782,8 +7623,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -6826,8 +7667,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -6861,10 +7702,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -6917,10 +7754,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -6963,8 +7796,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -7488,8 +8321,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -7532,8 +8365,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -7577,8 +8410,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -7617,8 +8450,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -7657,8 +8490,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -7891,8 +8724,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -7935,8 +8768,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -7977,10 +8810,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 项目不存在
           schema:
@@ -8016,10 +8845,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8064,10 +8889,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8117,10 +8938,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 项目或部署不存在
           schema:
@@ -8161,10 +8978,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8214,10 +9027,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8270,10 +9079,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 项目不存在
           schema:
@@ -8316,10 +9121,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8582,8 +9383,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -8626,8 +9427,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -8666,10 +9467,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8712,10 +9509,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8768,10 +9561,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -8807,10 +9596,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8853,10 +9638,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -8909,10 +9690,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -8963,10 +9740,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -9012,8 +9785,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -9069,8 +9842,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -9107,8 +9880,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -9145,8 +9918,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -9189,8 +9962,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -9231,10 +10004,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -9270,10 +10039,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -9316,10 +10081,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -9372,10 +10133,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -9421,8 +10178,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -9459,8 +10216,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -9503,8 +10260,8 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
+        "404":
+          description: 无权限或不存在
           schema:
             $ref: '#/definitions/response.Any'
         "500":
@@ -9545,10 +10302,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -9584,10 +10337,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -9640,10 +10389,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -9694,10 +10439,6 @@ paths:
           description: 未登录
           schema:
             $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
-          schema:
-            $ref: '#/definitions/response.Any'
         "404":
           description: 记录不存在
           schema:
@@ -9738,10 +10479,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -9791,10 +10528,6 @@ paths:
             $ref: '#/definitions/response.Any'
         "401":
           description: 未登录
-          schema:
-            $ref: '#/definitions/response.Any'
-        "403":
-          description: 无管理员权限
           schema:
             $ref: '#/definitions/response.Any'
         "404":
@@ -10049,6 +10782,195 @@ paths:
       summary: 获取当前登录用户信息
       tags:
       - oauth
+  /api/v1/relay/heartbeat:
+    post:
+      consumes:
+      - application/json
+      description: Relay 节点定期上报运行状态与 frps 观测数据，返回运行时配置
+      parameters:
+      - description: 心跳载荷
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/relay.HeartbeatPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 心跳响应
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/relay.HeartbeatResponse'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Agent Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+        "403":
+          description: 节点类型不匹配
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: 上报 Relay 心跳
+      tags:
+      - openflare-relay
+  /api/v1/relay/ws:
+    get:
+      description: 将已认证的 Relay 连接升级为 WebSocket 长连接，用于配置推送
+      responses:
+        "401":
+          description: Agent Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+        "403":
+          description: 节点类型不匹配
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - AgentTokenAuth: []
+      summary: 升级 Relay WebSocket 连接
+      tags:
+      - openflare-relay
+  /api/v1/tunnel/apply-log:
+    post:
+      consumes:
+      - application/json
+      description: Tunnel 客户端上报配置应用结果，服务端记录下发日志
+      parameters:
+      - description: 下发结果载荷
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/flared.ApplyLogPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 下发日志记录
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.OpenFlareApplyLog'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Tunnel Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+        "403":
+          description: 节点类型不匹配
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - TunnelTokenAuth: []
+      summary: 上报 Tunnel 配置下发结果
+      tags:
+      - openflare-tunnel
+  /api/v1/tunnel/config/active:
+    get:
+      description: 返回 Tunnel 客户端当前应应用的完整路由配置（含中继列表与代理定义）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 隧道配置
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/flared.TunnelConfigResponse'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Tunnel Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+        "403":
+          description: 节点类型不匹配
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - TunnelTokenAuth: []
+      summary: 获取活跃隧道配置
+      tags:
+      - openflare-tunnel
+  /api/v1/tunnel/heartbeat:
+    post:
+      consumes:
+      - application/json
+      description: Tunnel 客户端定期上报运行状态与中继连接信息，返回活跃配置元数据与隧道设置
+      parameters:
+      - description: 心跳载荷
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/flared.HeartbeatPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 心跳响应
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Any'
+            - properties:
+                data:
+                  $ref: '#/definitions/flared.HeartbeatResponse'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Any'
+        "401":
+          description: Tunnel Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+        "403":
+          description: 节点类型不匹配
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - TunnelTokenAuth: []
+      summary: 上报 Tunnel 心跳
+      tags:
+      - openflare-tunnel
+  /api/v1/tunnel/ws:
+    get:
+      description: 将已认证的 Tunnel 客户端连接升级为 WebSocket 长连接，用于配置推送
+      responses:
+        "401":
+          description: Tunnel Token 无效
+          schema:
+            $ref: '#/definitions/response.Any'
+        "403":
+          description: 节点类型不匹配
+          schema:
+            $ref: '#/definitions/response.Any'
+      security:
+      - TunnelTokenAuth: []
+      summary: 升级 Tunnel WebSocket 连接
+      tags:
+      - openflare-tunnel
   /api/v1/upload:
     post:
       consumes:

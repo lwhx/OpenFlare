@@ -4,6 +4,7 @@ package observability
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +42,7 @@ type AccessLogQuery struct {
 
 // AccessLogView is a single access log row.
 type AccessLogView struct {
-	ID         uint      `json:"id"`
+	ID         string    `json:"id"`
 	NodeID     string    `json:"node_id"`
 	NodeName   string    `json:"node_name"`
 	LoggedAt   time.Time `json:"logged_at"`
@@ -209,7 +210,7 @@ func ListAccessLogs(ctx context.Context, input AccessLogQuery) (*AccessLogList, 
 			continue
 		}
 		views = append(views, AccessLogView{
-			ID:         item.ID,
+			ID:         formatAccessLogID(item.ID),
 			NodeID:     item.NodeID,
 			NodeName:   nodeNames[item.NodeID],
 			LoggedAt:   item.LoggedAt,
@@ -633,4 +634,8 @@ func normalizeFoldMinutes(value int) (int, error) {
 	default:
 		return 0, errors.New("fold_minutes 仅支持 3 或 5")
 	}
+}
+
+func formatAccessLogID(id uint64) string {
+	return strconv.FormatUint(id, 10)
 }
