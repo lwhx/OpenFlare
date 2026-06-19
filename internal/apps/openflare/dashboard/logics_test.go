@@ -25,7 +25,9 @@ func setupDashboardTestDB(t *testing.T) func() {
 
 	db.SetDB(sqliteDB)
 	resetAccessLogStore := model.SetAccessLogStoreForTest(model.NewMemoryAccessLogStore())
+	resetObservabilityStore := model.SetObservabilityStoreForTest(model.NewMemoryObservabilityStore())
 	return func() {
+		resetObservabilityStore()
 		resetAccessLogStore()
 		db.SetDB(nil)
 	}

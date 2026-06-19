@@ -59,18 +59,6 @@ func PersistHeartbeatObservability(ctx context.Context, nodeID string, payload N
 		if err := persistNodeSystemProfile(tx, nodeID, payload.Profile, reportedAt); err != nil {
 			return err
 		}
-		if err := persistBufferedObservability(tx, nodeID, payload.BufferedObservability, reportedAt); err != nil {
-			return err
-		}
-		if err := persistNodeMetricSnapshot(tx, nodeID, payload.Snapshot, reportedAt); err != nil {
-			return err
-		}
-		if err := persistNodeOpenrestyObservation(tx, nodeID, payload.OpenrestyObservation, reportedAt); err != nil {
-			return err
-		}
-		if err := persistNodeTrafficReport(tx, nodeID, payload.TrafficReport, reportedAt); err != nil {
-			return err
-		}
 		if payload.HealthEvents != nil {
 			if err := reconcileNodeHealthEvents(tx, nodeID, payload.HealthEvents, reportedAt); err != nil {
 				return err
@@ -82,23 +70,35 @@ func PersistHeartbeatObservability(ctx context.Context, nodeID string, payload N
 		return
 	}
 
+	if err := persistBufferedObservability(ctx, nodeID, payload.BufferedObservability, reportedAt); err != nil {
+		zap.L().Error("persist buffered observability failed", zap.String("node_id", nodeID), zap.Error(err))
+	}
+	if err := persistNodeMetricSnapshot(ctx, nodeID, payload.Snapshot, reportedAt); err != nil {
+		zap.L().Error("persist metric snapshot failed", zap.String("node_id", nodeID), zap.Error(err))
+	}
+	if err := persistNodeOpenrestyObservation(ctx, nodeID, payload.OpenrestyObservation, reportedAt); err != nil {
+		zap.L().Error("persist openresty observation failed", zap.String("node_id", nodeID), zap.Error(err))
+	}
+	if err := persistNodeTrafficReport(ctx, nodeID, payload.TrafficReport, reportedAt); err != nil {
+		zap.L().Error("persist traffic report failed", zap.String("node_id", nodeID), zap.Error(err))
+	}
+
 	if err := persistNodeAccessLogs(ctx, nodeID, accessLogRecords, reportedAt); err != nil {
 		zap.L().Error("persist heartbeat access logs failed", zap.String("node_id", nodeID), zap.Error(err))
 	}
 }
 
-func persistBufferedObservability(tx *gorm.DB, nodeID string, records []BufferedObservabilityRecord, reportedAt time.Time) error {
+func persistBufferedObservability(ctx context.Context, nodeID string, records []BufferedObservabilityRecord, reportedAt time.Time) error {
 	for _, record := range records {
-		if err := persistNodeMetricSnapshot(tx, nodeID, record.Snapshot, reportedAt); err != nil {
+		if err := persistNodeMetricSnapshot(ctx, nodeID, record.Snapshot, reportedAt); err != nil {
 			return err
 		}
-		if err := persistNodeOpenrestyObservation(tx, nodeID, record.OpenrestyObservation, reportedAt); err != nil {
+		if err := persistNodeOpenrestyObservation(ctx, nodeID, record.OpenrestyObservation, reportedAt); err != nil {
 			return err
 		}
-		if err := persistNodeTrafficReport(tx, nodeID, record.TrafficReport, reportedAt); err != nil {
+		if err := persistNodeTrafficReport(ctx, nodeID, record.TrafficReport, reportedAt); err != nil {
 			return err
 		}
-
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func persistNodeSystemProfile(tx *gorm.DB, nodeID string, profile *NodeSystemPro
 	}).Create(record).Error
 }
 
-func persistNodeMetricSnapshot(tx *gorm.DB, nodeID string, snapshot *NodeMetricSnapshot, reportedAt time.Time) error {
+func persistNodeMetricSnapshot(ctx context.Context, nodeID string, snapshot *NodeMetricSnapshot, reportedAt time.Time) error {
 	if snapshot == nil {
 		return nil
 	}
@@ -157,17 +157,10 @@ func persistNodeMetricSnapshot(tx *gorm.DB, nodeID string, snapshot *NodeMetricS
 		NetworkRxBytes:    snapshot.NetworkRxBytes,
 		NetworkTxBytes:    snapshot.NetworkTxBytes,
 	}
-	exists, err := metricSnapshotExists(tx, nodeID, record.CapturedAt)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-	return tx.Create(record).Error
+	return model.InsertOpenFlareMetricSnapshot(ctx, record)
 }
 
-func persistNodeOpenrestyObservation(tx *gorm.DB, nodeID string, obs *NodeOpenrestyObservation, reportedAt time.Time) error {
+func persistNodeOpenrestyObservation(ctx context.Context, nodeID string, obs *NodeOpenrestyObservation, reportedAt time.Time) error {
 	if obs == nil {
 		return nil
 	}
@@ -178,10 +171,10 @@ func persistNodeOpenrestyObservation(tx *gorm.DB, nodeID string, obs *NodeOpenre
 		OpenrestyTxBytes:     obs.OpenrestyTxBytes,
 		OpenrestyConnections: obs.OpenrestyConnections,
 	}
-	return tx.Create(record).Error
+	return model.InsertOpenFlareNodeObservationOpenresty(ctx, record)
 }
 
-func persistNodeTrafficReport(tx *gorm.DB, nodeID string, report *NodeTrafficReport, reportedAt time.Time) error {
+func persistNodeTrafficReport(ctx context.Context, nodeID string, report *NodeTrafficReport, reportedAt time.Time) error {
 	if report == nil {
 		return nil
 	}
@@ -199,14 +192,7 @@ func persistNodeTrafficReport(tx *gorm.DB, nodeID string, report *NodeTrafficRep
 		TopDomainsJSON:      marshalJSON(report.TopDomains),
 		SourceCountriesJSON: marshalJSON(report.SourceCountries),
 	}
-	exists, err := requestReportExists(tx, nodeID, record.WindowStartedAt, record.WindowEndedAt)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-	return tx.Create(record).Error
+	return model.InsertOpenFlareRequestReport(ctx, record)
 }
 
 func buildNodeAccessLogRecords(nodeID string, direct []NodeAccessLog, buffered []BufferedObservabilityRecord, reportedAt time.Time) ([]*model.OpenFlareAccessLog, error) {
@@ -355,28 +341,6 @@ func ReconcileScopedNodeHealthEvents(tx *gorm.DB, nodeID string, events []NodeHe
 	}
 
 	return nil
-}
-
-func metricSnapshotExists(tx *gorm.DB, nodeID string, capturedAt time.Time) (bool, error) {
-	var count int64
-	if err := tx.Model(&model.OpenFlareMetricSnapshot{}).
-		Where("node_id = ? AND captured_at = ?", nodeID, capturedAt).
-		Limit(1).
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-func requestReportExists(tx *gorm.DB, nodeID string, windowStartedAt, windowEndedAt time.Time) (bool, error) {
-	var count int64
-	if err := tx.Model(&model.OpenFlareRequestReport{}).
-		Where("node_id = ? AND window_started_at = ? AND window_ended_at = ?", nodeID, windowStartedAt, windowEndedAt).
-		Limit(1).
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
 }
 
 func normalizeHealthEventType(eventType string) string {

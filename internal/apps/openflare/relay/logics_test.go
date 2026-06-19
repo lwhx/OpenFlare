@@ -38,8 +38,10 @@ func setupRelayTestDB(t *testing.T) func() {
 	db.SetDB(sqliteDB)
 	option.ResetInitializationForTest()
 	agent.ResetAuthCacheForTest()
+	resetObservabilityStore := model.SetObservabilityStoreForTest(model.NewMemoryObservabilityStore())
 
 	return func() {
+		resetObservabilityStore()
 		db.SetDB(nil)
 		option.ResetInitializationForTest()
 		agent.ResetAuthCacheForTest()

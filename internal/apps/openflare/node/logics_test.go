@@ -20,6 +20,12 @@ import (
 	"gorm.io/gorm"
 )
 
+func setReleaseHTTPClientForTest(client *http.Client) *http.Client {
+	previous := releaseHTTPClient
+	releaseHTTPClient = client
+	return previous
+}
+
 func setupNodeTestDB(t *testing.T) func() {
 	t.Helper()
 
@@ -36,8 +42,10 @@ func setupNodeTestDB(t *testing.T) func() {
 	db.SetDB(sqliteDB)
 	option.ResetInitializationForTest()
 	resetAccessLogStore := model.SetAccessLogStoreForTest(model.NewMemoryAccessLogStore())
+	resetObservabilityStore := model.SetObservabilityStoreForTest(model.NewMemoryObservabilityStore())
 
 	return func() {
+		resetObservabilityStore()
 		resetAccessLogStore()
 		db.SetDB(nil)
 		option.ResetInitializationForTest()

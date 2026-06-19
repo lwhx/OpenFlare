@@ -51,10 +51,6 @@ func persistRelayHeartbeatObservability(ctx context.Context, nodeID string, payl
 		HealthEvents: payload.HealthEvents,
 	}, reportedAt)
 
-	conn := db.DB(ctx)
-	if conn == nil {
-		return
-	}
 	frpsObs := &model.OpenFlareNodeObservationFrps{
 		NodeID:          nodeID,
 		CapturedAt:      reportedAt,
@@ -63,7 +59,7 @@ func persistRelayHeartbeatObservability(ctx context.Context, nodeID string, payl
 		FrpsClientCount: payload.FrpsClientCount,
 		FrpsProxies:     agent.MarshalJSON(payload.FrpsProxies),
 	}
-	if err := conn.Create(frpsObs).Error; err != nil {
+	if err := model.InsertOpenFlareNodeObservationFrps(ctx, frpsObs); err != nil {
 		zap.L().Error("persist relay frps observation failed", zap.String("node_id", nodeID), zap.Error(err))
 	}
 }

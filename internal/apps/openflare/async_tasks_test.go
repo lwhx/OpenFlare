@@ -36,7 +36,9 @@ func TestDatabaseAutoCleanupHandlerDeletesRowsWhenEnabled(t *testing.T) {
 	require.NoError(t, err)
 	db.SetDB(sqliteDB)
 	resetAccessLogStore := model.SetAccessLogStoreForTest(model.NewMemoryAccessLogStore())
+	resetObservabilityStore := model.SetObservabilityStoreForTest(model.NewMemoryObservabilityStore())
 	t.Cleanup(func() {
+		resetObservabilityStore()
 		resetAccessLogStore()
 		db.SetDB(nil)
 	})

@@ -43,7 +43,7 @@ ORDER BY %s`, tableName, clause, nodeAccessLogOrderClause(filter.SortBy, filter.
 		if filter.Page < 0 {
 			filter.Page = 0
 		}
-		sql += " LIMIT ? OFFSET ?"
+		sql += clickHouseLimitOffsetClause
 		args = append(args, filter.PageSize, filter.Page*filter.PageSize)
 	}
 	rows, err := conn.Query(ctx, sql, args...)
@@ -123,7 +123,7 @@ WHERE %s AND trim(region) != ''
 GROUP BY trimmed_region
 ORDER BY count DESC, trimmed_region ASC`, tableName, clause)
 	if limit > 0 {
-		sql += " LIMIT ?"
+		sql += clickHouseLimitClause
 		args = append(args, limit)
 	}
 	rows, err := conn.Query(ctx, sql, args...)

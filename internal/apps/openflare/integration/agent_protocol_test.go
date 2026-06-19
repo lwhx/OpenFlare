@@ -46,21 +46,22 @@ func setupProtocolTestEnv(t *testing.T) (*gin.Engine, func()) {
 		&model.OpenFlareOption{},
 		&model.OpenFlareApplyLog{},
 		&model.OpenFlareNodeSystemProfile{},
-		&model.OpenFlareMetricSnapshot{},
 		&model.OpenFlareHealthEvent{},
-		&model.OpenFlareNodeObservationFrps{},
-		&model.OpenFlareNodeObservationFrpc{},
 		&configVersionRecord{},
 	))
 
 	db.SetDB(sqliteDB)
 	option.ResetInitializationForTest()
 	agent.ResetAuthCacheForTest()
+	resetAccessLogStore := model.SetAccessLogStoreForTest(model.NewMemoryAccessLogStore())
+	resetObservabilityStore := model.SetObservabilityStoreForTest(model.NewMemoryObservabilityStore())
 
 	engine := testhelper.NewTestGinEngine()
 	mountOpenFlareTestRoutes(engine)
 
 	cleanup := func() {
+		resetObservabilityStore()
+		resetAccessLogStore()
 		db.SetDB(nil)
 		option.ResetInitializationForTest()
 		agent.ResetAuthCacheForTest()

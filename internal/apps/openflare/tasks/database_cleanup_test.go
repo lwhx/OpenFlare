@@ -23,13 +23,11 @@ func setupDatabaseCleanupTestDB(t *testing.T) context.Context {
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	require.NoError(t, err)
-	require.NoError(t, sqliteDB.AutoMigrate(
-		&model.OpenFlareMetricSnapshot{},
-		&model.OpenFlareRequestReport{},
-	))
 	db.SetDB(sqliteDB)
 	resetAccessLogStore := model.SetAccessLogStoreForTest(model.NewMemoryAccessLogStore())
+	resetObservabilityStore := model.SetObservabilityStoreForTest(model.NewMemoryObservabilityStore())
 	t.Cleanup(func() {
+		resetObservabilityStore()
 		resetAccessLogStore()
 		db.SetDB(nil)
 	})
@@ -40,16 +38,16 @@ func TestCleanupDatabaseObservabilityDeletesTargetedRows(t *testing.T) {
 	ctx := setupDatabaseCleanupTestDB(t)
 	now := time.Now().UTC()
 
-	require.NoError(t, db.DB(ctx).Create(&model.OpenFlareMetricSnapshot{
+	require.NoError(t, model.InsertOpenFlareMetricSnapshot(ctx, &model.OpenFlareMetricSnapshot{
 		NodeID:          "node-a",
 		CapturedAt:      now.Add(-10 * 24 * time.Hour),
 		CPUUsagePercent: 10,
-	}).Error)
-	require.NoError(t, db.DB(ctx).Create(&model.OpenFlareMetricSnapshot{
+	}))
+	require.NoError(t, model.InsertOpenFlareMetricSnapshot(ctx, &model.OpenFlareMetricSnapshot{
 		NodeID:          "node-a",
 		CapturedAt:      now.Add(-12 * time.Hour),
 		CPUUsagePercent: 20,
-	}).Error)
+	}))
 
 	retentionDays := 7
 	result, err := CleanupDatabaseObservability(ctx, DatabaseCleanupInput{
@@ -113,17 +111,17 @@ func TestRunDatabaseAutoCleanupOnceDeletesAllObservabilityTargets(t *testing.T) 
 		Path:       "/access",
 		StatusCode: 200,
 	}}))
-	require.NoError(t, db.DB(ctx).Create(&model.OpenFlareMetricSnapshot{
+	require.NoError(t, model.InsertOpenFlareMetricSnapshot(ctx, &model.OpenFlareMetricSnapshot{
 		NodeID:          "node-a",
 		CapturedAt:      now.Add(-48 * time.Hour),
 		CPUUsagePercent: 10,
-	}).Error)
-	require.NoError(t, db.DB(ctx).Create(&model.OpenFlareRequestReport{
+	}))
+	require.NoError(t, model.InsertOpenFlareRequestReport(ctx, &model.OpenFlareRequestReport{
 		NodeID:          "node-a",
 		WindowStartedAt: now.Add(-49 * time.Hour),
 		WindowEndedAt:   now.Add(-48 * time.Hour),
 		RequestCount:    15,
-	}).Error)
+	}))
 
 	previousEnabled := model.DatabaseAutoCleanupEnabled
 	previousRetentionDays := model.DatabaseAutoCleanupRetentionDays

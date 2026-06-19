@@ -32,6 +32,10 @@ sidebar: false
 
 - 修复访问日志 ClickHouse 聚合查询因 `trim(x) AS x` 别名与表列同名导致总览看板地域分布及 IP 统计失败的问题。
 
+### 变更
+
+- 将节点可观测时序表（`of_node_metric_snapshots`、`of_node_request_reports`、`of_node_obs_openresty`、`of_node_obs_frps`、`of_node_obs_frpc`）从 PostgreSQL/SQLite 迁移至 ClickHouse，主库迁移 `202606200005` 删除对应 PG 表。
+
 ## [v2.3.4] - 2026-06-17
 
 ### 变更
