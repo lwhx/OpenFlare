@@ -1,0 +1,35 @@
+{
+  "description": "dmux pane status hooks for Grok Build",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node '/Users/ryan/DEV/Go/OpenFlare/.dmux/worktrees/dmux-2026-06-19-110554/.grok/hooks/dmux-status-hook.cjs'",
+            "timeout": 5,
+            "env": {
+              "DMUX_PANE_ID": "dmux-1781838355207",
+              "DMUX_TMUX_PANE_ID": "%28"
+            }
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node '/Users/ryan/DEV/Go/OpenFlare/.dmux/worktrees/dmux-2026-06-19-110554/.grok/hooks/dmux-status-hook.cjs'",
+            "timeout": 5,
+            "env": {
+              "DMUX_PANE_ID": "dmux-1781838355207",
+              "DMUX_TMUX_PANE_ID": "%28"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
