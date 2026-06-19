@@ -55,7 +55,8 @@ func (OpenFlareRequestReport) TableName() string {
 	return "of_node_request_reports"
 }
 
-// OpenFlareAccessLog stores a single access log row in ClickHouse (database: openflare).
+// OpenFlareAccessLog stores a single access log row in ClickHouse (database: openflare, table: of_node_access_logs).
+// ClickHouse DDL is managed by goose; reads/writes go through internal/repository/analytics.
 type OpenFlareAccessLog struct {
 	ID         uint      `json:"id" gorm:"primaryKey;autoIncrement"`
 	NodeID     string    `json:"node_id" gorm:"index;size:64;not null"`

@@ -345,68 +345,6 @@ func openFlareAccessLogQueryFromBucket(query OpenFlareAccessLogBucketQuery) Open
 	}
 }
 
-func buildOpenFlareAccessLogFilterClause(query OpenFlareAccessLogQuery) (string, []any) {
-	parts := make([]string, 0, 6)
-	args := make([]any, 0, 6)
-	if trimmed := strings.TrimSpace(query.NodeID); trimmed != "" {
-		parts = append(parts, "node_id = ?")
-		args = append(args, trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.RemoteAddr); trimmed != "" {
-		parts = append(parts, "remote_addr LIKE ?")
-		args = append(args, trimmed+"%")
-	}
-	if trimmed := strings.TrimSpace(query.Host); trimmed != "" {
-		parts = append(parts, "host LIKE ?")
-		args = append(args, trimmed+"%")
-	}
-	if trimmed := strings.TrimSpace(query.Path); trimmed != "" {
-		parts = append(parts, "path LIKE ?")
-		args = append(args, trimmed+"%")
-	}
-	if !query.Since.IsZero() {
-		parts = append(parts, "logged_at >= ?")
-		args = append(args, query.Since.UTC())
-	}
-	if !query.Until.IsZero() {
-		parts = append(parts, "logged_at < ?")
-		args = append(args, query.Until.UTC())
-	}
-	if len(parts) == 0 {
-		return "1", nil
-	}
-	return strings.Join(parts, " AND "), args
-}
-
-func combineOpenFlareAccessLogSQLClauses(left string, right string) string {
-	if strings.TrimSpace(left) == "" || left == "TRUE" || left == "1" {
-		return right
-	}
-	return left + " AND " + right
-}
-
-func openFlareAccessLogOrderClause(sortBy string, sortOrder string) string {
-	direction := "DESC"
-	if openFlareAccessLogNormalizeSortOrder(sortOrder) == "asc" {
-		direction = "ASC"
-	}
-	column := "logged_at"
-	switch strings.TrimSpace(sortBy) {
-	case "status_code":
-		column = "status_code"
-	case "remote_addr":
-		column = "remote_addr"
-	case "host":
-		column = "host"
-	case "path":
-		column = "path"
-	}
-	if column == "logged_at" {
-		return column + " " + direction + ", id " + direction
-	}
-	return column + " " + direction + ", logged_at " + direction + ", id " + direction
-}
-
 func sortOpenFlareAccessLogBucketIPRows(items []*OpenFlareAccessLogBucketIPRow, sortBy string, sortOrder string) {
 	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != "asc"
 	sort.Slice(items, func(i, j int) bool {
