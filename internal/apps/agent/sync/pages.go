@@ -1,3 +1,4 @@
+// Package sync applies control-plane configuration to the local agent runtime.
 package sync
 
 import (
@@ -10,12 +11,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/protocol"
+)
+
+const (
+	pagesMaxExtractedFileBytes = 100 * 1024 * 1024
+	pagesDirPerm               = 0o755
+	pagesManifestFilePerm      = 0o644
 )
 
 type pagesSourceDocument struct {
@@ -66,7 +74,7 @@ func (s *Service) ensurePagesDeployment(ctx context.Context, deployment pagesDep
 		return fmt.Errorf("download Pages deployment %d: %w", deployment.DeploymentID, err)
 	}
 	if got := checksumBytes(packageBytes); got != deployment.Checksum {
-		return fmt.Errorf("Pages deployment %d checksum mismatch: expected %s, got %s", deployment.DeploymentID, deployment.Checksum, got)
+		return fmt.Errorf("pages deployment %d checksum mismatch: expected %s, got %s", deployment.DeploymentID, deployment.Checksum, got)
 	}
 	releaseDir := pagesReleaseDir(s.pagesDir, deployment.DeploymentID, deployment.Checksum)
 	if !markerMatches(releaseDir, deployment) {
@@ -83,7 +91,7 @@ func referencedPagesDeployments(config *protocol.ActiveConfigResponse) ([]pagesD
 	}
 	var doc pagesSourceDocument
 	if err := json.Unmarshal([]byte(config.SourceConfigJSON), &doc); err != nil {
-		return nil, fmt.Errorf("decode Pages references: %w", err)
+		return nil, fmt.Errorf("decode pages references: %w", err)
 	}
 	seen := make(map[uint]struct{})
 	result := make([]pagesDeploymentSource, 0)
@@ -94,7 +102,7 @@ func referencedPagesDeployments(config *protocol.ActiveConfigResponse) ([]pagesD
 		deploymentID := route.PagesDeployment.DeploymentID
 		checksum := strings.TrimSpace(route.PagesDeployment.Checksum)
 		if deploymentID == 0 || checksum == "" {
-			return nil, errors.New("Pages deployment snapshot is incomplete")
+			return nil, errors.New("pages deployment snapshot is incomplete")
 		}
 		if _, ok := seen[deploymentID]; ok {
 			continue
@@ -152,7 +160,7 @@ func findCommonRootPrefix(files []*zip.File) (string, error) {
 func extractPagesPackage(packageBytes []byte, releaseDir string, deployment pagesDeploymentSource) error {
 	tmpDir := releaseDir + ".tmp"
 	_ = os.RemoveAll(tmpDir)
-	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+	if err := os.MkdirAll(tmpDir, pagesDirPerm); err != nil {
 		return err
 	}
 	reader, err := zip.NewReader(bytes.NewReader(packageBytes), int64(len(packageBytes)))
@@ -182,7 +190,7 @@ func extractPagesPackage(packageBytes []byte, releaseDir string, deployment page
 		}
 		if item.FileInfo().Mode()&os.ModeSymlink != 0 {
 			_ = os.RemoveAll(tmpDir)
-			return fmt.Errorf("Pages package contains unsupported symlink: %s", relativePath)
+			return fmt.Errorf("pages package contains unsupported symlink: %s", relativePath)
 		}
 		if err := extractPagesFile(item, filepath.Join(tmpDir, relativePath)); err != nil {
 			_ = os.RemoveAll(tmpDir)
@@ -197,21 +205,32 @@ func extractPagesPackage(packageBytes []byte, releaseDir string, deployment page
 	return os.Rename(tmpDir, releaseDir)
 }
 
+func pagesZipEntryCopyLimit(size uint64) (int64, error) {
+	if size == 0 || size > pagesMaxExtractedFileBytes || size > uint64(math.MaxInt64) {
+		return 0, errors.New("pages file size out of bounds")
+	}
+	return int64(size), nil //nolint:gosec // size is bounded to math.MaxInt64 above
+}
+
 func extractPagesFile(item *zip.File, targetPath string) error {
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetPath), pagesDirPerm); err != nil {
 		return err
 	}
 	source, err := item.Open()
 	if err != nil {
 		return err
 	}
-	defer source.Close()
-	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, item.FileInfo().Mode().Perm())
+	defer func() { _ = source.Close() }()
+	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, item.FileInfo().Mode().Perm()) //nolint:gosec // targetPath is under managed PagesDir from validated zip entry
 	if err != nil {
 		return err
 	}
-	defer target.Close()
-	_, err = io.Copy(target, source)
+	defer func() { _ = target.Close() }()
+	limit, err := pagesZipEntryCopyLimit(item.UncompressedSize64)
+	if err != nil {
+		return fmt.Errorf("%s: %w", item.Name, err)
+	}
+	_, err = io.CopyN(target, source, limit)
 	return err
 }
 
@@ -219,7 +238,7 @@ func switchPagesCurrentDir(baseDir string, deploymentID uint, releaseDir string)
 	currentDir := pagesCurrentDir(baseDir, deploymentID)
 	previousDir := currentDir + ".previous"
 	_ = os.RemoveAll(previousDir)
-	if err := os.MkdirAll(filepath.Dir(currentDir), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(currentDir), pagesDirPerm); err != nil {
 		return err
 	}
 	if _, err := os.Stat(currentDir); err == nil {
@@ -249,25 +268,25 @@ func copyPagesDir(sourceDir string, targetDir string) error {
 		}
 		targetPath := filepath.Join(targetDir, relativePath)
 		if entry.IsDir() {
-			return os.MkdirAll(targetPath, 0o755)
+			return os.MkdirAll(targetPath, pagesDirPerm)
 		}
 		info, err := entry.Info()
 		if err != nil {
 			return err
 		}
-		input, err := os.Open(sourcePath)
+		input, err := os.Open(sourcePath) //nolint:gosec // sourcePath is under managed PagesDir walk root
 		if err != nil {
 			return err
 		}
-		defer input.Close()
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		defer func() { _ = input.Close() }()
+		if err := os.MkdirAll(filepath.Dir(targetPath), pagesDirPerm); err != nil {
 			return err
 		}
-		output, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
+		output, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm()) //nolint:gosec // targetPath is under managed PagesDir walk root
 		if err != nil {
 			return err
 		}
-		defer output.Close()
+		defer func() { _ = output.Close() }()
 		_, err = io.Copy(output, input)
 		return err
 	})
@@ -279,20 +298,20 @@ func normalizePagesArchivePath(raw string) (string, bool, error) {
 		return "", true, nil
 	}
 	if strings.HasPrefix(name, "/") {
-		return "", false, fmt.Errorf("Pages package contains absolute path: %s", raw)
+		return "", false, fmt.Errorf("pages package contains absolute path: %s", raw)
 	}
 	cleaned := path.Clean(name)
 	if cleaned == "." {
 		return "", true, nil
 	}
 	if cleaned == ".." || strings.HasPrefix(cleaned, "../") || strings.Contains(cleaned, "/../") {
-		return "", false, fmt.Errorf("Pages package path escapes deployment root: %s", raw)
+		return "", false, fmt.Errorf("pages package path escapes deployment root: %s", raw)
 	}
 	return filepath.FromSlash(cleaned), false, nil
 }
 
 func markerMatches(dir string, deployment pagesDeploymentSource) bool {
-	data, err := os.ReadFile(filepath.Join(dir, ".openflare-pages.json"))
+	data, err := os.ReadFile(filepath.Join(dir, ".openflare-pages.json")) //nolint:gosec // dir is managed PagesDir
 	if err != nil {
 		return false
 	}
@@ -304,14 +323,11 @@ func markerMatches(dir string, deployment pagesDeploymentSource) bool {
 }
 
 func writePagesMarker(dir string, deployment pagesDeploymentSource) error {
-	data, err := json.Marshal(pagesDeploymentMarker{
-		DeploymentID: deployment.DeploymentID,
-		Checksum:     deployment.Checksum,
-	})
+	data, err := json.Marshal(pagesDeploymentMarker(deployment))
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, ".openflare-pages.json"), data, 0o644)
+	return os.WriteFile(filepath.Join(dir, ".openflare-pages.json"), data, pagesManifestFilePerm)
 }
 
 func pagesCurrentDir(baseDir string, deploymentID uint) string {

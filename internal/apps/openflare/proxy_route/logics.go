@@ -5,7 +5,6 @@ package proxy_route
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -168,28 +167,9 @@ func buildProxyRoute(ctx context.Context, route *model.ProxyRoute, input Input) 
 	siteName := normalizeProxyRouteSiteNameInput(route, input.SiteName, domain)
 
 	upstreamType := normalizeUpstreamType(input.UpstreamType)
-	var originURL string
-	var originID *uint
-	var upstreams []string
-
-	if upstreamType == "tunnel" {
-		originURL = "http://127.0.0.1"
-		upstreams = []string{originURL}
-	} else if upstreamType == "pages" {
-		if err := validatePagesRouteInput(ctx, input.PagesProjectID); err != nil {
-			return nil, err
-		}
-		originURL = "http://127.0.0.1"
-		upstreams = []string{originURL}
-	} else {
-		originURL, originID, err = resolveProxyRoutePrimaryOrigin(ctx, input)
-		if err != nil {
-			return nil, err
-		}
-		upstreams, err = normalizeUpstreams(originURL, input.Upstreams)
-		if err != nil {
-			return nil, err
-		}
+	_, originID, upstreams, err := resolveProxyRouteUpstreams(ctx, upstreamType, input)
+	if err != nil {
+		return nil, err
 	}
 	originHost := strings.TrimSpace(input.OriginHost)
 	remark := strings.TrimSpace(input.Remark)
@@ -215,25 +195,7 @@ func buildProxyRoute(ctx context.Context, route *model.ProxyRoute, input Input) 
 		return nil, err
 	}
 
-	cacheRulesJSON, err := json.Marshal(cacheRules)
-	if err != nil {
-		return nil, err
-	}
-	upstreamsJSON, err := json.Marshal(upstreams)
-	if err != nil {
-		return nil, err
-	}
-	customHeadersJSON, err := json.Marshal(customHeaders)
-	if err != nil {
-		return nil, err
-	}
-
-	if !input.EnableHTTPS {
-		input.RedirectHTTP = false
-		input.CertID = nil
-		input.CertIDs = nil
-		input.DomainCertIDs = nil
-	}
+	normalizeProxyRouteHTTPSInput(&input)
 	domainCertIDs, certIDs, primaryCertID, err := normalizeProxyRouteDomainCertificateIDs(
 		ctx,
 		domains,
@@ -248,15 +210,7 @@ func buildProxyRoute(ctx context.Context, route *model.ProxyRoute, input Input) 
 	if err := validateProxyRouteDomainCertificateCoverage(ctx, domains, domainCertIDs); err != nil {
 		return nil, err
 	}
-	certIDsJSON, err := json.Marshal(certIDs)
-	if err != nil {
-		return nil, err
-	}
-	domainCertIDsJSON, err := json.Marshal(domainCertIDs)
-	if err != nil {
-		return nil, err
-	}
-	domainsJSON, err := json.Marshal(domains)
+	jsonFields, err := marshalProxyRouteJSONFields(domains, upstreams, cacheRules, customHeaders, certIDs, domainCertIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -277,67 +231,31 @@ func buildProxyRoute(ctx context.Context, route *model.ProxyRoute, input Input) 
 		return nil, errors.New(errProxyRouteRedirectHTTP)
 	}
 
-	if input.BasicAuthEnabled {
-		input.BasicAuthUsername = strings.TrimSpace(input.BasicAuthUsername)
-		input.BasicAuthPassword = strings.TrimSpace(input.BasicAuthPassword)
-		if input.BasicAuthUsername == "" || input.BasicAuthPassword == "" {
-			return nil, errors.New(errProxyRouteBasicAuth)
-		}
-	} else {
-		input.BasicAuthUsername = ""
-		input.BasicAuthPassword = ""
+	if err := normalizeProxyRouteBasicAuth(&input); err != nil {
+		return nil, err
 	}
 
 	if route == nil {
 		route = &model.ProxyRoute{}
 	}
-	route.SiteName = siteName
-	route.Domain = domain
-	route.Domains = string(domainsJSON)
-	route.OriginID = originID
-	route.OriginURL = upstreams[0]
-	route.OriginHost = originHost
-	route.Upstreams = string(upstreamsJSON)
-	route.Enabled = input.Enabled
-	route.EnableHTTPS = input.EnableHTTPS
-	route.CertID = input.CertID
-	route.CertIDs = string(certIDsJSON)
-	route.DomainCertIDs = string(domainCertIDsJSON)
-	route.RedirectHTTP = input.RedirectHTTP
-	route.LimitConnPerServer = limitConnPerServer
-	route.LimitConnPerIP = limitConnPerIP
-	route.LimitRate = limitRate
-	route.CacheEnabled = input.CacheEnabled
-	route.CachePolicy = normalizeCachePolicy(input.CacheEnabled, cachePolicy)
-	route.CacheRules = string(cacheRulesJSON)
-	route.CustomHeaders = string(customHeadersJSON)
-	route.BasicAuthEnabled = input.BasicAuthEnabled
-	route.BasicAuthUsername = input.BasicAuthUsername
-	route.BasicAuthPassword = input.BasicAuthPassword
-	route.Remark = remark
-	route.UpstreamType = upstreamType
-	if upstreamType == "tunnel" {
-		tunnelNodeID, err := normalizeTunnelNodeID(input.TunnelNodeID, input.TunnelID)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateTunnelRouteInput(ctx, tunnelNodeID, input.TunnelTargetAddr, input.TunnelTargetProtocol); err != nil {
-			return nil, err
-		}
-		route.TunnelNodeID = tunnelNodeID
-		route.TunnelTargetAddr = strings.TrimSpace(input.TunnelTargetAddr)
-		route.TunnelTargetProtocol = normalizeTunnelTargetProtocol(input.TunnelTargetProtocol)
-		route.PagesProjectID = nil
-	} else if upstreamType == "pages" {
-		route.TunnelNodeID = nil
-		route.TunnelTargetAddr = ""
-		route.TunnelTargetProtocol = ""
-		route.PagesProjectID = input.PagesProjectID
-	} else {
-		route.TunnelNodeID = nil
-		route.TunnelTargetAddr = ""
-		route.TunnelTargetProtocol = ""
-		route.PagesProjectID = nil
+	populateProxyRouteFields(
+		route,
+		input,
+		siteName,
+		domain,
+		jsonFields,
+		originID,
+		upstreams,
+		originHost,
+		remark,
+		cachePolicy,
+		limitConnPerServer,
+		limitConnPerIP,
+		limitRate,
+		upstreamType,
+	)
+	if err := applyProxyRouteUpstreamType(ctx, route, upstreamType, input); err != nil {
+		return nil, err
 	}
 	return route, nil
 }

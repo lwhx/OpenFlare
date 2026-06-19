@@ -12,6 +12,8 @@ import (
 	"unicode"
 )
 
+const maxOriginHostnameLength = 253
+
 func normalizeOriginAddress(raw string) string {
 	return strings.ToLower(strings.TrimSpace(raw))
 }
@@ -29,7 +31,7 @@ func validateOriginAddress(address string) error {
 	if ip := net.ParseIP(address); ip != nil {
 		return nil
 	}
-	if len(address) > 253 {
+	if len(address) > maxOriginHostnameLength {
 		return errors.New(errOriginAddressInvalid)
 	}
 	labels := strings.Split(address, ".")

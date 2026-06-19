@@ -90,7 +90,7 @@ func CleanupDatabaseObservability(ctx context.Context, input DatabaseCleanupInpu
 }
 
 // RunDatabaseAutoCleanupOnce runs retention-based cleanup for all observability targets.
-func RunDatabaseAutoCleanupOnce(now time.Time) (*DatabaseAutoCleanupSummary, error) {
+func RunDatabaseAutoCleanupOnce(ctx context.Context, now time.Time) (*DatabaseAutoCleanupSummary, error) {
 	if !model.DatabaseAutoCleanupEnabled {
 		return nil, nil
 	}
@@ -99,7 +99,6 @@ func RunDatabaseAutoCleanupOnce(now time.Time) (*DatabaseAutoCleanupSummary, err
 	}
 
 	retentionDays := model.DatabaseAutoCleanupRetentionDays
-	ctx := context.Background()
 	results := make([]DatabaseCleanupResult, 0, len(databaseCleanupTargets))
 	for _, target := range []string{
 		DatabaseCleanupTargetAccessLogs,

@@ -58,7 +58,7 @@ func TestApplyCertificateReturnsApplying(t *testing.T) {
 		Name:          "Test ACME Cert",
 		PrimaryDomain: "example.com",
 		OtherDomains:  "*.example.com",
-		DnsAccountID:  dnsAccount.ID,
+		DNSAccountID:  dnsAccount.ID,
 		KeyAlgorithm:  "RSA2048",
 		AutoRenew:     true,
 	})

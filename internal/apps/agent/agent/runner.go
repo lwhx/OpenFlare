@@ -1,3 +1,4 @@
+// Package agent implements the local OpenFlare agent runtime loop.
 package agent
 
 import (
@@ -16,12 +17,14 @@ import (
 	edgeheartbeat "github.com/Rain-kl/Wavelet/internal/apps/edge/heartbeat"
 )
 
+// HeartbeatService handles node registration and periodic heartbeat reporting.
 type HeartbeatService interface {
 	Register(ctx context.Context, payload protocol.NodePayload) (*protocol.RegisterNodeResponse, error)
 	Heartbeat(ctx context.Context, payload protocol.NodePayload) (*protocol.HeartbeatResult, error)
 	SetToken(token string)
 }
 
+// SyncService handles configuration synchronisation between the agent and the server.
 type SyncService interface {
 	SyncOnStartup(ctx context.Context, target *protocol.ActiveConfigMeta) error
 	SyncOnce(ctx context.Context, target *protocol.ActiveConfigMeta) error
@@ -30,30 +33,36 @@ type SyncService interface {
 	ApplyWAFIPGroups(ctx context.Context, groups []protocol.WAFIPGroup) error
 }
 
+// RuntimeManager manages the lifecycle and health checks of the OpenResty runtime.
 type RuntimeManager interface {
 	CheckHealth(ctx context.Context) error
 	Restart(ctx context.Context) error
 }
 
+// WebSocketService manages the persistent WebSocket connection to the server.
 type WebSocketService interface {
 	Connect(ctx context.Context) (protocol.WebSocketConnection, error)
 	SetToken(token string)
 	URL() string
 }
 
+const websocketBackoffDefaultDelay = 30 * time.Second
+
+// Runner coordinates the agent's heartbeat, configuration sync, and WebSocket upgrade lifecycle.
 type Runner struct {
-	Config              *config.Config
-	StateStore          *state.Store
-	HeartbeatCycle      *agentheartbeat.Cycle
-	HeartbeatService    HeartbeatService
-	SyncService         SyncService
-	RuntimeManager      RuntimeManager
-	WebSocketService    WebSocketService
+	Config           *config.Config
+	StateStore       *state.Store
+	HeartbeatCycle   *agentheartbeat.Cycle
+	HeartbeatService HeartbeatService
+	SyncService      SyncService
+	RuntimeManager   RuntimeManager
+	WebSocketService WebSocketService
 
 	restartOpenrestyNow     bool
 	websocketUpgradeEnabled bool
 }
 
+// Run starts the agent's main loop, performing heartbeats and upgrading to WebSocket when available.
 func (r *Runner) Run(ctx context.Context) error {
 	if r.HeartbeatCycle != nil {
 		r.HeartbeatCycle.RecordSyncError = r.recordSyncError
@@ -63,13 +72,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		return err
 	}
 	slog.Info("agent runner started", "node_id", nodeID, "node", r.Config.NodeName, "ip", r.Config.NodeIP)
-	if r.hasAccessToken() {
-		if _, hbErr := r.performHeartbeatCycle(ctx, nodeID, true); hbErr != nil {
-			slog.Error("agent startup heartbeat failed", "error", hbErr)
-		}
-	} else if err = r.tryRegister(ctx, &nodeID); err != nil {
-		slog.Error("agent initial discovery register failed", "error", err)
-	}
+	r.runStartupAuth(ctx, &nodeID)
 
 	heartbeatTicker := time.NewTicker(r.Config.HeartbeatInterval.Duration())
 	defer heartbeatTicker.Stop()
@@ -108,31 +111,53 @@ func (r *Runner) Run(ctx context.Context) error {
 			delay := wsBackoff.Next()
 			nextWSAttempt = time.Now().Add(delay)
 			slog.Debug("agent ws disconnected; resuming http heartbeat", "retry_after", delay, "error", wsErr)
-			if r.hasAccessToken() {
-				if _, hbErr := r.performHeartbeatCycle(ctx, nodeID, false); hbErr != nil {
-					slog.Error("agent heartbeat after ws disconnect failed", "error", hbErr)
-				}
-			}
+			r.handleWSDisconnect(ctx, nodeID)
 		case <-heartbeatTicker.C:
 			if wsDone != nil {
 				continue
 			}
-			if !r.hasAccessToken() {
-				if err = r.tryRegister(ctx, &nodeID); err != nil {
-					slog.Error("agent discovery register failed", "error", err)
-				}
-				continue
-			}
-			if changed, hbErr := r.performHeartbeatCycle(ctx, nodeID, false); hbErr != nil {
-				slog.Error("agent heartbeat failed", "error", hbErr)
-			} else {
-				if changed {
-					heartbeatTicker.Reset(r.Config.HeartbeatInterval.Duration())
-				}
-				tryStartWebSocket()
-			}
+			r.handleHeartbeatTick(ctx, &nodeID, heartbeatTicker, tryStartWebSocket)
 		}
 	}
+}
+
+func (r *Runner) runStartupAuth(ctx context.Context, nodeID *string) {
+	if r.hasAccessToken() {
+		if _, hbErr := r.performHeartbeatCycle(ctx, *nodeID, true); hbErr != nil {
+			slog.Error("agent startup heartbeat failed", "error", hbErr)
+		}
+		return
+	}
+	if err := r.tryRegister(ctx, nodeID); err != nil {
+		slog.Error("agent initial discovery register failed", "error", err)
+	}
+}
+
+func (r *Runner) handleWSDisconnect(ctx context.Context, nodeID string) {
+	if !r.hasAccessToken() {
+		return
+	}
+	if _, hbErr := r.performHeartbeatCycle(ctx, nodeID, false); hbErr != nil {
+		slog.Error("agent heartbeat after ws disconnect failed", "error", hbErr)
+	}
+}
+
+func (r *Runner) handleHeartbeatTick(ctx context.Context, nodeID *string, heartbeatTicker *time.Ticker, tryStartWebSocket func()) {
+	if !r.hasAccessToken() {
+		if err := r.tryRegister(ctx, nodeID); err != nil {
+			slog.Error("agent discovery register failed", "error", err)
+		}
+		return
+	}
+	changed, hbErr := r.performHeartbeatCycle(ctx, *nodeID, false)
+	if hbErr != nil {
+		slog.Error("agent heartbeat failed", "error", hbErr)
+		return
+	}
+	if changed {
+		heartbeatTicker.Reset(r.Config.HeartbeatInterval.Duration())
+	}
+	tryStartWebSocket()
 }
 
 func (r *Runner) performHeartbeatCycle(ctx context.Context, nodeID string, startup bool) (bool, error) {
@@ -140,10 +165,12 @@ func (r *Runner) performHeartbeatCycle(ctx context.Context, nodeID string, start
 	return r.HeartbeatCycle.Perform(ctx, nodeID, startup, r)
 }
 
+// Apply applies the provided agent settings and reports whether the heartbeat interval changed.
 func (r *Runner) Apply(settings *protocol.AgentSettings) bool {
 	return r.applySettings(settings)
 }
 
+// RestartOpenrestyIfNeeded restarts OpenResty when a server-requested restart is pending.
 func (r *Runner) RestartOpenrestyIfNeeded(ctx context.Context) {
 	r.tryRestartOpenresty(ctx)
 }
@@ -251,7 +278,7 @@ func (r *Runner) runWebSocket(ctx context.Context, nodeID string, conn protocol.
 
 func (r *Runner) sendWebSocketStatus(ctx context.Context, nodeID string, conn protocol.WebSocketConnection) error {
 	r.refreshOpenrestyHealth(ctx)
-	payload, ackWindows := r.HeartbeatCycle.PrepareHeartbeatPayload(nodeID)
+	payload, ackWindows := r.HeartbeatCycle.PrepareHeartbeatPayload(ctx, nodeID)
 	if err := conn.SendStatus(payload); err != nil {
 		return err
 	}
@@ -338,7 +365,7 @@ func newWebSocketBackoff() *webSocketBackoff {
 
 func (backoff *webSocketBackoff) Next() time.Duration {
 	if backoff == nil || len(backoff.delays) == 0 {
-		return 30 * time.Second
+		return websocketBackoffDefaultDelay
 	}
 	if backoff.index >= len(backoff.delays) {
 		return backoff.delays[len(backoff.delays)-1]
@@ -402,7 +429,7 @@ func (r *Runner) tryRegister(ctx context.Context, nodeID *string) error {
 		return errors.New("agent_token 为空且未配置 discovery_token")
 	}
 	slog.Info("agent discovery registration started")
-	response, err := r.HeartbeatService.Register(ctx, r.HeartbeatCycle.NodePayload(*nodeID))
+	response, err := r.HeartbeatService.Register(ctx, r.HeartbeatCycle.NodePayload(ctx, *nodeID))
 	if err != nil {
 		return err
 	}

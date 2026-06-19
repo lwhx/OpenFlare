@@ -16,8 +16,8 @@ import (
 
 const ctxRelayNodeKey = "relay_node"
 
-// RelayAuth authenticates relay requests using X-Agent-Token and verifies tunnel_relay type.
-func RelayAuth() gin.HandlerFunc {
+// Auth authenticates relay requests using X-Agent-Token and verifies tunnel_relay type.
+func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := strings.TrimSpace(c.GetHeader("X-Agent-Token"))
 		node, err := authenticateAccessToken(c.Request.Context(), token)

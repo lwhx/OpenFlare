@@ -302,6 +302,7 @@ end
 return require("waf.runtime").check()
 `
 
+// ManagedWAFLuaFiles returns the embedded Lua source files that must be deployed to the WAF runtime directory.
 func ManagedWAFLuaFiles() []protocol.SupportFile {
 	return []protocol.SupportFile{
 		{Path: "waf/runtime.lua", Content: openRestyWAFRuntimeLua},

@@ -1,3 +1,4 @@
+// Package httpclient provides an authenticated HTTP client for edge services.
 package httpclient
 
 import (
@@ -12,6 +13,7 @@ import (
 	"time"
 )
 
+// Client is an HTTP client wrapper for communicating with remote HTTP services.
 type Client struct {
 	baseURL    string
 	token      string
@@ -19,6 +21,7 @@ type Client struct {
 	httpClient *http.Client
 }
 
+// New creates a new Client instance.
 func New(baseURL, token string, timeout time.Duration, authHeader string) *Client {
 	return &Client{
 		baseURL:    strings.TrimRight(baseURL, "/"),
@@ -28,11 +31,13 @@ func New(baseURL, token string, timeout time.Duration, authHeader string) *Clien
 	}
 }
 
+// SetToken updates the client auth token.
 func (c *Client) SetToken(token string) {
 	c.token = strings.TrimSpace(token)
 	slog.Debug("http client token updated")
 }
 
+// GetJSON sends a GET request and decodes the response body into target.
 func (c *Client) GetJSON(ctx context.Context, path string, target any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
@@ -42,6 +47,7 @@ func (c *Client) GetJSON(ctx context.Context, path string, target any) error {
 	return c.do(req, target)
 }
 
+// PostJSON sends a POST request with JSON body and decodes the response body into target.
 func (c *Client) PostJSON(ctx context.Context, path string, body any, target any) error {
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -56,6 +62,7 @@ func (c *Client) PostJSON(ctx context.Context, path string, body any, target any
 	return c.do(req, target)
 }
 
+// DoRaw performs an HTTP request with custom headers and returns the raw response.
 func (c *Client) DoRaw(ctx context.Context, method, path string, headers map[string]string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
 	if err != nil {
@@ -80,12 +87,11 @@ func (c *Client) do(req *http.Request, target any) error {
 		slog.Error("http request failed", "method", req.Method, "path", req.URL.Path, "error", err)
 		return err
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
+	defer func() {
+		if err := res.Body.Close(); err != nil {
 			slog.Error("failed to close response body", "error", err)
 		}
-	}(res.Body)
+	}()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -106,6 +112,7 @@ func (c *Client) do(req *http.Request, target any) error {
 	return nil
 }
 
+// APIError creates a new API error with the given message if it is not empty.
 func APIError(msg string) error {
 	if strings.TrimSpace(msg) == "" {
 		return nil
@@ -113,6 +120,7 @@ func APIError(msg string) error {
 	return errors.New(msg)
 }
 
+// ReadBodyError parses the error message from the response body, or returns the fallback message.
 func ReadBodyError(body []byte, fallback string) error {
 	var errBody struct {
 		ErrorMsg string `json:"error_msg"`
@@ -123,6 +131,7 @@ func ReadBodyError(body []byte, fallback string) error {
 	return errors.New(fallback)
 }
 
+// ReadHTTPError reads the error message from the HTTP response.
 func ReadHTTPError(res *http.Response) error {
 	body, err := io.ReadAll(res.Body)
 	if err != nil {

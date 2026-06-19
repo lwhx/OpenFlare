@@ -95,10 +95,10 @@ func CountNodeAccessLogs(ctx context.Context, filter NodeAccessLogFilter) (int64
 
 	ipSQL := fmt.Sprintf(`
 SELECT count() FROM (
-	SELECT trim(remote_addr) AS remote_addr
+	SELECT trim(remote_addr) AS trimmed_remote_addr
 	FROM %s
-	WHERE %s AND remote_addr != ''
-	GROUP BY trim(remote_addr)
+	WHERE %s AND trim(remote_addr) != ''
+	GROUP BY trimmed_remote_addr
 )`, tableName, clause)
 	var totalIPs int64
 	if err := conn.QueryRow(ctx, ipSQL, args...).Scan(&totalIPs); err != nil {
@@ -117,11 +117,11 @@ func RegionCountsNodeAccessLogs(ctx context.Context, nodeID string, since time.T
 	clause, args := buildNodeAccessLogFilterClause(filter)
 	tableName := nodeAccessLogTableName()
 	sql := fmt.Sprintf(`
-SELECT trim(region) AS region, count() AS count
+SELECT trim(region) AS trimmed_region, count() AS count
 FROM %s
 WHERE %s AND trim(region) != ''
-GROUP BY trim(region)
-ORDER BY count DESC, region ASC`, tableName, clause)
+GROUP BY trimmed_region
+ORDER BY count DESC, trimmed_region ASC`, tableName, clause)
 	if limit > 0 {
 		sql += " LIMIT ?"
 		args = append(args, limit)

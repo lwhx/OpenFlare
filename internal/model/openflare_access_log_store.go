@@ -221,7 +221,7 @@ func toAnalyticsNodeAccessLog(record *OpenFlareAccessLog) analyticsmodel.NodeAcc
 		Region:     record.Region,
 		Host:       record.Host,
 		Path:       record.Path,
-		StatusCode: int32(record.StatusCode),
+		StatusCode: openFlareAccessLogStatusCodeToInt32(record.StatusCode),
 		CreatedAt:  record.CreatedAt,
 	}
 }

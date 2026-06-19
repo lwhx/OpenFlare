@@ -1,3 +1,4 @@
+// Package flared implements the tunnel client daemon runtime loop.
 package flared
 
 import (
@@ -13,15 +14,19 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/apps/flared/wsclient"
 )
 
+// Runner is the top-level orchestrator for the flared agent. It wires together
+// heartbeat, sync, frpc management, and the WebSocket control-plane connection.
 type Runner struct {
 	Config           *config.Config
 	HeartbeatService *heartbeat.Service
 	FrpcManager      *frpc.Manager
 	SyncService      *sync.Service
 	WebSocketService *wsclient.Client
-	HttpClient       *httpclient.Client
+	HTTPClient       *httpclient.Client
 }
 
+// Run starts all background services and enters the WebSocket reconnect loop.
+// It blocks until ctx is cancelled or an unrecoverable error occurs.
 func (r *Runner) Run(ctx context.Context) error {
 	go r.HeartbeatService.Run(ctx)
 	go r.SyncService.Run(ctx)
@@ -40,11 +45,11 @@ type flaredWSHandler struct {
 	runner *Runner
 }
 
-func (h *flaredWSHandler) OnConnect(ctx context.Context) error {
+func (h *flaredWSHandler) OnConnect(_ context.Context) error {
 	return nil
 }
 
-func (h *flaredWSHandler) HandleMessage(ctx context.Context, msg wsclient.WSMessage) error {
+func (h *flaredWSHandler) HandleMessage(_ context.Context, msg wsclient.WSMessage) error {
 	switch msg.Type {
 	case "active_config":
 		slog.Info("received config update notification from server")

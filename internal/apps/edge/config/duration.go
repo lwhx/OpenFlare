@@ -1,3 +1,4 @@
+// Package config provides shared configuration types for edge applications.
 package config
 
 import (
@@ -8,8 +9,11 @@ import (
 	"time"
 )
 
+// MillisecondDuration is a time.Duration that marshals to/from JSON as an integer number of milliseconds
+// or as a Go duration string (e.g. "1s", "500ms").
 type MillisecondDuration time.Duration
 
+// Duration returns the underlying time.Duration value.
 func (d MillisecondDuration) Duration() time.Duration {
 	return time.Duration(d)
 }
@@ -18,6 +22,7 @@ func (d MillisecondDuration) String() string {
 	return time.Duration(d).String()
 }
 
+// UnmarshalJSON decodes either a numeric millisecond value or a quoted Go duration string.
 func (d *MillisecondDuration) UnmarshalJSON(data []byte) error {
 	raw := strings.TrimSpace(string(data))
 	if raw == "" || raw == "null" {
@@ -49,6 +54,7 @@ func (d *MillisecondDuration) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON encodes the duration as an integer number of milliseconds.
 func (d MillisecondDuration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(time.Duration(d).Milliseconds())
 }

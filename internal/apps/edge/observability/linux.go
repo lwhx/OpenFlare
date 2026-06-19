@@ -1,7 +1,9 @@
+// Package observability provides helpers that read Linux /proc and /sys metrics for system monitoring.
 package observability
 
 import (
 	"bufio"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,13 +12,20 @@ import (
 	"syscall"
 )
 
+const (
+	memInfoMinFieldCount   = 2
+	cpuStatMinFieldCount   = 5
+	netDevMinFieldCount    = 16
+	diskStatsMinFieldCount = 14
+)
+
 // ReadLinuxOSRelease returns the OS name and version from /etc/os-release.
 func ReadLinuxOSRelease() (string, string) {
 	file, err := os.Open("/etc/os-release")
 	if err != nil {
 		return runtime.GOOS, ""
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	values := make(map[string]string)
 	scanner := bufio.NewScanner(file)
@@ -47,7 +56,7 @@ func ReadLinuxCPUModel() string {
 	if err != nil {
 		return ""
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -68,7 +77,7 @@ func ReadMemInfo() (int64, int64) {
 	if err != nil {
 		return 0, 0
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var memTotalKB int64
 	var memAvailableKB int64
@@ -96,7 +105,7 @@ func ReadMemInfo() (int64, int64) {
 
 func parseMemInfoValue(line string) int64 {
 	fields := strings.Fields(line)
-	if len(fields) < 2 {
+	if len(fields) < memInfoMinFieldCount {
 		return 0
 	}
 	value, err := strconv.ParseInt(fields[1], 10, 64)
@@ -135,7 +144,7 @@ func ReadLinuxCPUStat() (uint64, uint64) {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) < 5 {
+		if len(fields) < cpuStatMinFieldCount {
 			return 0, 0
 		}
 		var total uint64
@@ -161,7 +170,7 @@ func ReadLinuxNetworkTotals() (int64, int64) {
 	if err != nil {
 		return 0, 0
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var rx int64
 	var tx int64
@@ -179,7 +188,7 @@ func ReadLinuxNetworkTotals() (int64, int64) {
 			continue
 		}
 		fields := strings.Fields(data)
-		if len(fields) < 16 {
+		if len(fields) < netDevMinFieldCount {
 			continue
 		}
 		rxValue, err := strconv.ParseInt(fields[0], 10, 64)
@@ -200,14 +209,14 @@ func ReadLinuxDiskTotals() (int64, int64) {
 	if err != nil {
 		return 0, 0
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var readBytes int64
 	var writeBytes int64
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
-		if len(fields) < 14 {
+		if len(fields) < diskStatsMinFieldCount {
 			continue
 		}
 		device := fields[2]
@@ -249,8 +258,8 @@ func StatFilesystem(path string) (int64, int64) {
 	if err := syscall.Statfs(absPath, &stat); err != nil {
 		return 0, 0
 	}
-	total := int64(stat.Blocks) * int64(stat.Bsize)
-	free := int64(stat.Bavail) * int64(stat.Bsize)
+	total := multiplyUint64ToInt64(stat.Blocks, uint64(stat.Bsize))
+	free := multiplyUint64ToInt64(stat.Bavail, uint64(stat.Bsize))
 	used := total - free
 	if used < 0 {
 		used = 0
@@ -258,9 +267,19 @@ func StatFilesystem(path string) (int64, int64) {
 	return total, used
 }
 
+func multiplyUint64ToInt64(a uint64, b uint64) int64 {
+	if a == 0 || b == 0 {
+		return 0
+	}
+	if a > math.MaxInt64/b {
+		return math.MaxInt64
+	}
+	return int64(a * b) //nolint:gosec // product is bounded to math.MaxInt64 above
+}
+
 // ReadFirstLine reads and returns the trimmed first line of a file.
 func ReadFirstLine(path string) string {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) //nolint:gosec // path is a fixed /proc or /sys path from internal callers, not user input
 	if err != nil {
 		return ""
 	}

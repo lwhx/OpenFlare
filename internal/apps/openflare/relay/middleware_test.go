@@ -55,7 +55,7 @@ func TestRelayAuthMissingToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.Use(response.ErrorHandlerMiddleware())
-	engine.GET("/relay/test", RelayAuth(), func(c *gin.Context) {
+	engine.GET("/relay/test", Auth(), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
@@ -74,7 +74,7 @@ func TestRelayAuthRejectsWrongNodeType(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.Use(response.ErrorHandlerMiddleware())
-	engine.GET("/relay/test", RelayAuth(), func(c *gin.Context) {
+	engine.GET("/relay/test", Auth(), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
@@ -93,7 +93,7 @@ func TestRelayAuthAcceptsTunnelRelay(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.GET("/relay/test", RelayAuth(), func(c *gin.Context) {
+	engine.GET("/relay/test", Auth(), func(c *gin.Context) {
 		authNode, ok := c.Get(ctxRelayNodeKey)
 		require.True(t, ok)
 		assert.Equal(t, node.NodeID, authNode.(*model.OpenFlareNode).NodeID)

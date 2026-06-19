@@ -1,6 +1,7 @@
 // Copyright 2026 Arctel.net
 // SPDX-License-Identifier: Apache-2.0
 
+// Package dashboard provides helper utilities for dashboard API handlers.
 package dashboard
 
 import (
@@ -15,6 +16,11 @@ const (
 	nodeStatusOnline  = "online"
 	nodeStatusOffline = "offline"
 	nodeStatusPending = "pending"
+
+	dashboardDistributionLimit       = 8
+	highCPUUsagePercentThreshold     = 80
+	highMemoryUsagePercentThreshold  = 85
+	highStorageUsagePercentThreshold = 85
 )
 
 func computeNodeStatus(node *model.OpenFlareNode) string {

@@ -4,7 +4,6 @@
 package websocket
 
 import (
-	"encoding/json"
 	"log/slog"
 	"sync"
 	"time"
@@ -52,7 +51,7 @@ func ServeRelay(c *gin.Context, nodeID string) {
 	client := &relayClient{
 		nodeID: nodeID,
 		conn:   conn,
-		send:   make(chan Message, 16),
+		send:   make(chan Message, wsChannelBuf),
 		done:   make(chan struct{}),
 	}
 	defaultRelayHub.register(client)
@@ -117,37 +116,11 @@ func SendRelayPong(nodeID string) bool {
 }
 
 func (c *relayClient) readPump() {
-	defer c.close()
-	_ = c.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
-	c.conn.SetPongHandler(func(string) error {
-		return c.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
-	})
-
-	for {
-		_, data, err := c.conn.ReadMessage()
-		if err != nil {
-			slog.Debug("relay ws read closed", "node_id", c.nodeID, "error", err)
-			return
-		}
-
-		var message Message
-		if err = json.Unmarshal(data, &message); err != nil {
-			slog.Debug("relay ws invalid message", "node_id", c.nodeID, "error", err)
-			continue
-		}
-
-		switch message.Type {
-		case messageTypePing:
-			_ = SendRelayPong(c.nodeID)
-		case messageTypePong:
-		default:
-			slog.Debug("relay ws unsupported message", "node_id", c.nodeID, "type", message.Type)
-		}
-	}
+	runReadPump(c.nodeID, c.conn, c.close, "relay ws", SendRelayPong, messageTypePong)
 }
 
 func (c *relayClient) writePump() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(wsPingInterval)
 	defer ticker.Stop()
 
 	for {
@@ -155,7 +128,7 @@ func (c *relayClient) writePump() {
 		case <-c.done:
 			return
 		case message := <-c.send:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteDeadline))
 			if err := c.conn.WriteJSON(message); err != nil {
 				slog.Debug("relay ws write failed", "node_id", c.nodeID, "error", err)
 				c.close()

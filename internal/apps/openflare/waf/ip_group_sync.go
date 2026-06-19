@@ -95,7 +95,7 @@ func syncOpenFlareWAFIPGroup(ctx context.Context, group *model.OpenFlareWAFIPGro
 }
 
 func syncIPGroupSubscription(ctx context.Context, group *model.OpenFlareWAFIPGroup, now time.Time) (*IPGroupSyncResult, error) {
-	content, err := downloadIPGroupSubscription(group.SubscriptionURL)
+	content, err := downloadIPGroupSubscription(ctx, group.SubscriptionURL)
 	if err != nil {
 		recordIPGroupSyncFailure(ctx, group, now, err)
 		return nil, err
@@ -266,7 +266,7 @@ func evaluateParsedIPGroupAutoConfig(ctx context.Context, config ipGroupAutoConf
 		if item.StatusCode >= 400 && item.StatusCode < 500 {
 			acc.clientErrorCount++
 		}
-		if item.StatusCode >= 500 {
+		if item.StatusCode >= http.StatusInternalServerError {
 			acc.serverErrorCount++
 		}
 		if hostIsIPLiteral(item.Host) {
@@ -341,16 +341,20 @@ func hostIsIPLiteral(value string) bool {
 	return ok
 }
 
-func downloadIPGroupSubscription(rawURL string) ([]byte, error) {
+func downloadIPGroupSubscription(ctx context.Context, rawURL string) ([]byte, error) {
 	if err := validateSubscriptionURL(rawURL); err != nil {
 		return nil, err
 	}
 	client := http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Get(rawURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("下载订阅失败: %w", err)
 	}
-	defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("下载订阅失败: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("订阅返回状态码 %d", resp.StatusCode)
 	}

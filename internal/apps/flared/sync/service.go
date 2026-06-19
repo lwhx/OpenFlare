@@ -1,3 +1,4 @@
+// Package sync periodically fetches and applies the active tunnel configuration.
 package sync
 
 import (
@@ -11,6 +12,7 @@ import (
 	service "github.com/Rain-kl/Wavelet/pkg/protocol"
 )
 
+// Service synchronizes tunnel configuration from the control plane to the local frpc manager.
 type Service struct {
 	client      *httpclient.Client
 	frpcManager *frpc.Manager
@@ -18,6 +20,7 @@ type Service struct {
 	triggerCh   chan struct{}
 }
 
+// New creates a sync service with the given client, frpc manager, and config.
 func New(client *httpclient.Client, manager *frpc.Manager, cfg *config.Config) *Service {
 	return &Service{
 		client:      client,
@@ -27,6 +30,7 @@ func New(client *httpclient.Client, manager *frpc.Manager, cfg *config.Config) *
 	}
 }
 
+// Trigger requests an immediate configuration sync without waiting for the next interval.
 func (s *Service) Trigger() {
 	select {
 	case s.triggerCh <- struct{}{}:
@@ -34,6 +38,7 @@ func (s *Service) Trigger() {
 	}
 }
 
+// Run starts the sync loop until ctx is canceled.
 func (s *Service) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.config.SyncInterval.Duration())
 	defer ticker.Stop()

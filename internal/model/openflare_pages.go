@@ -10,6 +10,7 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/db"
 )
 
+// Pages deployment status constants.
 const (
 	PagesDeploymentStatusUploaded = "uploaded"
 	PagesDeploymentStatusActive   = "active"

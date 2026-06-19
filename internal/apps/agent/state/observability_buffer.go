@@ -1,3 +1,4 @@
+// Package state persists agent runtime state and observability snapshots.
 package state
 
 import (
@@ -13,6 +14,7 @@ import (
 
 const observabilityBufferWindowSeconds = 60
 
+// ObservabilityBufferRecord stores observability data for a single time window.
 type ObservabilityBufferRecord struct {
 	WindowStartedAtUnix  int64                              `json:"window_started_at_unix"`
 	Snapshot             *protocol.NodeMetricSnapshot       `json:"snapshot,omitempty"`
@@ -22,15 +24,18 @@ type ObservabilityBufferRecord struct {
 	QueuedAtUnix         int64                              `json:"queued_at_unix"`
 }
 
+// ObservabilityBufferStore persists observability records to disk for replay on heartbeat.
 type ObservabilityBufferStore struct {
 	path string
 	mu   sync.Mutex
 }
 
+// NewObservabilityBufferStore creates a store backed by the file at path.
 func NewObservabilityBufferStore(path string) *ObservabilityBufferStore {
 	return &ObservabilityBufferStore{path: filepath.Clean(path)}
 }
 
+// Upsert inserts or merges an observability record and prunes entries older than retainAfterUnix.
 func (s *ObservabilityBufferStore) Upsert(record ObservabilityBufferRecord, retainAfterUnix int64) error {
 	if s == nil || record.WindowStartedAtUnix <= 0 || (record.Snapshot == nil && record.OpenrestyObservation == nil && record.TrafficReport == nil && len(record.AccessLogs) == 0) {
 		return nil
@@ -113,6 +118,7 @@ func accessLogKey(item protocol.NodeAccessLog) string {
 	return strconv.FormatInt(item.LoggedAtUnix, 10) + "|" + item.RemoteAddr + "|" + item.Host + "|" + item.Path + "|" + strconv.Itoa(item.StatusCode)
 }
 
+// Replayable returns buffered records from windows before currentWindowStartedAtUnix.
 func (s *ObservabilityBufferStore) Replayable(currentWindowStartedAtUnix int64, retainAfterUnix int64) ([]ObservabilityBufferRecord, error) {
 	if s == nil {
 		return nil, nil
@@ -138,6 +144,7 @@ func (s *ObservabilityBufferStore) Replayable(currentWindowStartedAtUnix int64, 
 	return result, nil
 }
 
+// Ack removes acknowledged observability windows and prunes entries older than retainAfterUnix.
 func (s *ObservabilityBufferStore) Ack(windowStartedAtUnix []int64, retainAfterUnix int64) error {
 	if s == nil || len(windowStartedAtUnix) == 0 {
 		return nil
@@ -185,16 +192,17 @@ func (s *ObservabilityBufferStore) loadUnlocked() ([]ObservabilityBufferRecord, 
 }
 
 func (s *ObservabilityBufferStore) saveUnlocked(records []ObservabilityBufferRecord) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), stateDirPerm); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(records, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, data, 0o644)
+	return os.WriteFile(s.path, data, stateFilePerm)
 }
 
+// ObservabilityWindowStartedAt calculates the start of the 60-second window for the given metrics, openresty observation, or traffic report.
 func ObservabilityWindowStartedAt(snapshot *protocol.NodeMetricSnapshot, openresty *protocol.NodeOpenrestyObservation, traffic *protocol.NodeTrafficReport) int64 {
 	if traffic != nil && traffic.WindowStartedAtUnix > 0 {
 		return traffic.WindowStartedAtUnix - (traffic.WindowStartedAtUnix % observabilityBufferWindowSeconds)

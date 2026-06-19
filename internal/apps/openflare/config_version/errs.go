@@ -1,6 +1,7 @@
 // Copyright 2026 Arctel.net
 // SPDX-License-Identifier: Apache-2.0
 
+// Package config_version defines shared error messages for configuration versions.
 package config_version
 
 const (

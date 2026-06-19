@@ -36,12 +36,10 @@ var tokenCache = newAccessTokenAuthCache()
 
 func newAccessTokenAuthCache() *accessTokenAuthCache {
 	return &accessTokenAuthCache{
-		positive: make(map[string]cachedAgentNode),
-		negative: make(map[string]time.Time),
-		now:      time.Now,
-		loadNodeByToken: func(ctx context.Context, token string) (*model.OpenFlareNode, error) {
-			return model.GetOpenFlareNodeByAccessToken(ctx, token)
-		},
+		positive:        make(map[string]cachedAgentNode),
+		negative:        make(map[string]time.Time),
+		now:             time.Now,
+		loadNodeByToken: model.GetOpenFlareNodeByAccessToken,
 	}
 }
 

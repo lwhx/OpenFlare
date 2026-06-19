@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,11 +15,15 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/protocol"
 )
 
-const openRestyObservabilityPath = "/openflare/observability"
-const openRestyStubStatusPath = "/openflare/stub_status"
+const (
+	openRestyObservabilityPath      = "/openflare/observability"
+	openRestyStubStatusPath         = "/openflare/stub_status"
+	stubStatusActiveMatchGroupCount = 2
+)
 
 var stubStatusActivePattern = regexp.MustCompile(`Active connections:\s+(\d+)`)
 
+// ManagedOpenRestyMetrics holds metrics collected from the local OpenResty instance.
 type ManagedOpenRestyMetrics struct {
 	TrafficReport        *protocol.NodeTrafficReport
 	OpenrestyRxBytes     int64
@@ -39,7 +44,8 @@ type openRestyObservabilityResponse struct {
 	OpenrestyTxBytes    int64            `json:"openresty_tx_bytes"`
 }
 
-func CollectManagedOpenRestyMetrics(cfg *config.Config) *ManagedOpenRestyMetrics {
+// CollectManagedOpenRestyMetrics collects metrics from the local OpenResty observability endpoints.
+func CollectManagedOpenRestyMetrics(ctx context.Context, cfg *config.Config) *ManagedOpenRestyMetrics {
 	if cfg == nil || cfg.OpenrestyObservabilityPort <= 0 {
 		return nil
 	}
@@ -48,7 +54,7 @@ func CollectManagedOpenRestyMetrics(cfg *config.Config) *ManagedOpenRestyMetrics
 	client := &http.Client{Timeout: 1500 * time.Millisecond}
 
 	observabilityResp := openRestyObservabilityResponse{}
-	if err := fetchLocalJSON(client, baseURL+openRestyObservabilityPath, &observabilityResp); err != nil {
+	if err := fetchLocalJSON(ctx, client, baseURL+openRestyObservabilityPath, &observabilityResp); err != nil {
 		return nil
 	}
 
@@ -67,31 +73,39 @@ func CollectManagedOpenRestyMetrics(cfg *config.Config) *ManagedOpenRestyMetrics
 		OpenrestyTxBytes: observabilityResp.OpenrestyTxBytes,
 	}
 
-	if text, err := fetchLocalText(client, baseURL+openRestyStubStatusPath); err == nil {
+	if text, err := fetchLocalText(ctx, client, baseURL+openRestyStubStatusPath); err == nil {
 		result.OpenrestyConnections = parseStubStatusActiveConnections(text)
 	}
 
 	return result
 }
 
-func fetchLocalJSON(client *http.Client, url string, target any) error {
-	resp, err := client.Get(url)
+func fetchLocalJSON(ctx context.Context, client *http.Client, url string, target any) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected local observability status: %s", resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(target)
 }
 
-func fetchLocalText(client *http.Client, url string) (string, error) {
-	resp, err := client.Get(url)
+func fetchLocalText(ctx context.Context, client *http.Client, url string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("unexpected local stub status: %s", resp.Status)
 	}
@@ -104,7 +118,7 @@ func fetchLocalText(client *http.Client, url string) (string, error) {
 
 func parseStubStatusActiveConnections(raw string) int64 {
 	matches := stubStatusActivePattern.FindStringSubmatch(raw)
-	if len(matches) != 2 {
+	if len(matches) != stubStatusActiveMatchGroupCount {
 		return 0
 	}
 	value, err := strconv.ParseInt(matches[1], 10, 64)

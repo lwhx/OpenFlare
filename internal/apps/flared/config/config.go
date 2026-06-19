@@ -1,3 +1,4 @@
+// Package config loads and persists flared daemon configuration.
 package config
 
 import (
@@ -11,8 +12,17 @@ import (
 	edgeconfig "github.com/Rain-kl/Wavelet/internal/apps/edge/config"
 )
 
+const (
+	defaultHeartbeatInterval = 10 * time.Second
+	defaultSyncInterval      = 30 * time.Second
+	defaultRequestTimeout    = 10 * time.Second
+	configFilePerm           = 0o644
+)
+
+// MillisecondDuration is a JSON-friendly duration type shared with edge config.
 type MillisecondDuration = edgeconfig.MillisecondDuration
 
+// Config holds flared daemon settings loaded from file and environment.
 type Config struct {
 	ServerURL         string              `json:"server_url"`
 	TunnelToken       string              `json:"tunnel_token"`
@@ -25,8 +35,9 @@ type Config struct {
 	configPath        string
 }
 
+// Load reads configuration from path, applying environment overrides and defaults.
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is the flared config file location from startup configuration
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -89,13 +100,13 @@ func applyDefaults(cfg *Config, baseDir string) {
 		cfg.StatePath = filepath.Join(cfg.DataDir, "flared-state.json")
 	}
 	if cfg.HeartbeatInterval <= 0 {
-		cfg.HeartbeatInterval = MillisecondDuration(10 * time.Second)
+		cfg.HeartbeatInterval = MillisecondDuration(defaultHeartbeatInterval)
 	}
 	if cfg.SyncInterval <= 0 {
-		cfg.SyncInterval = MillisecondDuration(30 * time.Second)
+		cfg.SyncInterval = MillisecondDuration(defaultSyncInterval)
 	}
 	if cfg.RequestTimeout <= 0 {
-		cfg.RequestTimeout = MillisecondDuration(10 * time.Second)
+		cfg.RequestTimeout = MillisecondDuration(defaultRequestTimeout)
 	}
 }
 
@@ -109,6 +120,7 @@ func validate(cfg *Config) error {
 	return nil
 }
 
+// InitialAuthToken returns the tunnel token used for initial authentication.
 func (cfg *Config) InitialAuthToken() string {
 	if cfg == nil {
 		return ""
@@ -116,6 +128,7 @@ func (cfg *Config) InitialAuthToken() string {
 	return strings.TrimSpace(cfg.TunnelToken)
 }
 
+// Save writes the current configuration back to the loaded config path.
 func (cfg *Config) Save() error {
 	if cfg == nil {
 		return errors.New("config 不能为空")
@@ -127,5 +140,5 @@ func (cfg *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cfg.configPath, data, 0o644)
+	return os.WriteFile(cfg.configPath, data, configFilePerm)
 }

@@ -76,7 +76,11 @@ export const openflareSidebarNav: OpenFlareSidebarNavEntry[] = [
 /** 扁平菜单项（供路由判断等逻辑复用） */
 export const openflareNavItems: OpenFlareNavItem[] = openflareSidebarNav
   .filter((entry): entry is {kind: 'item'} & OpenFlareNavItem => entry.kind === 'item')
-  .map(({kind: _kind, ...item}) => item);
+  .map((entry) => {
+    const {kind, ...item} = entry;
+    void kind;
+    return item;
+  });
 
 /** 网站模块页内二级导航 */
 export const openflareWebsiteSubNav = [

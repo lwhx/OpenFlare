@@ -19,6 +19,7 @@ const (
 	healthEventStatusResolved = "resolved"
 	healthSeverityCritical    = "critical"
 	healthSeverityWarning     = "warning"
+	percentageMultiplier      = 100
 )
 
 // DistributionItem is a key/value distribution entry.
@@ -415,7 +416,7 @@ func Percentage(used int64, total int64) float64 {
 	if used <= 0 || total <= 0 {
 		return 0
 	}
-	return (float64(used) / float64(total)) * 100
+	return (float64(used) / float64(total)) * percentageMultiplier
 }
 
 func mergeJSONCounts(target distributionAccumulator, raw string) {

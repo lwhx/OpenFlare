@@ -1,3 +1,4 @@
+// Package frpc manages frpc child processes for tunnel relay connections.
 package frpc
 
 import (
@@ -18,6 +19,13 @@ import (
 	service "github.com/Rain-kl/Wavelet/pkg/protocol"
 )
 
+const (
+	dataDirPerm            = 0o750
+	frpcConfigFilePerm     = 0o644
+	orphanProcessKillDelay = 500 * time.Millisecond
+)
+
+// Manager supervises frpc processes for each active relay node.
 type Manager struct {
 	cfg       *config.Config
 	processes map[string]*Process
@@ -27,6 +35,7 @@ type Manager struct {
 	currentChecksum string
 }
 
+// Process tracks a single frpc child process and its runtime state.
 type Process struct {
 	RelayID   string
 	Cmd       *exec.Cmd
@@ -36,6 +45,7 @@ type Process struct {
 	LastError string
 }
 
+// NewManager creates a Manager using the given flared configuration.
 func NewManager(cfg *config.Config) *Manager {
 	return &Manager{
 		cfg:       cfg,
@@ -43,8 +53,9 @@ func NewManager(cfg *config.Config) *Manager {
 	}
 }
 
-func (m *Manager) GetVersion() string {
-	cmd := exec.Command(m.cfg.FrpcPath, "-v")
+// GetVersion returns the installed frpc binary version string.
+func (m *Manager) GetVersion(ctx context.Context) string {
+	cmd := exec.CommandContext(ctx, m.cfg.FrpcPath, "-v") //nolint:gosec // FrpcPath is the configured trusted frpc binary location
 	out, err := cmd.Output()
 	if err != nil {
 		return "unknown"
@@ -52,6 +63,7 @@ func (m *Manager) GetVersion() string {
 	return strings.TrimSpace(string(out))
 }
 
+// GetConnectedRelays reports the relay nodes with active or managed frpc processes.
 func (m *Manager) GetConnectedRelays() []service.FlaredConnectedRelay {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -66,18 +78,21 @@ func (m *Manager) GetConnectedRelays() []service.FlaredConnectedRelay {
 	return result
 }
 
+// GetCurrentConfigVersion returns the version of the applied tunnel configuration.
 func (m *Manager) GetCurrentConfigVersion() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.currentVersion
 }
 
+// GetCurrentConfigChecksum returns the checksum of the applied tunnel configuration.
 func (m *Manager) GetCurrentConfigChecksum() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.currentChecksum
 }
 
+// UpdateConfig reconciles running frpc processes with the latest tunnel configuration.
 func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTunnelConfigResponse) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -93,7 +108,7 @@ func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTun
 		slog.Debug("tunnel config version unchanged, ensuring processes are running", "version", newConfig.Version)
 	}
 
-	if err := os.MkdirAll(m.cfg.DataDir, 0o755); err != nil {
+	if err := os.MkdirAll(m.cfg.DataDir, dataDirPerm); err != nil {
 		return fmt.Errorf("create data dir failed: %w", err)
 	}
 
@@ -105,14 +120,14 @@ func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTun
 		configPath := filepath.Join(m.cfg.DataDir, fmt.Sprintf("frpc_%s.toml", relay.RelayNodeID))
 
 		needsRestart := false
-		existingData, err := os.ReadFile(configPath)
+		existingData, err := os.ReadFile(configPath) //nolint:gosec // configPath is under managed DataDir
 		if err != nil || string(existingData) != tomlContent {
 			// 配置文件不存在或内容有变化，需要写入并重启
 			needsRestart = true
 		}
 
 		if needsRestart {
-			if err := os.WriteFile(configPath, []byte(tomlContent), 0o644); err != nil {
+			if err := os.WriteFile(configPath, []byte(tomlContent), frpcConfigFilePerm); err != nil {
 				slog.Error("failed to write frpc config", "relay_id", relay.RelayNodeID, "error", err)
 				continue
 			}
@@ -150,10 +165,7 @@ func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath
 		_ = os.Remove(pidPath)
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	procCtx, cancel := context.WithCancel(ctx)
+	procCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	proc := &Process{
 		RelayID:   relayID,
 		Cancel:    cancel,
@@ -176,7 +188,7 @@ func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath
 
 			ensureNoOrphanProcess(pidPath)
 
-			cmd := exec.CommandContext(procCtx, m.cfg.FrpcPath, "-c", configPath)
+			cmd := exec.CommandContext(procCtx, m.cfg.FrpcPath, "-c", configPath) //nolint:gosec // FrpcPath and configPath are managed trusted locations
 
 			m.mu.Lock()
 			proc.Cmd = cmd
@@ -186,7 +198,7 @@ func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath
 			startedAt := time.Now()
 			err := cmd.Start()
 			if err == nil {
-				_ = os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0o644)
+				_ = os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), frpcConfigFilePerm)
 				err = cmd.Wait()
 			}
 			_ = os.Remove(pidPath)
@@ -217,7 +229,7 @@ func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath
 			case <-procCtx.Done():
 				return
 			case <-time.After(backoff):
-				backoff = backoff * 2
+				backoff *= 2
 				if backoff > maxBackoff {
 					backoff = maxBackoff
 				}
@@ -226,6 +238,7 @@ func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath
 	}()
 }
 
+// Stop cancels and removes all managed frpc processes.
 func (m *Manager) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -245,28 +258,23 @@ func buildFrpcToml(relay service.FlaredRelayInfo, proxies []service.FlaredProxyE
 
 	host, port := parseAddr(relay.Address)
 
-	buf.WriteString(fmt.Sprintf(`serverAddr = "%s"
-serverPort = %s
-`, host, port))
+	fmt.Fprintf(&buf, "serverAddr = \"%s\"\nserverPort = %s\n", host, port)
 
 	if relay.AuthToken != "" {
-		buf.WriteString(fmt.Sprintf(`auth.method = "token"
-auth.token = "%s"
-`, relay.AuthToken))
+		fmt.Fprintf(&buf, "auth.method = \"token\"\nauth.token = \"%s\"\n", relay.AuthToken)
 	}
 
 	if relay.ProxyURL != "" {
-		buf.WriteString(fmt.Sprintf(`transport.proxyURL = "%s"
-`, relay.ProxyURL))
+		fmt.Fprintf(&buf, "transport.proxyURL = \"%s\"\n", relay.ProxyURL)
 	}
 
 	buf.WriteString("\n")
 
 	for _, proxy := range proxies {
-		buf.WriteString(fmt.Sprintf("[[proxies]]\nname = \"%s\"\ntype = \"%s\"\nlocalIP = \"%s\"\nlocalPort = %d\n",
-			proxy.Name, proxy.Type, proxy.LocalAddr, proxy.LocalPort))
+		fmt.Fprintf(&buf, "[[proxies]]\nname = \"%s\"\ntype = \"%s\"\nlocalIP = \"%s\"\nlocalPort = %d\n",
+			proxy.Name, proxy.Type, proxy.LocalAddr, proxy.LocalPort)
 		if len(proxy.CustomDomains) > 0 {
-			buf.WriteString(fmt.Sprintf("customDomains = [\"%s\"]\n", strings.Join(proxy.CustomDomains, "\", \"")))
+			fmt.Fprintf(&buf, "customDomains = [\"%s\"]\n", strings.Join(proxy.CustomDomains, "\", \""))
 		}
 		buf.WriteString("\n")
 	}
@@ -290,7 +298,7 @@ func parseAddr(addr string) (string, string) {
 	return addr, "7000"
 }
 
-// State persistence
+// ManagerState persists the last applied tunnel configuration version and checksum.
 type ManagerState struct {
 	Version  string
 	Checksum string
@@ -305,9 +313,10 @@ func (m *Manager) saveState() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(m.cfg.StatePath, data, 0o644)
+	return os.WriteFile(m.cfg.StatePath, data, frpcConfigFilePerm)
 }
 
+// LoadState restores the last applied configuration version and checksum from disk.
 func (m *Manager) LoadState() error {
 	data, err := os.ReadFile(m.cfg.StatePath)
 	if err != nil {
@@ -328,7 +337,7 @@ func (m *Manager) LoadState() error {
 }
 
 func ensureNoOrphanProcess(pidPath string) {
-	data, err := os.ReadFile(pidPath)
+	data, err := os.ReadFile(pidPath) //nolint:gosec // pidPath is under managed DataDir
 	if err != nil {
 		return
 	}
@@ -344,7 +353,7 @@ func ensureNoOrphanProcess(pidPath string) {
 		slog.Warn("attempting to kill potentially orphan process", "pid", pid, "pid_path", pidPath)
 		_ = process.Kill()
 		// Wait a little bit to ensure the OS has reclaimed ports
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(orphanProcessKillDelay)
 	}
 	_ = os.Remove(pidPath)
 }

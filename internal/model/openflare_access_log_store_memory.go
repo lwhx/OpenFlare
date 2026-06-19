@@ -133,9 +133,9 @@ func (s *memoryAccessLogStore) BucketDimensions(_ context.Context, filter OpenFl
 	for _, row := range rows {
 		var value string
 		switch column {
-		case "remote_addr":
+		case columnRemoteAddr:
 			value = strings.TrimSpace(row.RemoteAddr)
-		case "host":
+		case columnHost:
 			value = strings.TrimSpace(row.Host)
 		default:
 			continue
@@ -345,7 +345,7 @@ func cloneAccessLogSlice(rows []*OpenFlareAccessLog) []*OpenFlareAccessLog {
 }
 
 func sortOpenFlareAccessLogRows(items []*OpenFlareAccessLog, sortBy string, sortOrder string) {
-	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != "asc"
+	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != sortOrderAsc
 	sort.Slice(items, func(i, j int) bool {
 		left := items[i]
 		right := items[j]
@@ -356,9 +356,9 @@ func sortOpenFlareAccessLogRows(items []*OpenFlareAccessLog, sortBy string, sort
 		switch strings.TrimSpace(sortBy) {
 		case "status_code":
 			compare = left.StatusCode - right.StatusCode
-		case "remote_addr":
+		case columnRemoteAddr:
 			compare = strings.Compare(left.RemoteAddr, right.RemoteAddr)
-		case "host":
+		case columnHost:
 			compare = strings.Compare(left.Host, right.Host)
 		case "path":
 			compare = strings.Compare(left.Path, right.Path)
@@ -369,7 +369,7 @@ func sortOpenFlareAccessLogRows(items []*OpenFlareAccessLog, sortBy string, sort
 			compare = openFlareAccessLogCompareInt64(left.LoggedAt.Unix(), right.LoggedAt.Unix())
 		}
 		if compare == 0 {
-			compare = openFlareAccessLogCompareInt64(int64(left.ID), int64(right.ID))
+			compare = openFlareAccessLogCompareInt64(openFlareAccessLogUintToInt64(left.ID), openFlareAccessLogUintToInt64(right.ID))
 		}
 		if desc {
 			return compare > 0

@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	nodeStatusOnline = "online"
-	applyResultOK    = "success"
-	applyResultWarn  = "warning"
-	applyResultFail  = "failed"
+	nodeStatusOnline         = "online"
+	applyResultOK            = "success"
+	applyResultWarn          = "warning"
+	applyResultFail          = "failed"
+	maxApplyLogMessageLength = 16000
 )
 
 // Heartbeat processes an OpenFlared heartbeat and returns runtime settings.
@@ -46,13 +47,13 @@ func Heartbeat(ctx context.Context, node *model.OpenFlareNode, payload Heartbeat
 		"last_seen_at":     now,
 		"status":           nodeStatusOnline,
 		"update_requested": false,
-		"update_channel":   "stable",
+		"update_channel":   updateChannelStable,
 		"update_tag":       "",
 	}
 	if !previous.UpdateRequested {
 		delete(changes, "update_requested")
 	}
-	if previous.UpdateChannel == "stable" {
+	if previous.UpdateChannel == updateChannelStable {
 		delete(changes, "update_channel")
 	}
 	if previous.UpdateTag == "" {
@@ -67,7 +68,7 @@ func Heartbeat(ctx context.Context, node *model.OpenFlareNode, payload Heartbeat
 	node.ExtVersion = payload.FrpVersion
 	node.CurrentVersion = payload.CurrentVersion
 	node.UpdateRequested = false
-	node.UpdateChannel = "stable"
+	node.UpdateChannel = updateChannelStable
 	node.UpdateTag = ""
 	lastSeen := now
 	node.LastSeenAt = &lastSeen
@@ -228,8 +229,8 @@ func normalizeApplyLogPayload(payload ApplyLogPayload) ApplyLogPayload {
 	payload.Checksum = strings.TrimSpace(payload.Checksum)
 	payload.MainConfigChecksum = strings.TrimSpace(payload.MainConfigChecksum)
 	payload.RouteConfigChecksum = strings.TrimSpace(payload.RouteConfigChecksum)
-	if len(payload.Message) > 16000 {
-		payload.Message = payload.Message[:16000]
+	if len(payload.Message) > maxApplyLogMessageLength {
+		payload.Message = payload.Message[:maxApplyLogMessageLength]
 	}
 	return payload
 }

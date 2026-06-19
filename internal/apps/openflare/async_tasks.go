@@ -1,6 +1,4 @@
-// Copyright 2026 Arctel.net
-// SPDX-License-Identifier: Apache-2.0
-
+// Package openflare implements openflare configuration, service orchestration, and background tasks.
 package openflare
 
 import (
@@ -118,7 +116,7 @@ func (h *DatabaseAutoCleanupHandler) Execute(ctx context.Context, _ []byte) (*ta
 	}
 
 	task.AppendLog(ctx, "开始执行可观测数据自动清理，保留天数=%d", model.DatabaseAutoCleanupRetentionDays)
-	summary, err := tasks.RunDatabaseAutoCleanupOnce(time.Now())
+	summary, err := tasks.RunDatabaseAutoCleanupOnce(ctx, time.Now())
 	if err != nil {
 		task.AppendLog(ctx, "可观测数据自动清理失败: %v", err)
 		return nil, err

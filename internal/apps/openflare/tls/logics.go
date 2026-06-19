@@ -32,7 +32,7 @@ type CertificateContent struct {
 	Remark        string `json:"remark"`
 	Provider      string `json:"provider"`
 	AcmeAccountID uint   `json:"acme_account_id"`
-	DnsAccountID  uint   `json:"dns_account_id"`
+	DNSAccountID  uint   `json:"dns_account_id"`
 	KeyAlgorithm  string `json:"key_algorithm"`
 	AutoRenew     bool   `json:"auto_renew"`
 	PrimaryDomain string `json:"primary_domain"`
@@ -50,7 +50,7 @@ type ApplyInput struct {
 	Name          string `json:"name"`
 	Remark        string `json:"remark"`
 	AcmeAccountID uint   `json:"acme_account_id"`
-	DnsAccountID  uint   `json:"dns_account_id"`
+	DNSAccountID  uint   `json:"dns_account_id"`
 	KeyAlgorithm  string `json:"key_algorithm"`
 	AutoRenew     bool   `json:"auto_renew"`
 	PrimaryDomain string `json:"primary_domain"`
@@ -96,7 +96,7 @@ func GetCertificateContent(ctx context.Context, id uint) (*CertificateContent, e
 		Remark:        certificate.Remark,
 		Provider:      certificate.Provider,
 		AcmeAccountID: certificate.AcmeAccountID,
-		DnsAccountID:  certificate.DnsAccountID,
+		DNSAccountID:  certificate.DNSAccountID,
 		KeyAlgorithm:  certificate.KeyAlgorithm,
 		AutoRenew:     certificate.AutoRenew,
 		PrimaryDomain: certificate.PrimaryDomain,
@@ -179,7 +179,7 @@ func DeleteCertificate(ctx context.Context, id uint) error {
 // ApplyCertificate 申请 ACME 证书。
 func ApplyCertificate(ctx context.Context, input ApplyInput) (*model.TLSCertificate, error) {
 	cert := &model.TLSCertificate{
-		Provider: "acme",
+		Provider: tlsProviderACME,
 		CertPEM:  " ",
 		KeyPEM:   " ",
 	}
@@ -195,7 +195,8 @@ func ApplyCertificate(ctx context.Context, input ApplyInput) (*model.TLSCertific
 	}
 
 	go func(c *model.TLSCertificate) {
-		_ = obtainTLSCertificate(context.Background(), c)
+		asyncCtx := context.WithoutCancel(ctx)
+		_ = obtainTLSCertificate(asyncCtx, c)
 	}(cert)
 
 	return sanitizeCertificateForResponse(cert), nil
@@ -207,7 +208,7 @@ func UpdateACMECertificate(ctx context.Context, id uint, input ApplyInput) (*mod
 	if err != nil {
 		return nil, err
 	}
-	if cert.Provider != "acme" {
+	if cert.Provider != tlsProviderACME {
 		return nil, errors.New(errCertificateOnlyACME)
 	}
 	fillAcmeCertificateFields(cert, input)
@@ -222,7 +223,8 @@ func UpdateACMECertificate(ctx context.Context, id uint, input ApplyInput) (*mod
 	}
 
 	go func(c *model.TLSCertificate) {
-		_ = obtainTLSCertificate(context.Background(), c)
+		asyncCtx := context.WithoutCancel(ctx)
+		_ = obtainTLSCertificate(asyncCtx, c)
 	}(cert)
 
 	return sanitizeCertificateForResponse(cert), nil
@@ -237,7 +239,7 @@ func ConvertCertificateToACME(ctx context.Context, id uint, input ApplyInput) (*
 	if cert.Provider != "upload" {
 		return nil, errors.New(errCertificateOnlyUploadConvert)
 	}
-	if cert.ApplyStatus == "applying" {
+	if cert.ApplyStatus == tlsApplyStatusApplying {
 		return nil, errors.New(errCertificateAlreadyApplying)
 	}
 	fillAcmeCertificateFields(cert, input)
@@ -253,17 +255,18 @@ func ConvertCertificateToACME(ctx context.Context, id uint, input ApplyInput) (*
 	}
 
 	go func(c *model.TLSCertificate) {
-		if err := obtainTLSCertificate(context.Background(), c); err != nil {
+		asyncCtx := context.WithoutCancel(ctx)
+		if err := obtainTLSCertificate(asyncCtx, c); err != nil {
 			return
 		}
-		latest, err := model.GetTLSCertificateByID(context.Background(), c.ID)
+		latest, err := model.GetTLSCertificateByID(asyncCtx, c.ID)
 		if err != nil {
 			return
 		}
-		latest.Provider = "acme"
-		latest.ApplyStatus = "ready"
+		latest.Provider = tlsProviderACME
+		latest.ApplyStatus = tlsApplyStatusReady
 		latest.ApplyMessage = ""
-		_ = model.SaveTLSCertificate(context.Background(), latest)
+		_ = model.SaveTLSCertificate(asyncCtx, latest)
 	}(cert)
 
 	return sanitizeCertificateForResponse(cert), nil
@@ -275,15 +278,16 @@ func RenewCertificate(ctx context.Context, id uint) (*model.TLSCertificate, erro
 	if err != nil {
 		return nil, err
 	}
-	if cert.Provider != "acme" {
+	if cert.Provider != tlsProviderACME {
 		return nil, errors.New(errCertificateOnlyACMERenew)
 	}
 
 	go func(c *model.TLSCertificate) {
-		_ = obtainTLSCertificate(context.Background(), c)
+		asyncCtx := context.WithoutCancel(ctx)
+		_ = obtainTLSCertificate(asyncCtx, c)
 	}(cert)
 
-	cert.ApplyStatus = "applying"
+	cert.ApplyStatus = tlsApplyStatusApplying
 	cert.ApplyMessage = ""
 	if err := model.SaveTLSCertificate(ctx, cert); err != nil {
 		return nil, err
@@ -362,7 +366,7 @@ func GetDefaultAcmeAccount(ctx context.Context) (*model.AcmeAccount, error) {
 	return sanitizeAcmeAccountForResponse(account), nil
 }
 
-func buildCertificate(ctx context.Context, existing *model.TLSCertificate, input CertificateInput) (*model.TLSCertificate, error) {
+func buildCertificate(_ context.Context, existing *model.TLSCertificate, input CertificateInput) (*model.TLSCertificate, error) {
 	name := strings.TrimSpace(input.Name)
 	certPEM := strings.TrimSpace(input.CertPEM)
 	keyPEM := strings.TrimSpace(input.KeyPEM)
@@ -391,7 +395,7 @@ func buildCertificate(ctx context.Context, existing *model.TLSCertificate, input
 	if existing == nil {
 		existing = &model.TLSCertificate{
 			Provider:    "upload",
-			ApplyStatus: "ready",
+			ApplyStatus: tlsApplyStatusReady,
 		}
 	}
 	existing.Name = name
@@ -407,7 +411,7 @@ func fillAcmeCertificateFields(cert *model.TLSCertificate, input ApplyInput) {
 	cert.Name = strings.TrimSpace(input.Name)
 	cert.Remark = strings.TrimSpace(input.Remark)
 	cert.AcmeAccountID = input.AcmeAccountID
-	cert.DnsAccountID = input.DnsAccountID
+	cert.DNSAccountID = input.DNSAccountID
 	cert.KeyAlgorithm = input.KeyAlgorithm
 	cert.AutoRenew = input.AutoRenew
 	cert.PrimaryDomain = strings.TrimSpace(input.PrimaryDomain)
@@ -416,7 +420,7 @@ func fillAcmeCertificateFields(cert *model.TLSCertificate, input ApplyInput) {
 	cert.SkipDNS = input.SkipDNS
 	cert.DNS1 = strings.TrimSpace(input.DNS1)
 	cert.DNS2 = strings.TrimSpace(input.DNS2)
-	cert.ApplyStatus = "applying"
+	cert.ApplyStatus = tlsApplyStatusApplying
 }
 
 func ensureCertificateNotReferenced(ctx context.Context, id uint) error {
@@ -457,26 +461,26 @@ func sanitizeCertificateForResponse(certificate *model.TLSCertificate) *model.TL
 	if certificate == nil {
 		return nil
 	}
-	copy := *certificate
-	copy.CertPEM = ""
-	copy.KeyPEM = ""
-	return &copy
+	certCopy := *certificate
+	certCopy.CertPEM = ""
+	certCopy.KeyPEM = ""
+	return &certCopy
 }
 
 func sanitizeDNSAccountForResponse(account *model.DNSAccount) *model.DNSAccount {
 	if account == nil {
 		return nil
 	}
-	copy := *account
-	copy.Authorization = ""
-	return &copy
+	certCopy := *account
+	certCopy.Authorization = ""
+	return &certCopy
 }
 
 func sanitizeAcmeAccountForResponse(account *model.AcmeAccount) *model.AcmeAccount {
 	if account == nil {
 		return nil
 	}
-	copy := *account
-	copy.PrivateKey = ""
-	return &copy
+	certCopy := *account
+	certCopy.PrivateKey = ""
+	return &certCopy
 }

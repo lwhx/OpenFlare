@@ -1,3 +1,4 @@
+// Package state persists relay runtime state to disk.
 package state
 
 import (
@@ -7,11 +8,15 @@ import (
 	"sync"
 )
 
+const relayStateFilePerm = 0o600
+
+// Store reads and writes relay state from a JSON file.
 type Store struct {
 	path string
 	mu   sync.RWMutex
 }
 
+// State holds persisted relay metrics and authentication state.
 type State struct {
 	LastAuthToken          string `json:"last_auth_token"`
 	LastProfileFingerprint string `json:"last_profile_fingerprint"`
@@ -20,12 +25,14 @@ type State struct {
 	LastMetricAtUnix       int64  `json:"last_metric_at_unix"`
 }
 
+// NewStore creates a state store backed by the file at path.
 func NewStore(path string) *Store {
 	return &Store{
 		path: path,
 	}
 }
 
+// Load reads the persisted state from disk, returning an empty state if the file is missing.
 func (s *Store) Load() (*State, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -45,6 +52,7 @@ func (s *Store) Load() (*State, error) {
 	return &state, nil
 }
 
+// Save writes state to disk.
 func (s *Store) Save(state *State) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -55,5 +63,5 @@ func (s *Store) Save(state *State) error {
 	}
 
 	slog.Debug("saving relay state")
-	return os.WriteFile(s.path, data, 0644)
+	return os.WriteFile(s.path, data, relayStateFilePerm)
 }

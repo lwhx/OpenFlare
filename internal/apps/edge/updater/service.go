@@ -1,3 +1,4 @@
+// Package updater provides capabilities to check for, download, and apply updates.
 package updater
 
 import (
@@ -17,16 +18,23 @@ import (
 	"github.com/Rain-kl/Wavelet/pkg/utils"
 )
 
-const maxChecksumAssetSize = 64 * 1024
+const (
+	maxChecksumAssetSize = 64 * 1024
+	goosWindows          = "windows"
+	updateTmpFilePerm    = 0o600
+	updateBinaryFilePerm = 0o755
+)
 
 var replaceAndRestartFunc = replaceAndRestart
 
+// Config defines the configuration for the update service.
 type Config struct {
 	LocalVersion string
 	AssetPrefix  string
 	LogLabel     string
 }
 
+// Service handles checking and applying application binary updates.
 type Service struct {
 	httpClient   *http.Client
 	lastCheckKey string
@@ -35,6 +43,7 @@ type Service struct {
 	logLabel     string
 }
 
+// New creates a new updater Service with the provided configuration.
 func New(cfg Config) *Service {
 	return &Service{
 		httpClient:   &http.Client{Timeout: 30 * time.Second},
@@ -44,6 +53,7 @@ func New(cfg Config) *Service {
 	}
 }
 
+// UpdateOptions specifies parameters for checking and applying updates.
 type UpdateOptions struct {
 	Channel string
 	TagName string
@@ -62,6 +72,7 @@ type githubAsset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
+// CheckAndUpdate checks for a newer release on GitHub and performs an update if available.
 func (s *Service) CheckAndUpdate(ctx context.Context, repo string, options UpdateOptions) error {
 	release, err := s.getRelease(ctx, repo, options)
 	if err != nil {
@@ -152,7 +163,7 @@ func (s *Service) getLatestPreviewRelease(ctx context.Context, repo string) (*gi
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("github api returned %s", resp.Status)
@@ -188,12 +199,11 @@ func (s *Service) fetchReleaseFromURL(ctx context.Context, url string) (*githubR
 	if err != nil {
 		return nil, err
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
 			slog.Error("failed to close response body", "error", err)
 		}
-	}(resp.Body)
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil
@@ -222,7 +232,7 @@ func (s *Service) downloadChecksum(ctx context.Context, url string, assetName st
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("checksum download returned %s", resp.Status)
@@ -309,37 +319,37 @@ func (s *Service) downloadAndRestart(ctx context.Context, url string, expectedCh
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download returned %s", resp.Status)
 	}
 
 	tmpPath := targetPath + ".update"
-	if runtime.GOOS == "windows" && !strings.HasSuffix(strings.ToLower(tmpPath), ".exe") {
+	if runtime.GOOS == goosWindows && !strings.HasSuffix(strings.ToLower(tmpPath), ".exe") {
 		tmpPath += ".exe"
 	}
-	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, updateTmpFilePerm) //nolint:gosec // tmpPath is derived from the configured updater binary location
 	if err != nil {
 		return err
 	}
 	hasher := sha256.New()
 	if _, err = io.Copy(io.MultiWriter(tmpFile, hasher), resp.Body); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
 		return err
 	}
 	if err = tmpFile.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return err
 	}
 	actualChecksum := hex.EncodeToString(hasher.Sum(nil))
 	if actualChecksum != expectedChecksum {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("sha256 checksum mismatch: expected %s, got %s", expectedChecksum, actualChecksum)
 	}
-	if err = os.Chmod(tmpPath, 0o755); err != nil && runtime.GOOS != "windows" {
-		os.Remove(tmpPath)
+	if err = os.Chmod(tmpPath, updateBinaryFilePerm); err != nil && runtime.GOOS != goosWindows { //nolint:gosec // downloaded edge binary must remain executable
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("set executable permission: %w", err)
 	}
 
@@ -349,7 +359,7 @@ func (s *Service) downloadAndRestart(ctx context.Context, url string, expectedCh
 
 func (s *Service) assetNameForGOOSGOARCH(goos string, goarch string) string {
 	name := fmt.Sprintf("%s-%s-%s", s.assetPrefix, goos, goarch)
-	if goos == "windows" {
+	if goos == goosWindows {
 		return name + ".exe"
 	}
 	return name

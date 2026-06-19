@@ -1,5 +1,6 @@
 //go:build !windows
 
+// Package updater provides capabilities to check for, download, and apply updates.
 package updater
 
 import (
@@ -33,7 +34,7 @@ func replaceAndRestart(execPath string, tmpPath string) error {
 	if err := removeBackupBinary(backupPath); err != nil {
 		return err
 	}
-	if err := syscall.Exec(execPath, os.Args, os.Environ()); err != nil {
+	if err := syscall.Exec(execPath, os.Args, os.Environ()); err != nil { //nolint:gosec // execPath is the validated edge updater binary path
 		return fmt.Errorf("exec restart: %w", err)
 	}
 	return fmt.Errorf("unreachable after exec")

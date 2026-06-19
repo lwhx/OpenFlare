@@ -1,6 +1,7 @@
 // Copyright 2026 Arctel.net
 // SPDX-License-Identifier: Apache-2.0
 
+// Package websocket manages persistent WebSocket connections between the OpenFlare server and its agents.
 package websocket
 
 import (
@@ -67,7 +68,7 @@ func ServeAgent(c *gin.Context, nodeID string, onStatus AgentStatusHandler) {
 		nodeID:     nodeID,
 		remoteAddr: c.Request.RemoteAddr,
 		conn:       conn,
-		send:       make(chan Message, 16),
+		send:       make(chan Message, wsChannelBuf),
 		done:       make(chan struct{}),
 		onStatus:   onStatus,
 	}
@@ -202,15 +203,15 @@ func (c *agentClient) readPump() {
 }
 
 func agentWSReadTimeout() time.Duration {
-	timeout := 90 * time.Second
-	if timeout < 30*time.Second {
-		return 30 * time.Second
+	timeout := wsReadDeadline
+	if timeout < minAgentWSReadTimeout {
+		return minAgentWSReadTimeout
 	}
 	return timeout
 }
 
 func (c *agentClient) writePump() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(wsPingInterval)
 	defer ticker.Stop()
 
 	for {
@@ -218,7 +219,7 @@ func (c *agentClient) writePump() {
 		case <-c.done:
 			return
 		case message := <-c.send:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteDeadline))
 			if err := c.conn.WriteJSON(message); err != nil {
 				slog.Debug("agent ws write failed", "node_id", c.nodeID, "error", err)
 				c.close()

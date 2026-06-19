@@ -29,11 +29,13 @@ type OutboundIPAPIAdapter interface {
 	DecodeIP(io.Reader) (net.IP, error)
 }
 
+// HTTPOutboundIPStrategy resolves the public egress IP via an HTTP API adapter.
 type HTTPOutboundIPStrategy struct {
 	Client  *http.Client
 	Adapter OutboundIPAPIAdapter
 }
 
+// NewHTTPOutboundIPStrategy creates a strategy that queries adapter over HTTP.
 func NewHTTPOutboundIPStrategy(adapter OutboundIPAPIAdapter, client *http.Client) *HTTPOutboundIPStrategy {
 	if client == nil {
 		client = &http.Client{Timeout: defaultOutboundIPLookupTimeout}
@@ -44,6 +46,7 @@ func NewHTTPOutboundIPStrategy(adapter OutboundIPAPIAdapter, client *http.Client
 	}
 }
 
+// Name returns the strategy or adapter identifier.
 func (s *HTTPOutboundIPStrategy) Name() string {
 	if s == nil || s.Adapter == nil {
 		return "http-outbound-ip"
@@ -51,12 +54,13 @@ func (s *HTTPOutboundIPStrategy) Name() string {
 	return s.Adapter.Name()
 }
 
+// GetOutboundIP queries the configured HTTP endpoint for the current public IP.
 func (s *HTTPOutboundIPStrategy) GetOutboundIP(ctx context.Context) (net.IP, error) {
 	if s == nil || s.Adapter == nil {
 		return nil, errors.New("outbound IP adapter is nil")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("context is required")
 	}
 	client := s.Client
 	if client == nil {
@@ -70,7 +74,7 @@ func (s *HTTPOutboundIPStrategy) GetOutboundIP(ctx context.Context) (net.IP, err
 	if err != nil {
 		return nil, fmt.Errorf("%s request failed: %w", s.Name(), err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s returned non-200 status: %d %s", s.Name(), response.StatusCode, response.Status)
 	}
@@ -84,6 +88,7 @@ func (s *HTTPOutboundIPStrategy) GetOutboundIP(ctx context.Context) (net.IP, err
 	return ip, nil
 }
 
+// RealIPCCAdapter decodes public IP responses from realip.cc.
 type RealIPCCAdapter struct {
 	URL string
 }
@@ -92,14 +97,17 @@ type realIPCCResponse struct {
 	IP string `json:"ip"`
 }
 
+// NewRealIPCCOutboundIPStrategy creates the default realip.cc lookup strategy.
 func NewRealIPCCOutboundIPStrategy() *HTTPOutboundIPStrategy {
 	return NewHTTPOutboundIPStrategy(RealIPCCAdapter{}, nil)
 }
 
+// Name returns the realip.cc adapter identifier.
 func (a RealIPCCAdapter) Name() string {
 	return "realip.cc"
 }
 
+// Endpoint returns the realip.cc API URL.
 func (a RealIPCCAdapter) Endpoint() string {
 	if strings.TrimSpace(a.URL) != "" {
 		return strings.TrimSpace(a.URL)
@@ -107,6 +115,7 @@ func (a RealIPCCAdapter) Endpoint() string {
 	return "https://realip.cc"
 }
 
+// DecodeIP parses a realip.cc JSON response into a public IP address.
 func (a RealIPCCAdapter) DecodeIP(reader io.Reader) (net.IP, error) {
 	var payload realIPCCResponse
 	if err := json.NewDecoder(reader).Decode(&payload); err != nil {
@@ -122,12 +131,14 @@ func (a RealIPCCAdapter) DecodeIP(reader io.Reader) (net.IP, error) {
 	return ip, nil
 }
 
+// DefaultOutboundIPStrategies returns the built-in public egress IP lookup strategies.
 func DefaultOutboundIPStrategies() []OutboundIPStrategy {
 	return []OutboundIPStrategy{
 		NewRealIPCCOutboundIPStrategy(),
 	}
 }
 
+// GetOutboundIP tries each strategy until one returns a public egress IP.
 func GetOutboundIP(ctx context.Context, strategies ...OutboundIPStrategy) (net.IP, error) {
 	if len(strategies) == 0 {
 		strategies = DefaultOutboundIPStrategies()

@@ -82,7 +82,7 @@ func TestIsValidProvider(t *testing.T) {
 
 func TestLookupGeoInfoWithProviderUsesTemporaryProvider(t *testing.T) {
 	previousFactory := providerFactory
-	providerFactory = func(provider string) (GeoIPService, error) {
+	providerFactory = func(provider string) (Service, error) {
 		return &fakeProvider{}, nil
 	}
 	defer func() {

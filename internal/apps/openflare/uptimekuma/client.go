@@ -1,6 +1,7 @@
 // Copyright 2026 Arctel.net
 // SPDX-License-Identifier: Apache-2.0
 
+// Package uptimekuma provides a Socket.IO client and sync implementation for Uptime Kuma.
 package uptimekuma
 
 import (
@@ -16,28 +17,30 @@ import (
 	"time"
 )
 
-// UptimeKumaMonitor represents a monitor entry from Uptime Kuma.
-type UptimeKumaMonitor struct {
-	ID            int             `json:"id"`
-	Name          string          `json:"name"`
-	Url           string          `json:"url"`
-	Type          string          `json:"type"`
-	Interval      int             `json:"interval"`
-	MaxRetries    int             `json:"maxretries"`
-	RetryInterval int             `json:"retryInterval"`
-	Timeout       int             `json:"timeout"`
-	Tags          []UptimeKumaTag `json:"tags"`
+const emitAckTimeout = 10 * time.Second
+
+// Monitor represents a monitor entry from Uptime Kuma.
+type Monitor struct {
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	URL           string `json:"url"`
+	Type          string `json:"type"`
+	Interval      int    `json:"interval"`
+	MaxRetries    int    `json:"maxretries"`
+	RetryInterval int    `json:"retryInterval"`
+	Timeout       int    `json:"timeout"`
+	Tags          []Tag  `json:"tags"`
 }
 
-// UptimeKumaTag represents a tag attached to a monitor.
-type UptimeKumaTag struct {
+// Tag represents a tag attached to a monitor.
+type Tag struct {
 	ID    int    `json:"tag_id"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
 }
 
-// UptimeKumaTagItem represents a tag returned by getTags.
-type UptimeKumaTagItem struct {
+// TagItem represents a tag returned by getTags.
+type TagItem struct {
 	ID    int    `json:"id"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
@@ -55,7 +58,7 @@ type SocketIOClient struct {
 	closeOnce  sync.Once
 
 	monitorListMutex sync.RWMutex
-	monitorList      map[string]UptimeKumaMonitor
+	monitorList      map[string]Monitor
 	monitorListChan  chan struct{}
 	monitorListOnce  sync.Once
 
@@ -76,7 +79,7 @@ func NewSocketIOClient(baseURL string) *SocketIOClient {
 		ackChanMap:      make(map[int]chan string),
 		doneChan:        make(chan struct{}),
 		monitorListChan: make(chan struct{}),
-		monitorList:     make(map[string]UptimeKumaMonitor),
+		monitorList:     make(map[string]Monitor),
 		ctx:             ctx,
 		cancel:          cancel,
 	}
@@ -95,7 +98,7 @@ func (c *SocketIOClient) Connect() error {
 		slog.Error("Uptime Kuma handshake connection failed", "url", u, "error", err)
 		return fmt.Errorf("handshake request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	bs, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -130,7 +133,7 @@ func (c *SocketIOClient) Connect() error {
 		slog.Error("Uptime Kuma namespace connect request failed", "sid", c.sid, "error", err)
 		return fmt.Errorf("namespace connect failed: %w", err)
 	}
-	respConnect.Body.Close()
+	_ = respConnect.Body.Close()
 	slog.Debug("Namespace connected successfully to Uptime Kuma", "sid", c.sid)
 
 	go c.pollLoop()
@@ -164,7 +167,7 @@ func (c *SocketIOClient) pollLoop() {
 		}
 
 		bs, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			slog.Error("Failed to read Uptime Kuma polling body", "sid", c.sid, "error", err)
 			c.err = err
@@ -218,7 +221,7 @@ func (c *SocketIOClient) sendPong() {
 	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
 	resp, err := c.httpClient.Do(req)
 	if err == nil {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 }
 
@@ -232,7 +235,7 @@ func (c *SocketIOClient) handleEvent(payload string) {
 		return
 	}
 	if eventName == "monitorList" {
-		var list map[string]UptimeKumaMonitor
+		var list map[string]Monitor
 		if err := json.Unmarshal(arr[1], &list); err == nil {
 			c.monitorListMutex.Lock()
 			c.monitorList = list
@@ -309,13 +312,13 @@ func (c *SocketIOClient) Emit(event string, args ...any) (string, error) {
 		slog.Error("Failed to send Emit request", "event", event, "ackID", id, "error", err)
 		return "", err
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	select {
 	case result := <-ch:
 		slog.Debug("Received Ack for event", "event", event, "ackID", id, "response", result)
 		return result, nil
-	case <-time.After(10 * time.Second):
+	case <-time.After(emitAckTimeout):
 		c.ackMutex.Lock()
 		delete(c.ackChanMap, id)
 		c.ackMutex.Unlock()
@@ -344,11 +347,11 @@ func (c *SocketIOClient) GetMonitorListChan() <-chan struct{} {
 }
 
 // GetMonitorList returns a copy of the current monitor list.
-func (c *SocketIOClient) GetMonitorList() map[string]UptimeKumaMonitor {
+func (c *SocketIOClient) GetMonitorList() map[string]Monitor {
 	c.monitorListMutex.RLock()
 	defer c.monitorListMutex.RUnlock()
 
-	m := make(map[string]UptimeKumaMonitor, len(c.monitorList))
+	m := make(map[string]Monitor, len(c.monitorList))
 	for k, v := range c.monitorList {
 		m[k] = v
 	}
@@ -372,7 +375,7 @@ func ParseAckResponse(response string, target any) error {
 			if errMsg == "" {
 				errMsg = "unknown error from Uptime Kuma"
 			}
-			return fmt.Errorf("Uptime Kuma error response: %s", errMsg)
+			return fmt.Errorf("uptime Kuma error response: %s", errMsg)
 		}
 	}
 

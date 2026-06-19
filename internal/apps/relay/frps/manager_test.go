@@ -1,6 +1,7 @@
 package frps
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -93,7 +94,7 @@ func TestStartProcessSuccess(t *testing.T) {
 		WebServerEnabled: false,
 	}
 
-	m.UpdateConfig(cfg)
+	m.UpdateConfig(context.Background(), cfg)
 
 	assertStatusEventually(t, m, "healthy", 2*time.Second)
 
@@ -117,7 +118,7 @@ func TestStartProcessFailureAndBackoff(t *testing.T) {
 		WebServerEnabled: false,
 	}
 
-	m.UpdateConfig(cfg)
+	m.UpdateConfig(context.Background(), cfg)
 
 	assertStatusEventually(t, m, "unhealthy", 2*time.Second)
 
@@ -158,7 +159,7 @@ func TestUnexpectedExitAndAutorestart(t *testing.T) {
 		WebServerEnabled: false,
 	}
 
-	m.UpdateConfig(cfg)
+	m.UpdateConfig(context.Background(), cfg)
 
 	assertStatusEventually(t, m, "unhealthy", 2*time.Second)
 
@@ -189,7 +190,7 @@ func TestBackoffReset(t *testing.T) {
 		WebServerEnabled: false,
 	}
 
-	m.UpdateConfig(cfg)
+	m.UpdateConfig(context.Background(), cfg)
 
 	// Crashed once, backoff is 2s
 	assertStatusEventually(t, m, "unhealthy", 2*time.Second)
@@ -232,7 +233,7 @@ func TestImmediateRestartOnSameConfigDeadProcess(t *testing.T) {
 		WebServerEnabled: false,
 	}
 
-	m.UpdateConfig(cfg)
+	m.UpdateConfig(context.Background(), cfg)
 
 	// Let it crash
 	assertStatusEventually(t, m, "unhealthy", 2*time.Second)
@@ -241,7 +242,7 @@ func TestImmediateRestartOnSameConfigDeadProcess(t *testing.T) {
 	writeControl(t, dir, 0, 5)
 
 	// Send same config block to trigger immediate restart bypass of backoff sleep
-	m.UpdateConfig(cfg)
+	m.UpdateConfig(context.Background(), cfg)
 
 	// Check if it started immediately
 	assertStatusEventually(t, m, "healthy", 2*time.Second)
@@ -261,7 +262,7 @@ func TestSupervisorGenerationInterrupt(t *testing.T) {
 		WebServerEnabled: false,
 	}
 
-	m.UpdateConfig(cfg)
+	m.UpdateConfig(context.Background(), cfg)
 
 	assertStatusEventually(t, m, "healthy", 2*time.Second)
 
@@ -281,7 +282,7 @@ func TestSupervisorGenerationInterrupt(t *testing.T) {
 		AuthToken:        "test-auth",
 		WebServerEnabled: false,
 	}
-	m.UpdateConfig(cfg2)
+	m.UpdateConfig(context.Background(), cfg2)
 
 	assertStatusEventually(t, m, "healthy", 2*time.Second)
 
@@ -338,7 +339,7 @@ func TestUpdateConfigKillsOrphanProcessBeforeRestart(t *testing.T) {
 		WebServerEnabled: false,
 	}
 
-	m.UpdateConfig(cfg)
+	m.UpdateConfig(context.Background(), cfg)
 
 	assertCommandExitedEventually(t, orphan, 2*time.Second)
 	assertStatusEventually(t, m, "healthy", 2*time.Second)

@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const nodeAccessLogFilterClauseCapacity = 6
+
 // NodeAccessLogFilter scopes ClickHouse node access log queries.
 type NodeAccessLogFilter struct {
 	NodeID     string
@@ -24,8 +26,8 @@ type NodeAccessLogFilter struct {
 }
 
 func buildNodeAccessLogFilterClause(filter NodeAccessLogFilter) (string, []any) {
-	parts := make([]string, 0, 6)
-	args := make([]any, 0, 6)
+	parts := make([]string, 0, nodeAccessLogFilterClauseCapacity)
+	args := make([]any, 0, nodeAccessLogFilterClauseCapacity)
 	if trimmed := strings.TrimSpace(filter.NodeID); trimmed != "" {
 		parts = append(parts, "node_id = ?")
 		args = append(args, trimmed)

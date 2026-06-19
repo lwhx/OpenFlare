@@ -1,6 +1,7 @@
 // Copyright 2026 Arctel.net
 // SPDX-License-Identifier: Apache-2.0
 
+// Package acme implements ACME certificate issuance and renewal.
 package acme
 
 import (
@@ -25,22 +26,27 @@ import (
 	"github.com/go-acme/lego/v4/registration"
 )
 
-// AcmeUser implements lego's user interface.
-type AcmeUser struct {
+const dnsChallengePrecheckDelay = 20 * time.Second
+
+// User implements lego's registration.User interface for ACME account management.
+type User struct {
 	Email        string
 	Registration *registration.Resource
 	key          crypto.PrivateKey
 }
 
-func (u *AcmeUser) GetEmail() string {
+// GetEmail returns the email address associated with this ACME account.
+func (u *User) GetEmail() string {
 	return u.Email
 }
 
-func (u *AcmeUser) GetRegistration() *registration.Resource {
+// GetRegistration returns the ACME account registration resource.
+func (u *User) GetRegistration() *registration.Resource {
 	return u.Registration
 }
 
-func (u *AcmeUser) GetPrivateKey() crypto.PrivateKey {
+// GetPrivateKey returns the private key used to authenticate with the ACME server.
+func (u *User) GetPrivateKey() crypto.PrivateKey {
 	return u.key
 }
 
@@ -88,7 +94,7 @@ func encodePrivateKey(key crypto.PrivateKey) (string, error) {
 }
 
 // GetOrCreateLegoClient returns a configured lego client and optional new account credentials.
-func GetOrCreateLegoClient(acmeEmail, privateKeyPEM, accountURL string, keyAlgorithm string) (*lego.Client, *AcmeUser, string, string, error) {
+func GetOrCreateLegoClient(acmeEmail, privateKeyPEM, accountURL string, keyAlgorithm string) (*lego.Client, *User, string, string, error) {
 	var privateKey crypto.PrivateKey
 	var err error
 	var newPrivateKeyPEM string
@@ -111,7 +117,7 @@ func GetOrCreateLegoClient(acmeEmail, privateKeyPEM, accountURL string, keyAlgor
 		}
 	}
 
-	user := &AcmeUser{
+	user := &User{
 		Email: acmeEmail,
 		key:   privateKey,
 	}
@@ -197,12 +203,12 @@ func SetupDNSProvider(client *lego.Client, dnsType, dnsAuth string, dns1, dns2 s
 	}
 
 	if disableCNAME {
-		opts = append(opts, dns01.DisableCompletePropagationRequirement())
+		opts = append(opts, dns01.DisableAuthoritativeNssPropagationRequirement())
 	}
 
 	if skipDNS {
-		opts = append(opts, dns01.WrapPreCheck(func(domain, fqdn, value string, check dns01.PreCheckFunc) (bool, error) {
-			time.Sleep(20 * time.Second)
+		opts = append(opts, dns01.WrapPreCheck(func(_, _, _ string, _ dns01.PreCheckFunc) (bool, error) {
+			time.Sleep(dnsChallengePrecheckDelay)
 			return true, nil
 		}))
 	}

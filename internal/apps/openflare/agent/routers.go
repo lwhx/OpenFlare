@@ -37,7 +37,7 @@ func RegisterHandler(c *gin.Context) {
 		result *RegistrationResponse
 		err    error
 	)
-	if authNode, ok := AgentNodeFromContext(c); ok {
+	if authNode, ok := NodeFromContext(c); ok {
 		result, err = RegisterWithAccessToken(c.Request.Context(), authNode, payload)
 	} else {
 		result, err = RegisterWithDiscovery(c.Request.Context(), payload)
@@ -67,7 +67,7 @@ func HeartbeatHandler(c *gin.Context) {
 	}
 	payload.IP = resolveReportedNodeIP(payload.IP, c.Request.RemoteAddr)
 
-	authNode, ok := AgentNodeFromContext(c)
+	authNode, ok := NodeFromContext(c)
 	if !ok {
 		response.AbortUnauthorized(c, errInvalidAgentToken)
 		return
@@ -91,7 +91,7 @@ func HeartbeatHandler(c *gin.Context) {
 // @Failure 401 {object} response.Any "Token 无效"
 // @Router /api/v1/agent/config-versions/active [get]
 func GetActiveConfigHandler(c *gin.Context) {
-	if _, ok := AgentNodeFromContext(c); !ok {
+	if _, ok := NodeFromContext(c); !ok {
 		response.AbortUnauthorized(c, errNodeMissingFromContext)
 		return
 	}
@@ -143,7 +143,7 @@ func ReportApplyLogHandler(c *gin.Context) {
 	if !apiutil.BindJSON(c, &payload) {
 		return
 	}
-	if authNode, ok := AgentNodeFromContext(c); ok {
+	if authNode, ok := NodeFromContext(c); ok {
 		payload.NodeID = authNode.NodeID
 	}
 	log, err := ReportApplyLog(c.Request.Context(), payload)
@@ -173,7 +173,7 @@ func DownloadPagesPackageHandler(c *gin.Context) {
 	if apiutil.AbortBadRequestOnError(c, err) {
 		return
 	}
-	defer packageObj.Body.Close()
+	defer func() { _ = packageObj.Body.Close() }()
 	c.Header("Content-Disposition", "attachment; filename="+fileName)
 	if packageObj.ContentType != "" {
 		c.Header("Content-Type", packageObj.ContentType)
@@ -195,15 +195,15 @@ func pagesDeploymentIDParam(c *gin.Context) (uint, bool) {
 	return uint(id64), true
 }
 
-// AgentWebSocketHandler upgrades an authenticated agent websocket connection.
+// WebSocketHandler upgrades an authenticated agent websocket connection.
 // @Summary Agent WebSocket 连接
 // @Description 升级为 WebSocket 长连接，用于实时推送配置同步、WAF IP 组等指令；需携带 X-Agent-Token
 // @Tags openflare-agent
 // @Security AgentTokenAuth
 // @Failure 401 {object} response.Any "Token 无效"
 // @Router /api/v1/agent/ws [get]
-func AgentWebSocketHandler(c *gin.Context) {
-	authNode, ok := AgentNodeFromContext(c)
+func WebSocketHandler(c *gin.Context) {
+	authNode, ok := NodeFromContext(c)
 	if !ok {
 		response.AbortUnauthorized(c, errInvalidAgentToken)
 		return

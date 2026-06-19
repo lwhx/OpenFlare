@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"os"
 	"path"
@@ -24,11 +25,14 @@ import (
 )
 
 const (
-	pagesMaxDeploymentFiles  = 1000
-	pagesMaxDeploymentBytes  = 100 * 1024 * 1024
-	defaultPagesEntryFile    = "index.html"
-	defaultPagesFallbackPath = "/index.html"
+	pagesMaxDeploymentFiles   = 1000
+	pagesMaxDeploymentBytes   = 100 * 1024 * 1024
+	defaultPagesEntryFile     = "index.html"
+	defaultPagesFallbackPath  = "/index.html"
 	pagesDeploymentUploadType = "openflare_pages_deployment"
+	mimeTypeApplicationZip    = "application/zip"
+	pagesMaxPathLength        = 512
+	bytesPerKiB               = 1024
 )
 
 var pagesSlugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,126}[a-z0-9]$|^[a-z0-9]$`)
@@ -71,15 +75,15 @@ func validateAndNormalizePagesRootDir(raw string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	if len(value) > 512 {
-		return "", errors.New("Pages 根目录长度不能超过 512")
+	if len(value) > pagesMaxPathLength {
+		return "", errors.New("pages 根目录长度不能超过 512") // error 消息首字母小写
 	}
 	if strings.Contains(value, "\\") || strings.ContainsAny(value, "\"';") {
-		return "", errors.New("Pages 根目录包含不支持的字符")
+		return "", errors.New("pages 根目录包含不支持的字符")
 	}
 	for _, r := range value {
 		if r <= 0x20 || r == 0x7f {
-			return "", errors.New("Pages 根目录不能包含空白或控制字符")
+			return "", errors.New("pages 根目录不能包含空白或控制字符")
 		}
 	}
 	cleaned := path.Clean(filepath.ToSlash(value))
@@ -88,7 +92,7 @@ func validateAndNormalizePagesRootDir(raw string) (string, error) {
 	}
 	for _, segment := range strings.Split(cleaned, "/") {
 		if segment == "." || segment == ".." {
-			return "", errors.New("Pages 根目录不能包含 . 或 .. 路径段")
+			return "", errors.New("pages 根目录不能包含 . 或 .. 路径段")
 		}
 	}
 	return strings.TrimPrefix(cleaned, "/"), nil
@@ -99,34 +103,34 @@ func normalizePagesFallbackPath(raw string) (string, error) {
 	if value == "" {
 		value = defaultPagesFallbackPath
 	}
-	if len(value) > 512 {
-		return "", errors.New("SPA fallback 回退路径长度不能超过 512")
+	if len(value) > pagesMaxPathLength {
+		return "", errors.New("spa fallback 回退路径长度不能超过 512")
 	}
 	if !strings.HasPrefix(value, "/") {
-		return "", errors.New("SPA fallback 回退路径必须以 / 开头")
+		return "", errors.New("spa fallback 回退路径必须以 / 开头")
 	}
 	if value == "/" || strings.HasSuffix(value, "/") {
-		return "", errors.New("SPA fallback 回退路径必须指向具体文件")
+		return "", errors.New("spa fallback 回退路径必须指向具体文件")
 	}
 	if strings.Contains(value, "\\") || strings.ContainsAny(value, "\"';") {
-		return "", errors.New("SPA fallback 回退路径包含不支持的字符")
+		return "", errors.New("spa fallback 回退路径包含不支持的字符")
 	}
 	for _, r := range value {
 		if r <= 0x20 || r == 0x7f {
-			return "", errors.New("SPA fallback 回退路径不能包含空白或控制字符")
+			return "", errors.New("spa fallback 回退路径不能包含空白或控制字符")
 		}
 	}
 	for _, segment := range strings.Split(value, "/") {
 		if segment == "." || segment == ".." {
-			return "", errors.New("SPA fallback 回退路径不能包含 . 或 .. 路径段")
+			return "", errors.New("spa fallback 回退路径不能包含 . 或 .. 路径段")
 		}
 	}
 	cleaned := path.Clean(value)
 	if cleaned == "." || !strings.HasPrefix(cleaned, "/") {
-		return "", errors.New("SPA fallback 回退路径不合法")
+		return "", errors.New("spa fallback 回退路径不合法")
 	}
 	if cleaned == "/" || strings.HasSuffix(cleaned, "/") {
-		return "", errors.New("SPA fallback 回退路径必须指向具体文件")
+		return "", errors.New("spa fallback 回退路径必须指向具体文件")
 	}
 	return cleaned, nil
 }
@@ -152,12 +156,12 @@ func persistPagesUploadTemp(fileHeader *multipart.FileHeader) (string, string, i
 	if err != nil {
 		return "", "", 0, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	temp, err := os.CreateTemp("", "openflare-pages-*.zip")
 	if err != nil {
 		return "", "", 0, err
 	}
-	defer temp.Close()
+	defer func() { _ = temp.Close() }()
 	hash := sha256.New()
 	limited := io.LimitReader(file, pagesMaxDeploymentBytes+1)
 	written, err := io.Copy(io.MultiWriter(temp, hash), limited)
@@ -167,7 +171,7 @@ func persistPagesUploadTemp(fileHeader *multipart.FileHeader) (string, string, i
 	}
 	if written > pagesMaxDeploymentBytes {
 		_ = os.Remove(temp.Name())
-		return "", "", 0, fmt.Errorf("Pages 部署包不能超过 %d MiB", pagesMaxDeploymentBytes/1024/1024)
+		return "", "", 0, fmt.Errorf("pages 部署包不能超过 %d MiB", pagesMaxDeploymentBytes/bytesPerKiB/bytesPerKiB)
 	}
 	return temp.Name(), hex.EncodeToString(hash.Sum(nil)), written, nil
 }
@@ -180,11 +184,11 @@ func ingestPagesDeploymentPackage(
 	projectSlug string,
 	fileName string,
 ) (upload.IngestResult, error) {
-	file, err := os.Open(tempPath)
+	file, err := os.Open(tempPath) //nolint:gosec // tempPath is a validated pages deployment staging file
 	if err != nil {
 		return upload.IngestResult{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	systemUser := repository.GetSystemUser(ctx)
 	accessMode := 0
@@ -193,7 +197,7 @@ func ingestPagesDeploymentPackage(
 		Reader:             file,
 		Size:               size,
 		FileName:           fileName,
-		MimeType:           "application/zip",
+		MimeType:           mimeTypeApplicationZip,
 		Extension:          "zip",
 		Hash:               checksum,
 		Type:               pagesDeploymentUploadType,
@@ -270,7 +274,7 @@ func inspectPagesZip(zipPath string, rootDir string, entryFile string) (*deploym
 	if err != nil {
 		return nil, errors.New(errPagesPackageInvalidZip)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	commonPrefix, err := findCommonRootPrefix(reader.File)
 	if err != nil {
@@ -298,18 +302,18 @@ func inspectPagesZip(zipPath string, rootDir string, entryFile string) (*deploym
 			normalizedPath = strings.TrimPrefix(normalizedPath, commonPrefix)
 		}
 		if item.FileInfo().Mode()&os.ModeSymlink != 0 {
-			return nil, fmt.Errorf("Pages 部署包不支持符号链接: %s", normalizedPath)
+			return nil, fmt.Errorf("pages 部署包不支持符号链接: %s", normalizedPath)
 		}
 		if item.UncompressedSize64 > pagesMaxDeploymentBytes {
-			return nil, fmt.Errorf("Pages 文件过大: %s", normalizedPath)
+			return nil, fmt.Errorf("pages 文件过大: %s", normalizedPath)
 		}
 		manifest.FileCount++
 		if manifest.FileCount > pagesMaxDeploymentFiles {
-			return nil, fmt.Errorf("Pages 部署文件数不能超过 %d", pagesMaxDeploymentFiles)
+			return nil, fmt.Errorf("pages 部署文件数不能超过 %d", pagesMaxDeploymentFiles)
 		}
 		manifest.TotalSize += int64(item.UncompressedSize64)
 		if manifest.TotalSize > pagesMaxDeploymentBytes {
-			return nil, fmt.Errorf("Pages 部署展开后不能超过 %d MiB", pagesMaxDeploymentBytes/1024/1024)
+			return nil, fmt.Errorf("pages 部署展开后不能超过 %d MiB", pagesMaxDeploymentBytes/bytesPerKiB/bytesPerKiB)
 		}
 		checksum, err := checksumZipFile(item)
 		if err != nil {
@@ -328,7 +332,7 @@ func inspectPagesZip(zipPath string, rootDir string, entryFile string) (*deploym
 		return nil, errors.New(errPagesPackageEmpty)
 	}
 	if !entrySeen {
-		return nil, fmt.Errorf("Pages 部署包缺少入口文件 %s", targetEntryPath)
+		return nil, fmt.Errorf("pages 部署包缺少入口文件 %s", targetEntryPath)
 	}
 	return manifest, nil
 }
@@ -342,16 +346,23 @@ func normalizePagesZipPath(raw string) (string, bool, error) {
 		return "", true, nil
 	}
 	if strings.HasPrefix(name, "/") || path.IsAbs(name) {
-		return "", false, fmt.Errorf("Pages 部署包不能包含绝对路径: %s", raw)
+		return "", false, fmt.Errorf("pages 部署包不能包含绝对路径: %s", raw)
 	}
 	cleaned := path.Clean(name)
 	if cleaned == "." {
 		return "", true, nil
 	}
 	if cleaned == ".." || strings.HasPrefix(cleaned, "../") || strings.Contains(cleaned, "/../") {
-		return "", false, fmt.Errorf("Pages 部署包路径不能逃逸目录: %s", raw)
+		return "", false, fmt.Errorf("pages 部署包路径不能逃逸目录: %s", raw)
 	}
 	return cleaned, false, nil
+}
+
+func pagesZipEntryCopyLimit(size uint64) (int64, error) {
+	if size == 0 || size > pagesMaxDeploymentBytes || size > uint64(math.MaxInt64) {
+		return 0, errors.New("pages file size out of bounds")
+	}
+	return int64(size), nil //nolint:gosec // size is bounded to math.MaxInt64 above
 }
 
 func checksumZipFile(item *zip.File) (string, error) {
@@ -359,12 +370,14 @@ func checksumZipFile(item *zip.File) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	hash := sha256.New()
-	if _, err = io.Copy(hash, file); err != nil {
+	limit, err := pagesZipEntryCopyLimit(item.UncompressedSize64)
+	if err != nil {
+		return "", err
+	}
+	if _, err = io.CopyN(hash, file, limit); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
-
-

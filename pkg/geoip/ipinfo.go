@@ -1,6 +1,7 @@
 package geoip
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -10,7 +11,7 @@ import (
 	"time"
 )
 
-// IPInfoService 使用 ipinfo.io 服务实现 GeoIPService 接口。
+// IPInfoService resolves geographic information using the ipinfo.io service.
 type IPInfoService struct {
 	Client *http.Client
 	// 每天 1000 次请求，限制由 IP 地址的所有人共享。
@@ -52,11 +53,15 @@ func (s *IPInfoService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	// API URL: https://ipinfo.io/json (查询自身IP) 或 https://ipinfo.io/YOUR_IP/json
 	apiURL := fmt.Sprintf("https://ipinfo.io/%s/json", ip.String())
 
-	resp, err := s.Client.Get(apiURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request for ipinfo.io: %w", err)
+	}
+	resp, err := s.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get geo info from ipinfo.io: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ipinfo.io returned non-200 status: %d %s", resp.StatusCode, resp.Status)
@@ -98,7 +103,7 @@ func (s *IPInfoService) Close() error {
 
 func parseIPInfoCoordinates(value string) (*float64, *float64) {
 	parts := strings.Split(strings.TrimSpace(value), ",")
-	if len(parts) != 2 {
+	if len(parts) != isoCountryCodeLength {
 		return nil, nil
 	}
 

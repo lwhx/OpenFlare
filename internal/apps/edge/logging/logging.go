@@ -1,3 +1,4 @@
+// Package logging configures structured logging for edge applications.
 package logging
 
 import (
@@ -6,10 +7,12 @@ import (
 	"strings"
 )
 
+// Options holds configuration options for the structured logger.
 type Options struct {
 	AddSource bool
 }
 
+// Setup initialises the default slog handler using the given options and the LOG_LEVEL environment variable.
 func Setup(opts Options) {
 	handlerOpts := &slog.HandlerOptions{
 		AddSource: opts.AddSource,
@@ -19,6 +22,7 @@ func Setup(opts Options) {
 	slog.SetDefault(slog.New(handler))
 }
 
+// ParseLevel converts a log-level string (e.g. "debug", "warn") to the corresponding slog.Level.
 func ParseLevel(value string) slog.Level {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "debug":

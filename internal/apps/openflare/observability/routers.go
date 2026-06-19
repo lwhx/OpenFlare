@@ -40,7 +40,7 @@ func GetAccessLogsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(logs))
 }
 
-// getFoldedAccessLogsHandler 分页列出折叠访问日志。
+// GetFoldedAccessLogsHandler 分页列出折叠访问日志。
 // @Summary 列出折叠访问日志
 // @Description 按时间桶聚合访问日志并分页返回，需要管理员权限
 // @Tags openflare-observability
@@ -71,7 +71,7 @@ func GetFoldedAccessLogsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(logs))
 }
 
-// getFoldedAccessLogIPsHandler 列出折叠桶内的 IP 汇总。
+// GetFoldedAccessLogIPsHandler 列出折叠桶内的 IP 汇总。
 // @Summary 列出折叠访问日志 IP 汇总
 // @Description 在指定时间桶内按 IP 聚合访问统计，需要管理员权限
 // @Tags openflare-observability
@@ -112,7 +112,7 @@ func GetFoldedAccessLogIPsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(result))
 }
 
-// getAccessLogIPSummariesHandler 列出访问日志 IP 汇总。
+// GetAccessLogIPSummariesHandler 列出访问日志 IP 汇总。
 // @Summary 列出访问日志 IP 汇总
 // @Description 按 IP 聚合访问日志统计并分页返回，需要管理员权限
 // @Tags openflare-observability
@@ -147,7 +147,7 @@ func GetAccessLogIPSummariesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(result))
 }
 
-// getAccessLogIPTrendHandler 获取 IP 访问趋势。
+// GetAccessLogIPTrendHandler 获取 IP 访问趋势。
 // @Summary 获取访问日志 IP 趋势
 // @Description 返回指定 IP 在时间范围内的访问趋势数据，需要管理员权限
 // @Tags openflare-observability
@@ -178,7 +178,7 @@ func GetAccessLogIPTrendHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(result))
 }
 
-// cleanupAccessLogsHandler 清理过期访问日志。
+// CleanupAccessLogsHandler 清理过期访问日志。
 // @Summary 清理访问日志
 // @Description 按保留天数清理过期访问日志记录，需要管理员权限
 // @Tags openflare-observability

@@ -32,7 +32,7 @@ func GetStatusHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(view))
 }
 
-// getNoticeHandler 获取系统公告。
+// GetNoticeHandler 获取系统公告。
 // @Summary 获取系统公告
 // @Description 返回 OpenFlare 控制台公告文本，无需登录
 // @Tags openflare-option
@@ -41,7 +41,6 @@ func GetStatusHandler(c *gin.Context) {
 // @Failure 400 {object} response.Any "参数错误"
 // @Failure 500 {object} response.Any "内部错误"
 // @Router /api/v1/d/notice [get]
-// GetNoticeHandler returns the notice content.
 func GetNoticeHandler(c *gin.Context) {
 	notice, err := getNotice(c.Request.Context())
 	if apiutil.AbortBadRequestOnError(c, err) {
@@ -50,7 +49,7 @@ func GetNoticeHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(notice))
 }
 
-// listOptionsHandler 列出全部配置项。
+// ListOptionsHandler 列出全部配置项。
 // @Summary 列出 OpenFlare 配置项
 // @Description 返回全部非敏感 OpenFlare 配置项，需要管理员权限
 // @Tags openflare-option
@@ -62,7 +61,6 @@ func GetNoticeHandler(c *gin.Context) {
 // @Failure 404 {object} response.Any "无权限或不存在"
 // @Failure 500 {object} response.Any "内部错误"
 // @Router /api/v1/d/option [get]
-// ListOptionsHandler lists OpenFlare options.
 func ListOptionsHandler(c *gin.Context) {
 	options, err := listOptions(c.Request.Context())
 	if apiutil.AbortBadRequestOnError(c, err) {
@@ -71,7 +69,7 @@ func ListOptionsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(options))
 }
 
-// updateOptionHandler 更新单个配置项。
+// UpdateOptionHandler 更新单个配置项。
 // @Summary 更新 OpenFlare 配置项
 // @Description 更新单个 OpenFlare 配置项，需要管理员权限
 // @Tags openflare-option
@@ -85,7 +83,6 @@ func ListOptionsHandler(c *gin.Context) {
 // @Failure 404 {object} response.Any "无权限或不存在"
 // @Failure 500 {object} response.Any "内部错误"
 // @Router /api/v1/d/option/update [post]
-// UpdateOptionHandler updates a single option.
 func UpdateOptionHandler(c *gin.Context) {
 	var option model.OpenFlareOption
 	if !apiutil.BindJSON(c, &option) {
@@ -97,7 +94,7 @@ func UpdateOptionHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OKNil())
 }
 
-// updateOptionsBatchHandler 批量更新配置项。
+// UpdateOptionsBatchHandler 批量更新配置项。
 // @Summary 批量更新 OpenFlare 配置项
 // @Description 批量更新多个 OpenFlare 配置项，需要管理员权限
 // @Tags openflare-option
@@ -111,7 +108,6 @@ func UpdateOptionHandler(c *gin.Context) {
 // @Failure 404 {object} response.Any "无权限或不存在"
 // @Failure 500 {object} response.Any "内部错误"
 // @Router /api/v1/d/option/update-batch [post]
-// UpdateOptionsBatchHandler updates options in batch.
 func UpdateOptionsBatchHandler(c *gin.Context) {
 	var payload optionBatchPayload
 	if !apiutil.BindJSON(c, &payload) {
@@ -123,7 +119,7 @@ func UpdateOptionsBatchHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OKNil())
 }
 
-// lookupGeoIPHandler 查询 GeoIP 信息。
+// LookupGeoIPHandler 查询 GeoIP 信息。
 // @Summary GeoIP 地址查询
 // @Description 按提供商与 IP 查询地理位置信息，需要管理员权限
 // @Tags openflare-option
@@ -137,7 +133,6 @@ func UpdateOptionsBatchHandler(c *gin.Context) {
 // @Failure 404 {object} response.Any "无权限或不存在"
 // @Failure 500 {object} response.Any "内部错误"
 // @Router /api/v1/d/option/geoip/lookup [post]
-// LookupGeoIPHandler performs a GeoIP lookup.
 func LookupGeoIPHandler(c *gin.Context) {
 	var request geoIPLookupRequest
 	if !apiutil.BindJSON(c, &request) {
@@ -150,7 +145,7 @@ func LookupGeoIPHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(view))
 }
 
-// cleanupDatabaseHandler 清理可观测性数据库数据。
+// CleanupDatabaseHandler 清理可观测性数据库数据。
 // @Summary 清理可观测性数据库
 // @Description 按目标与保留天数清理可观测性相关数据表，需要管理员权限
 // @Tags openflare-option
@@ -164,7 +159,6 @@ func LookupGeoIPHandler(c *gin.Context) {
 // @Failure 404 {object} response.Any "无权限或不存在"
 // @Failure 500 {object} response.Any "内部错误"
 // @Router /api/v1/d/option/database/cleanup [post]
-// CleanupDatabaseHandler cleans up observability data.
 func CleanupDatabaseHandler(c *gin.Context) {
 	var input databaseCleanupInput
 	if err := bindOptionalJSON(c.Request.Body, &input); err != nil {
@@ -178,7 +172,7 @@ func CleanupDatabaseHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(result))
 }
 
-// syncUptimeKumaHandler 同步 Uptime Kuma 监控。
+// SyncUptimeKumaHandler 同步 Uptime Kuma 监控。
 // @Summary 同步 Uptime Kuma
 // @Description 将 OpenFlare 节点同步到 Uptime Kuma，需要管理员权限
 // @Tags openflare-option
@@ -191,7 +185,6 @@ func CleanupDatabaseHandler(c *gin.Context) {
 // @Failure 404 {object} response.Any "无权限或不存在"
 // @Failure 500 {object} response.Any "内部错误"
 // @Router /api/v1/d/uptimekuma/sync [post]
-// SyncUptimeKumaHandler triggers UptimeKuma sync.
 func SyncUptimeKumaHandler(c *gin.Context) {
 	if apiutil.AbortBadRequestOnError(c, syncUptimeKuma(c.Request.Context())) {
 		return

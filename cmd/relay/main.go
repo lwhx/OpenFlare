@@ -1,3 +1,4 @@
+// Command relay runs the OpenFlare relay node daemon.
 package main
 
 import (
@@ -44,7 +45,7 @@ func main() {
 
 	frpsManager := frps.NewManager(cfg.FrpsPath, cfg.DataDir, cfg.InitialAuthToken())
 
-	slog.Info("detected frps version", "version", frpsManager.GetVersion())
+	slog.Info("detected frps version", "version", frpsManager.GetVersion(context.Background()))
 
 	httpClient := httpclient.New(cfg.ServerURL, cfg.InitialAuthToken(), cfg.RequestTimeout.Duration())
 	wsClient := wsclient.New(cfg.ServerURL, cfg.InitialAuthToken(), cfg.RequestTimeout.Duration())
@@ -53,19 +54,20 @@ func main() {
 		Config:           cfg,
 		StateStore:       stateStore,
 		FrpsManager:      frpsManager,
-		HttpClient:       httpClient,
+		HTTPClient:       httpClient,
 		WebSocketService: wsClient,
 		HeartbeatService: heartbeat.New(httpClient, frpsManager, cfg, stateStore),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	slog.Info("relay process started")
 
 	if err := runner.Run(ctx); err != nil && err != context.Canceled {
 		slog.Error("relay process exited with error", "error", err)
+		stop()
 		os.Exit(1)
 	}
+	stop()
 	slog.Info("relay process stopped")
 }

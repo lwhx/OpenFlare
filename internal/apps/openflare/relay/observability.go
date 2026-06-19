@@ -24,7 +24,7 @@ func reconcileRelayHealthEvents(ctx context.Context, nodeID string, relayStatus 
 		relayFrpsUnhealthyEventType: {},
 	}
 	events := []agent.NodeHealthEvent{}
-	if relayStatus == "unhealthy" {
+	if relayStatus == relayStatusUnhealthy {
 		events = append(events, agent.NodeHealthEvent{
 			EventType:       relayFrpsUnhealthyEventType,
 			Severity:        "critical",

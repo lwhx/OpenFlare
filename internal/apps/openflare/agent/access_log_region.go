@@ -1,6 +1,8 @@
 // Copyright 2026 Arctel.net
 // SPDX-License-Identifier: Apache-2.0
 
+// Package agent implements the OpenFlare agent protocol: node registration,
+// heartbeat processing, access-log ingestion, and related middleware.
 package agent
 
 import (
@@ -11,12 +13,12 @@ import (
 	pkggeoip "github.com/Rain-kl/Wavelet/pkg/geoip"
 )
 
-var accessLogGeoProviderFactory = func() (pkggeoip.GeoIPService, error) {
+var accessLogGeoProviderFactory = func() (pkggeoip.Service, error) {
 	return pkggeoip.NewMaxMindGeoIPService()
 }
 
 type accessLogRegionResolver struct {
-	provider pkggeoip.GeoIPService
+	provider pkggeoip.Service
 	cache    map[string]string
 }
 

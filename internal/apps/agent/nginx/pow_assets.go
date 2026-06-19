@@ -542,6 +542,7 @@ end
 return M
 `
 
+// ManagedPowLuaFiles returns embedded Lua assets for proof-of-work challenges.
 func ManagedPowLuaFiles() []protocol.SupportFile {
 	return []protocol.SupportFile{
 		{Path: "pow/runtime.lua", Content: openRestyPowRuntimeLua},
@@ -552,6 +553,7 @@ func ManagedPowLuaFiles() []protocol.SupportFile {
 	}
 }
 
+// ManagedPowStaticFiles returns embedded static assets served by the PoW module.
 func ManagedPowStaticFiles() ([]protocol.SupportFile, error) {
 	var files []protocol.SupportFile
 	entries, err := powStaticFS.ReadDir("pow_static")

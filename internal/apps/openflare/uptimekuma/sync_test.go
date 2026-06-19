@@ -131,7 +131,7 @@ func setupSyncTestDB(t *testing.T) func() {
 
 func backupUptimeKumaConfig() func() {
 	oldEnabled := model.UptimeKumaEnabled
-	oldURL := model.UptimeKumaUrl
+	oldURL := model.UptimeKumaURL
 	oldUsername := model.UptimeKumaUsername
 	oldPassword := model.UptimeKumaPassword
 	oldScope := model.UptimeKumaMonitorScope
@@ -143,7 +143,7 @@ func backupUptimeKumaConfig() func() {
 
 	return func() {
 		model.UptimeKumaEnabled = oldEnabled
-		model.UptimeKumaUrl = oldURL
+		model.UptimeKumaURL = oldURL
 		model.UptimeKumaUsername = oldUsername
 		model.UptimeKumaPassword = oldPassword
 		model.UptimeKumaMonitorScope = oldScope
@@ -228,7 +228,7 @@ func TestSyncToUptimeKumaSuccess(t *testing.T) {
 	defer server.Close()
 
 	model.UptimeKumaEnabled = true
-	model.UptimeKumaUrl = server.URL
+	model.UptimeKumaURL = server.URL
 	model.UptimeKumaUsername = "admin"
 	model.UptimeKumaPassword = "password"
 	model.UptimeKumaMonitorScope = "all"
@@ -313,7 +313,7 @@ func TestSyncToUptimeKumaSelectedScope(t *testing.T) {
 	defer server.Close()
 
 	model.UptimeKumaEnabled = true
-	model.UptimeKumaUrl = server.URL
+	model.UptimeKumaURL = server.URL
 	model.UptimeKumaUsername = "admin"
 	model.UptimeKumaPassword = "password"
 	model.UptimeKumaMonitorScope = "selected"

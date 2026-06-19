@@ -31,7 +31,7 @@ func (f *fakeLookupProvider) Close() error { return nil }
 
 func TestLookupWithProvider(t *testing.T) {
 	previousFactory := pkggeoip.ProviderFactoryForTest()
-	pkggeoip.SetProviderFactoryForTest(func(provider string) (pkggeoip.GeoIPService, error) {
+	pkggeoip.SetProviderFactoryForTest(func(provider string) (pkggeoip.Service, error) {
 		return &fakeLookupProvider{}, nil
 	})
 	t.Cleanup(func() {

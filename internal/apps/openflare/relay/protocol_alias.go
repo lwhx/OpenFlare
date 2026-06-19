@@ -5,8 +5,17 @@ package relay
 
 import pkgprotocol "github.com/Rain-kl/Wavelet/pkg/protocol"
 
+// ProxyStat is an alias for protocol.RelayProxyStat.
 type ProxyStat = pkgprotocol.RelayProxyStat
+
+// HeartbeatPayload is an alias for protocol.RelayHeartbeatPayload.
 type HeartbeatPayload = pkgprotocol.RelayHeartbeatPayload
+
+// Config is an alias for protocol.RelayConfig.
 type Config = pkgprotocol.RelayConfig
+
+// Settings is an alias for protocol.RelaySettings.
 type Settings = pkgprotocol.RelaySettings
+
+// HeartbeatResponse is an alias for protocol.RelayHeartbeatResponse.
 type HeartbeatResponse = pkgprotocol.RelayHeartbeatResponse

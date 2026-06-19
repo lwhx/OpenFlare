@@ -4,7 +4,6 @@
 package websocket
 
 import (
-	"encoding/json"
 	"log/slog"
 	"sync"
 	"time"
@@ -58,7 +57,7 @@ func ServeFlared(c *gin.Context, nodeID string) {
 	client := &flaredClient{
 		nodeID: nodeID,
 		conn:   conn,
-		send:   make(chan Message, 16),
+		send:   make(chan Message, wsChannelBuf),
 		done:   make(chan struct{}),
 	}
 	defaultFlaredHub.register(client)
@@ -136,37 +135,11 @@ func SendFlaredPong(nodeID string) bool {
 }
 
 func (c *flaredClient) readPump() {
-	defer c.close()
-	_ = c.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
-	c.conn.SetPongHandler(func(string) error {
-		return c.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
-	})
-
-	for {
-		_, data, err := c.conn.ReadMessage()
-		if err != nil {
-			slog.Debug("flared ws read closed", "node_id", c.nodeID, "error", err)
-			return
-		}
-
-		var message Message
-		if err = json.Unmarshal(data, &message); err != nil {
-			slog.Debug("flared ws invalid message", "node_id", c.nodeID, "error", err)
-			continue
-		}
-
-		switch message.Type {
-		case messageTypePing:
-			_ = SendFlaredPong(c.nodeID)
-		case flaredMessageTypePong:
-		default:
-			slog.Debug("flared ws unsupported message", "node_id", c.nodeID, "type", message.Type)
-		}
-	}
+	runReadPump(c.nodeID, c.conn, c.close, "flared ws", SendFlaredPong, flaredMessageTypePong)
 }
 
 func (c *flaredClient) writePump() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(wsPingInterval)
 	defer ticker.Stop()
 
 	for {
@@ -174,7 +147,7 @@ func (c *flaredClient) writePump() {
 		case <-c.done:
 			return
 		case message := <-c.send:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteDeadline))
 			if err := c.conn.WriteJSON(message); err != nil {
 				slog.Debug("flared ws write failed", "node_id", c.nodeID, "error", err)
 				c.close()

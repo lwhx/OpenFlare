@@ -4,9 +4,9 @@
 package agent
 
 const (
-	errMissingAgentToken      = "缺少 Agent Token"
-	errInvalidAgentToken      = "无权进行此操作，Agent Token 无效"
-	errInvalidDiscoveryToken  = "无权进行此操作，注册 Token 无效"
+	errMissingAgentToken      = "缺少 Agent Token"         //nolint:gosec // false positive: this is an error message, not hardcoded credentials
+	errInvalidAgentToken      = "无权进行此操作，Agent Token 无效" //nolint:gosec // false positive: this is an error message, not hardcoded credentials
+	errInvalidDiscoveryToken  = "无权进行此操作，注册 Token 无效"    //nolint:gosec // false positive: this is an error message, not hardcoded credentials
 	errNodeMissingFromContext = "Node object missing from context"
 	errNoActiveConfig         = "当前没有激活版本"
 	errNodeNotFound           = "节点不存在"

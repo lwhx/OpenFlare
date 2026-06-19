@@ -18,6 +18,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	updateChannelStable     = "stable"
+	defaultTunnelTargetPort = 80
+)
+
 type configVersionRow struct {
 	Version  string `gorm:"column:version"`
 	Checksum string `gorm:"column:checksum"`
@@ -31,7 +36,7 @@ func normalizeReleaseChannel(channel string) string {
 	if strings.ToLower(strings.TrimSpace(channel)) == "preview" {
 		return "preview"
 	}
-	return "stable"
+	return updateChannelStable
 }
 
 func normalizeFlaredHeartbeatPayload(payload HeartbeatPayload) HeartbeatPayload {
@@ -146,20 +151,20 @@ func decodeStoredDomains(raw string, fallbackDomain string) ([]string, error) {
 func parseTunnelTargetAddr(addr string) (string, int) {
 	addr = strings.TrimSpace(addr)
 	if addr == "" {
-		return "127.0.0.1", 80
+		return "127.0.0.1", defaultTunnelTargetPort
 	}
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		lastColon := strings.LastIndex(addr, ":")
 		if lastColon < 0 {
-			return addr, 80
+			return addr, defaultTunnelTargetPort
 		}
 		host = addr[:lastColon]
 		portStr = addr[lastColon+1:]
 	}
-	port := 80
+	port := defaultTunnelTargetPort
 	if _, scanErr := fmt.Sscanf(portStr, "%d", &port); scanErr != nil {
-		port = 80
+		port = defaultTunnelTargetPort
 	}
 	if host == "" {
 		host = "127.0.0.1"

@@ -13,7 +13,12 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/model"
 )
 
-const acmeRenewLeadTime = 7 * 24 * time.Hour
+const (
+	acmeRenewLeadTime      = 7 * 24 * time.Hour
+	tlsProviderACME        = "acme"
+	tlsApplyStatusApplying = "applying"
+	tlsApplyStatusReady    = "ready"
+)
 
 var obtainTLSCertificate = obtainCertificate
 
@@ -27,24 +32,17 @@ func SetObtainCertificateFuncForTest(fn func(context.Context, *model.TLSCertific
 }
 
 func obtainCertificate(ctx context.Context, cert *model.TLSCertificate) error {
-	cert.ApplyStatus = "applying"
+	cert.ApplyStatus = tlsApplyStatusApplying
 	if err := model.SaveTLSCertificate(ctx, cert); err != nil {
 		return err
 	}
 
-	acmeAccount, err := model.GetAcmeAccountByID(ctx, cert.AcmeAccountID)
+	acmeAccount, err := resolveAcmeAccount(ctx, cert)
 	if err != nil {
-		acmeAccount, err = model.GetDefaultAcmeAccount(ctx)
-		if err != nil {
-			return updateCertError(ctx, cert, fmt.Sprintf("Failed to get ACME account: %v", err))
-		}
-		cert.AcmeAccountID = acmeAccount.ID
-		if err := model.SaveTLSCertificate(ctx, cert); err != nil {
-			return err
-		}
+		return updateCertError(ctx, cert, fmt.Sprintf("Failed to get ACME account: %v", err))
 	}
 
-	dnsAccount, err := model.GetDNSAccountByID(ctx, cert.DnsAccountID)
+	dnsAccount, err := model.GetDNSAccountByID(ctx, cert.DNSAccountID)
 	if err != nil {
 		return updateCertError(ctx, cert, fmt.Sprintf("Failed to get DNS account: %v", err))
 	}
@@ -75,47 +73,18 @@ func obtainCertificate(ctx context.Context, cert *model.TLSCertificate) error {
 		domains,
 	)
 
-	if (newPrivateKeyPEM != "" && acmePrivateKey != newPrivateKeyPEM) || (newAccountURL != "" && acmeAccount.URL != newAccountURL) {
-		if newPrivateKeyPEM != "" {
-			sealedKey, sealErr := sealSensitive(newPrivateKeyPEM)
-			if sealErr != nil {
-				return updateCertError(ctx, cert, fmt.Sprintf("Failed to seal ACME account key: %v", sealErr))
-			}
-			acmeAccount.PrivateKey = sealedKey
-		}
-		if newAccountURL != "" {
-			acmeAccount.URL = newAccountURL
-		}
-		if acmeAccount.ID == 0 {
-			if dbErr := model.CreateAcmeAccountRecord(ctx, acmeAccount); dbErr != nil {
-				return updateCertError(ctx, cert, fmt.Sprintf("Failed to create ACME account: %v", dbErr))
-			}
-		} else if dbErr := model.SaveAcmeAccount(ctx, acmeAccount); dbErr != nil {
-			return updateCertError(ctx, cert, fmt.Sprintf("Failed to save ACME account: %v", dbErr))
-		}
-		cert.AcmeAccountID = acmeAccount.ID
-		if err := model.SaveTLSCertificate(ctx, cert); err != nil {
-			return err
-		}
+	if err := persistAcmeAccountUpdates(ctx, cert, acmeAccount, newAccountURL, newPrivateKeyPEM, acmePrivateKey); err != nil {
+		return updateCertError(ctx, cert, err.Error())
 	}
 
 	if err != nil {
 		return updateCertError(ctx, cert, err.Error())
 	}
 
-	sealedKey, err := sealSensitive(result.KeyPEM)
-	if err != nil {
-		return updateCertError(ctx, cert, fmt.Sprintf("Failed to seal certificate key: %v", err))
+	if err := saveObtainedCertificate(ctx, cert, result); err != nil {
+		return updateCertError(ctx, cert, err.Error())
 	}
-
-	cert.CertPEM = result.CertPEM
-	cert.KeyPEM = sealedKey
-	cert.NotBefore = result.NotBefore
-	cert.NotAfter = result.NotAfter
-	cert.ApplyStatus = "ready"
-	cert.ApplyMessage = ""
-
-	return model.SaveTLSCertificate(ctx, cert)
+	return nil
 }
 
 func updateCertError(ctx context.Context, cert *model.TLSCertificate, message string) error {
@@ -155,7 +124,7 @@ func splitAcmeDomains(primaryDomain, otherDomains string) []string {
 func CertificatesDueForRenewal(certificates []model.TLSCertificate, now time.Time) []model.TLSCertificate {
 	due := make([]model.TLSCertificate, 0)
 	for _, cert := range certificates {
-		if !cert.AutoRenew || cert.Provider != "acme" || cert.ApplyStatus == "applying" {
+		if !cert.AutoRenew || cert.Provider != tlsProviderACME || cert.ApplyStatus == tlsApplyStatusApplying {
 			continue
 		}
 		if cert.NotAfter.IsZero() {

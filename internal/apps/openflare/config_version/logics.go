@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,11 @@ import (
 
 	"github.com/Rain-kl/Wavelet/internal/model"
 	"gorm.io/gorm"
+)
+
+const (
+	cleanupSuccessMessage     = "清理成功"
+	minConfigVersionKeepCount = 3
 )
 
 // ConfigPreviewResult is the preview response payload.
@@ -243,15 +249,15 @@ func ActivateConfigVersion(ctx context.Context, id uint) (*model.ConfigVersion, 
 
 // CleanupConfigVersions removes old inactive config versions.
 func CleanupConfigVersions(ctx context.Context, keepCount int) (*CleanupResult, error) {
-	if keepCount < 3 {
-		keepCount = 3
+	if keepCount < minConfigVersionKeepCount {
+		keepCount = minConfigVersionKeepCount
 	}
 	versions, err := model.ListConfigVersionSummaries(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if len(versions) <= keepCount {
-		return &CleanupResult{DeletedCount: 0, Message: "清理成功"}, nil
+		return &CleanupResult{DeletedCount: 0, Message: cleanupSuccessMessage}, nil
 	}
 	var deleteIDs []uint
 	for index, version := range versions {
@@ -264,13 +270,13 @@ func CleanupConfigVersions(ctx context.Context, keepCount int) (*CleanupResult, 
 		deleteIDs = append(deleteIDs, version.ID)
 	}
 	if len(deleteIDs) == 0 {
-		return &CleanupResult{DeletedCount: 0, Message: "清理成功"}, nil
+		return &CleanupResult{DeletedCount: 0, Message: cleanupSuccessMessage}, nil
 	}
 	deletedCount, err := model.DeleteConfigVersionsByIDs(ctx, deleteIDs)
 	if err != nil {
 		return nil, err
 	}
-	return &CleanupResult{DeletedCount: deletedCount, Message: "清理成功"}, nil
+	return &CleanupResult{DeletedCount: deletedCount, Message: cleanupSuccessMessage}, nil
 }
 
 func nextVersionNumber(ctx context.Context, now time.Time) (string, error) {
@@ -368,50 +374,50 @@ func flattenSnapshotRoutesByDomain(routes []snapshotRoute) map[string]snapshotRo
 }
 
 func snapshotRouteConfigEqual(left snapshotRoute, right snapshotRoute) bool {
-	if left.SiteName != right.SiteName || left.Domain != right.Domain || left.OriginURL != right.OriginURL ||
-		left.OriginHost != right.OriginHost || left.EnableHTTPS != right.EnableHTTPS || left.RedirectHTTP != right.RedirectHTTP ||
-		left.LimitConnPerServer != right.LimitConnPerServer || left.LimitConnPerIP != right.LimitConnPerIP ||
-		left.LimitRate != right.LimitRate || left.CacheEnabled != right.CacheEnabled || left.CachePolicy != right.CachePolicy ||
-		left.BasicAuthEnabled != right.BasicAuthEnabled || left.BasicAuthUsername != right.BasicAuthUsername ||
-		left.BasicAuthPassword != right.BasicAuthPassword || left.UpstreamType != right.UpstreamType ||
-		!uintPtrEqual(left.TunnelNodeID, right.TunnelNodeID) || left.TunnelTargetAddr != right.TunnelTargetAddr ||
-		left.TunnelTargetProto != right.TunnelTargetProto || !uintPtrEqual(left.PagesProjectID, right.PagesProjectID) ||
-		!uintSliceEqual(left.CertIDs, right.CertIDs) || !uintSliceEqual(left.DomainCertIDs, right.DomainCertIDs) {
-		return false
-	}
-	if len(left.Domains) != len(right.Domains) {
-		return false
-	}
-	for index := range left.Domains {
-		if left.Domains[index] != right.Domains[index] {
-			return false
-		}
-	}
-	if len(left.Upstreams) != len(right.Upstreams) {
-		return false
-	}
-	for index := range left.Upstreams {
-		if left.Upstreams[index] != right.Upstreams[index] {
-			return false
-		}
-	}
-	if len(left.CacheRules) != len(right.CacheRules) {
-		return false
-	}
-	for index := range left.CacheRules {
-		if left.CacheRules[index] != right.CacheRules[index] {
-			return false
-		}
-	}
-	if len(left.CustomHeaders) != len(right.CustomHeaders) {
-		return false
-	}
-	for index := range left.CustomHeaders {
-		if left.CustomHeaders[index] != right.CustomHeaders[index] {
-			return false
-		}
-	}
-	return true
+	return snapshotRouteScalarsEqual(left, right) &&
+		slices.Equal(left.Domains, right.Domains) &&
+		slices.Equal(left.Upstreams, right.Upstreams) &&
+		slices.Equal(left.CacheRules, right.CacheRules) &&
+		slices.Equal(left.CustomHeaders, right.CustomHeaders)
+}
+
+func snapshotRouteScalarsEqual(left, right snapshotRoute) bool {
+	return snapshotRouteIdentityEqual(left, right) &&
+		snapshotRouteOriginEqual(left, right) &&
+		snapshotRoutePolicyEqual(left, right) &&
+		snapshotRouteTunnelEqual(left, right) &&
+		uintSliceEqual(left.CertIDs, right.CertIDs) &&
+		uintSliceEqual(left.DomainCertIDs, right.DomainCertIDs)
+}
+
+func snapshotRouteIdentityEqual(left, right snapshotRoute) bool {
+	return left.SiteName == right.SiteName && left.Domain == right.Domain
+}
+
+func snapshotRouteOriginEqual(left, right snapshotRoute) bool {
+	return left.OriginURL == right.OriginURL &&
+		left.OriginHost == right.OriginHost &&
+		left.UpstreamType == right.UpstreamType
+}
+
+func snapshotRoutePolicyEqual(left, right snapshotRoute) bool {
+	return left.EnableHTTPS == right.EnableHTTPS &&
+		left.RedirectHTTP == right.RedirectHTTP &&
+		left.LimitConnPerServer == right.LimitConnPerServer &&
+		left.LimitConnPerIP == right.LimitConnPerIP &&
+		left.LimitRate == right.LimitRate &&
+		left.CacheEnabled == right.CacheEnabled &&
+		left.CachePolicy == right.CachePolicy &&
+		left.BasicAuthEnabled == right.BasicAuthEnabled &&
+		left.BasicAuthUsername == right.BasicAuthUsername &&
+		left.BasicAuthPassword == right.BasicAuthPassword
+}
+
+func snapshotRouteTunnelEqual(left, right snapshotRoute) bool {
+	return left.TunnelTargetAddr == right.TunnelTargetAddr &&
+		left.TunnelTargetProto == right.TunnelTargetProto &&
+		uintPtrEqual(left.TunnelNodeID, right.TunnelNodeID) &&
+		uintPtrEqual(left.PagesProjectID, right.PagesProjectID)
 }
 
 func snapshotWAFConfigEqual(left snapshotWAFDocument, right snapshotWAFDocument) bool {

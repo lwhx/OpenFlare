@@ -1,3 +1,4 @@
+// Package httpclient provides the HTTP client used by the flared agent to communicate with the Wavelet server.
 package httpclient
 
 import (
@@ -8,21 +9,25 @@ import (
 	service "github.com/Rain-kl/Wavelet/pkg/protocol"
 )
 
+// APIResponse is the standard JSON envelope returned by the Wavelet API.
 type APIResponse[T any] struct {
 	ErrorMsg string `json:"error_msg"`
 	Data     T      `json:"data"`
 }
 
+// Client is the HTTP client for the flared tunnel API.
 type Client struct {
 	base *edgehttp.Client
 }
 
+// New creates a new Client configured with the given base URL, authentication token, and request timeout.
 func New(baseURL string, token string, timeout time.Duration) *Client {
 	return &Client{
 		base: edgehttp.New(baseURL, token, timeout, "X-Tunnel-Token"),
 	}
 }
 
+// Heartbeat sends a tunnel heartbeat payload and returns the server response.
 func (c *Client) Heartbeat(ctx context.Context, payload service.FlaredHeartbeatPayload) (*service.FlaredHeartbeatResponse, error) {
 	resp := APIResponse[service.FlaredHeartbeatResponse]{}
 	if err := c.base.PostJSON(ctx, "/api/v1/tunnel/heartbeat", payload, &resp); err != nil {
@@ -34,6 +39,7 @@ func (c *Client) Heartbeat(ctx context.Context, payload service.FlaredHeartbeatP
 	return &resp.Data, nil
 }
 
+// GetActiveConfig fetches the currently active tunnel configuration from the server.
 func (c *Client) GetActiveConfig(ctx context.Context) (*service.FlaredTunnelConfigResponse, error) {
 	resp := APIResponse[service.FlaredTunnelConfigResponse]{}
 	if err := c.base.GetJSON(ctx, "/api/v1/tunnel/config/active", &resp); err != nil {
@@ -45,6 +51,7 @@ func (c *Client) GetActiveConfig(ctx context.Context) (*service.FlaredTunnelConf
 	return &resp.Data, nil
 }
 
+// ReportApplyLog submits a configuration apply-log entry to the server.
 func (c *Client) ReportApplyLog(ctx context.Context, payload service.ApplyLogPayload) error {
 	resp := APIResponse[any]{}
 	if err := c.base.PostJSON(ctx, "/api/v1/tunnel/apply-log", payload, &resp); err != nil {
@@ -53,6 +60,7 @@ func (c *Client) ReportApplyLog(ctx context.Context, payload service.ApplyLogPay
 	return edgehttp.APIError(resp.ErrorMsg)
 }
 
+// SetToken updates the authentication token used by the client.
 func (c *Client) SetToken(token string) {
 	c.base.SetToken(token)
 }

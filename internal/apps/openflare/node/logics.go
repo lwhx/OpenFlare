@@ -17,6 +17,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	defaultRelayBindPort      = 7000
+	defaultRelayVhostHTTPPort = 8080
+)
+
 // Input is the create/update node payload.
 type Input struct {
 	Name                  string   `json:"name"`
@@ -184,8 +189,8 @@ func CreateNode(ctx context.Context, input Input) (*View, error) {
 		return nil, err
 	}
 	if node.NodeType == "tunnel_relay" {
-		node.RelayBindPort = normalizeRelayPort(input.RelayBindPort, 7000)
-		node.RelayVhostHTTPPort = normalizeRelayPort(input.RelayVhostHTTPPort, 8080)
+		node.RelayBindPort = normalizeRelayPort(input.RelayBindPort, defaultRelayBindPort)
+		node.RelayVhostHTTPPort = normalizeRelayPort(input.RelayVhostHTTPPort, defaultRelayVhostHTTPPort)
 		node.RelayAuthToken, err = newRandomToken()
 		if err != nil {
 			return nil, err
@@ -399,7 +404,7 @@ func ValidateDiscoveryToken(ctx context.Context, token string) error {
 		return err
 	}
 	if token != discoveryToken {
-		return fmt.Errorf("Discovery Token 无效")
+		return fmt.Errorf("discovery Token 无效") // error 消息首字母小写
 	}
 	return nil
 }

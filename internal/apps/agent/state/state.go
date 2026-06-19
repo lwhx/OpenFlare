@@ -9,6 +9,13 @@ import (
 	"sync"
 )
 
+const (
+	stateDirPerm      = 0o750
+	stateFilePerm     = 0o600
+	nodeIDRandomBytes = 8
+)
+
+// Snapshot represents the state of the agent at a given point in time.
 type Snapshot struct {
 	NodeID                 string `json:"node_id"`
 	CurrentVersion         string `json:"current_version"`
@@ -26,21 +33,25 @@ type Snapshot struct {
 	AccessLogOffset        int64  `json:"access_log_offset"`
 }
 
+// Store manages the storage and retrieval of the agent state snapshot.
 type Store struct {
 	path string
 	mu   sync.Mutex
 }
 
+// NewStore creates a new Store instance at the given path.
 func NewStore(path string) *Store {
 	return &Store{path: filepath.Clean(path)}
 }
 
+// Load loads the snapshot from the store.
 func (s *Store) Load() (*Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.loadUnlocked()
 }
 
+// EnsureNodeID returns the existing node ID, or generates and saves a new one if it does not exist.
 func (s *Store) EnsureNodeID() (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -62,6 +73,7 @@ func (s *Store) EnsureNodeID() (string, error) {
 	return snapshot.NodeID, nil
 }
 
+// Save saves the given snapshot to the store.
 func (s *Store) Save(snapshot *Snapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -87,18 +99,18 @@ func (s *Store) loadUnlocked() (*Snapshot, error) {
 }
 
 func (s *Store) saveUnlocked(snapshot *Snapshot) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), stateDirPerm); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, data, 0o644)
+	return os.WriteFile(s.path, data, stateFilePerm)
 }
 
 func newNodeID() (string, error) {
-	buf := make([]byte, 8)
+	buf := make([]byte, nodeIDRandomBytes)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}

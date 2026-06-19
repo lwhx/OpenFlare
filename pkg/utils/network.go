@@ -6,7 +6,8 @@ import (
 	"strings"
 )
 
-func GetIp() (ip string) {
+// GetIP returns the first private IPv4 address found on the local network interfaces.
+func GetIP() (ip string) {
 	ips, err := net.InterfaceAddrs()
 	if err != nil {
 		slog.Error("get interface addresses failed", "error", err)
@@ -14,21 +15,27 @@ func GetIp() (ip string) {
 	}
 
 	for _, a := range ips {
-		if ipNet, ok := a.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-			if ipNet.IP.To4() != nil {
-				ip = ipNet.IP.String()
-				if strings.HasPrefix(ip, "10") {
-					return
-				}
-				if strings.HasPrefix(ip, "172") {
-					return
-				}
-				if strings.HasPrefix(ip, "192.168") {
-					return
-				}
-				ip = ""
-			}
+		if candidate, ok := privateIPv4FromAddr(a); ok {
+			return candidate
 		}
 	}
 	return
+}
+
+func privateIPv4FromAddr(addr net.Addr) (string, bool) {
+	ipNet, ok := addr.(*net.IPNet)
+	if !ok || ipNet.IP.IsLoopback() || ipNet.IP.To4() == nil {
+		return "", false
+	}
+	ip := ipNet.IP.String()
+	if isPrivateIPv4(ip) {
+		return ip, true
+	}
+	return "", false
+}
+
+func isPrivateIPv4(ip string) bool {
+	return strings.HasPrefix(ip, "10") ||
+		strings.HasPrefix(ip, "172") ||
+		strings.HasPrefix(ip, "192.168")
 }

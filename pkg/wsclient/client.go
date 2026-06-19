@@ -1,3 +1,4 @@
+// Package wsclient provides a WebSocket client for agent/server communication.
 package wsclient
 
 import (
@@ -14,6 +15,12 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+const (
+	writeDeadlineSecs       = 5
+	defaultReadDeadlineSecs = 75
+)
+
+// Config holds the configuration for a WebSocket client connection.
 type Config struct {
 	BaseURL   string
 	Token     string
@@ -22,27 +29,32 @@ type Config struct {
 	WSPath    string // e.g. "/api/relay/ws", "/api/agent/ws", "/api/flared/ws"
 }
 
+// Client provides methods to connect and communicate over WebSocket.
 type Client struct {
 	cfg Config
 }
 
+// WSMessage represents a typed WebSocket message with an optional JSON payload.
 type WSMessage struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
+// MessageHandler handles WebSocket connection lifecycle and incoming messages.
 type MessageHandler interface {
 	OnConnect(ctx context.Context) error
 	HandleMessage(ctx context.Context, msg WSMessage) error
 	OnClose(err error)
 }
 
+// Connection represents an active WebSocket connection.
 type Connection struct {
 	Conn        *websocket.Conn
 	URL         string
 	ReadTimeout time.Duration
 }
 
+// New creates a new WebSocket client with the given configuration.
 func New(cfg Config) *Client {
 	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	cfg.Token = strings.TrimSpace(cfg.Token)
@@ -53,10 +65,12 @@ func New(cfg Config) *Client {
 	}
 }
 
+// SetToken updates the authentication token used for the WebSocket connection.
 func (c *Client) SetToken(token string) {
 	c.cfg.Token = strings.TrimSpace(token)
 }
 
+// URL returns the WebSocket URL for the configured endpoint, or empty string on error.
 func (c *Client) URL() string {
 	wsURL, err := c.BuildWebsocketURL()
 	if err != nil {
@@ -65,6 +79,7 @@ func (c *Client) URL() string {
 	return wsURL
 }
 
+// BuildWebsocketURL constructs the WebSocket URL by converting the base URL scheme and appending the WS path.
 func (c *Client) BuildWebsocketURL() (string, error) {
 	parsed, err := url.Parse(c.cfg.BaseURL)
 	if err != nil {
@@ -90,6 +105,7 @@ func (c *Client) BuildWebsocketURL() (string, error) {
 	return parsed.String(), nil
 }
 
+// Connect establishes a new WebSocket connection to the configured server.
 func (c *Client) Connect(ctx context.Context) (*Connection, error) {
 	wsURL, err := c.BuildWebsocketURL()
 	if err != nil {
@@ -122,6 +138,7 @@ func (c *Client) Connect(ctx context.Context) (*Connection, error) {
 	return &Connection{Conn: conn, URL: wsURL, ReadTimeout: websocketReadTimeout(c.cfg.Timeout)}, nil
 }
 
+// SendMessage sends a typed message with an optional payload over the WebSocket connection.
 func (conn *Connection) SendMessage(msgType string, payload any) error {
 	if conn == nil || conn.Conn == nil {
 		return errors.New("ws connection is nil")
@@ -137,10 +154,11 @@ func (conn *Connection) SendMessage(msgType string, payload any) error {
 		Payload: payload,
 	}
 
-	_ = conn.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.Conn.SetWriteDeadline(time.Now().Add(writeDeadlineSecs * time.Second))
 	return websocket.JSON.Send(conn.Conn, message)
 }
 
+// Receive reads a single message from the WebSocket connection into target.
 func (conn *Connection) Receive(target any) error {
 	if conn == nil || conn.Conn == nil {
 		return errors.New("ws connection is nil")
@@ -161,12 +179,13 @@ func (conn *Connection) Receive(target any) error {
 
 func websocketReadTimeout(requestTimeout time.Duration) time.Duration {
 	timeout := requestTimeout * 6
-	if timeout < 75*time.Second {
-		return 75 * time.Second
+	if timeout < defaultReadDeadlineSecs*time.Second {
+		return defaultReadDeadlineSecs * time.Second
 	}
 	return timeout
 }
 
+// RunReceiveLoop continuously receives messages and dispatches them to the handler until the context is cancelled.
 func (conn *Connection) RunReceiveLoop(ctx context.Context, handler MessageHandler) error {
 	doneChan := make(chan struct{})
 	defer close(doneChan)
@@ -214,6 +233,7 @@ func (conn *Connection) RunReceiveLoop(ctx context.Context, handler MessageHandl
 	}
 }
 
+// Close gracefully closes the WebSocket connection.
 func (conn *Connection) Close() error {
 	if conn == nil || conn.Conn == nil {
 		return nil

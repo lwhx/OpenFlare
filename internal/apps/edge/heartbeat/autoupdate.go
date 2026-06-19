@@ -1,3 +1,4 @@
+// Package heartbeat handles periodic heartbeat and update checks.
 package heartbeat
 
 import (
@@ -8,6 +9,7 @@ import (
 	edgeupdater "github.com/Rain-kl/Wavelet/internal/apps/edge/updater"
 )
 
+// AutoUpdateSettings defines the settings for automatic edge updates.
 type AutoUpdateSettings struct {
 	AutoUpdate    bool
 	UpdateNow     bool
@@ -16,6 +18,7 @@ type AutoUpdateSettings struct {
 	UpdateTag     string
 }
 
+// TryAutoUpdate attempts to check and apply auto updates for the edge service.
 func TryAutoUpdate(ctx context.Context, updater *edgeupdater.Service, settings *AutoUpdateSettings, logLabel string) {
 	if settings == nil || updater == nil {
 		return

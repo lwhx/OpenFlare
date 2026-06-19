@@ -11,7 +11,7 @@ import (
 
 func registerRelayRoutes(apiV1Router *gin.RouterGroup) {
 	relayRoute := apiV1Router.Group("/relay")
-	relayRoute.Use(relay.RelayAuth())
+	relayRoute.Use(relay.Auth())
 	{
 		relayRoute.POST("/heartbeat", relay.PostHeartbeat)
 		relayRoute.GET("/ws", relay.GetWebSocket)

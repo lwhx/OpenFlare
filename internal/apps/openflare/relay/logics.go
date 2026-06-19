@@ -41,7 +41,7 @@ func Heartbeat(ctx context.Context, node *model.OpenFlareNode, payload Heartbeat
 		"last_seen_at":     now,
 		"status":           nodeStatusOnline,
 		"update_requested": false,
-		"update_channel":   "stable",
+		"update_channel":   releaseChannelStable,
 		"update_tag":       "",
 	}
 	if payload.Name != "" && strings.TrimSpace(node.Name) == "" {
@@ -55,7 +55,7 @@ func Heartbeat(ctx context.Context, node *model.OpenFlareNode, payload Heartbeat
 	if !previous.UpdateRequested {
 		delete(changes, "update_requested")
 	}
-	if previous.UpdateChannel == "stable" {
+	if previous.UpdateChannel == releaseChannelStable {
 		delete(changes, "update_channel")
 	}
 	if previous.UpdateTag == "" {
@@ -66,7 +66,7 @@ func Heartbeat(ctx context.Context, node *model.OpenFlareNode, payload Heartbeat
 	node.ExtVersion = payload.ExtVersion
 	node.RelayStatus = payload.RelayStatus
 	node.UpdateRequested = false
-	node.UpdateChannel = "stable"
+	node.UpdateChannel = releaseChannelStable
 	node.UpdateTag = ""
 	lastSeen := now
 	node.LastSeenAt = &lastSeen

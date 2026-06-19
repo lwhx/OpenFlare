@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +32,7 @@ func TestCollectManagedOpenRestyMetrics(t *testing.T) {
 	server.Start()
 	defer server.Close()
 
-	metrics := CollectManagedOpenRestyMetrics(&config.Config{
+	metrics := CollectManagedOpenRestyMetrics(context.Background(), &config.Config{
 		OpenrestyObservabilityPort: port,
 	})
 	if metrics == nil || metrics.TrafficReport == nil {
@@ -67,7 +68,7 @@ func TestNormalizeCountMapDropsEmptyKeys(t *testing.T) {
 
 func TestCollectManagedOpenRestyMetricsHandlesUnavailableEndpoint(t *testing.T) {
 	cfg := &config.Config{OpenrestyObservabilityPort: 1}
-	if metrics := CollectManagedOpenRestyMetrics(cfg); metrics != nil {
+	if metrics := CollectManagedOpenRestyMetrics(context.Background(), cfg); metrics != nil {
 		t.Fatalf("expected nil metrics for unavailable endpoint, got %+v", metrics)
 	}
 }

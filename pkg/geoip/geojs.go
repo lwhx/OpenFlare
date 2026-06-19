@@ -1,6 +1,7 @@
 package geoip
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -8,7 +9,7 @@ import (
 	"time"
 )
 
-// GeoJSService 使用 geojs.io 服务实现 GeoIPService 接口。
+// GeoJSService resolves geographic information using the geojs.io service.
 type GeoJSService struct {
 	Client *http.Client
 }
@@ -44,11 +45,15 @@ func (s *GeoJSService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	// GeoJS 的 API 端点
 	apiURL := fmt.Sprintf("https://get.geojs.io/v1/ip/geo/%s.json", ip.String())
 
-	resp, err := s.Client.Get(apiURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request for geojs.io: %w", err)
+	}
+	resp, err := s.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get geo info from geojs.io: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {

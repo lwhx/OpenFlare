@@ -1,6 +1,7 @@
 package geoip
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -8,7 +9,7 @@ import (
 	"time"
 )
 
-// IPAPIService 使用 ip-api.com 服务实现 GeoIPService 接口。
+// IPAPIService resolves geographic information using the ip-api.com service.
 type IPAPIService struct {
 	Client *http.Client
 }
@@ -32,6 +33,7 @@ type ipAPIResponse struct {
 	Query       string  `json:"query"`
 }
 
+// Name returns the provider identifier for the ip-api.com service.
 func (s *IPAPIService) Name() string {
 	return "ip-api.com"
 }
@@ -50,11 +52,15 @@ func (s *IPAPIService) GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	// API URL, 使用 fields 参数来仅请求需要的字段
 	apiURL := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,message,country,countryCode", ip.String())
 
-	resp, err := s.Client.Get(apiURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request for ip-api.com: %w", err)
+	}
+	resp, err := s.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get geo info from ip-api.com: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var apiResp ipAPIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {

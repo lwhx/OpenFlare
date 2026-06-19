@@ -17,6 +17,9 @@ import (
 const (
 	managedDomainMatchTypeExact    = "exact"
 	managedDomainMatchTypeWildcard = "wildcard"
+
+	maxManagedDomainLength     = 253
+	minManagedDomainLabelCount = 2
 )
 
 // ManagedDomainInput 托管域名创建/更新请求。
@@ -182,11 +185,11 @@ func validateHostname(domain string) error {
 	if domain == "" {
 		return errors.New(errManagedDomainRequired)
 	}
-	if len(domain) > 253 {
+	if len(domain) > maxManagedDomainLength {
 		return errors.New(errManagedDomainInvalid)
 	}
 	labels := strings.Split(domain, ".")
-	if len(labels) < 2 {
+	if len(labels) < minManagedDomainLabelCount {
 		return errors.New(errManagedDomainInvalid)
 	}
 	for _, label := range labels {

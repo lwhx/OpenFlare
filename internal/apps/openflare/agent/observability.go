@@ -27,6 +27,7 @@ const (
 	nodeAccessLogRetentionDays   = 90
 	nodeAccessLogRetentionWindow = nodeAccessLogRetentionDays * 24 * time.Hour
 	accessLogPathMaxLength       = 100
+	healthEventMessageMaxLength  = 4096
 )
 
 // PersistHeartbeatObservability stores profile, snapshots, traffic, access logs, and health events.
@@ -396,7 +397,7 @@ func normalizeHealthSeverity(severity string) string {
 }
 
 func normalizeHealthEventMessage(message string) string {
-	return truncateForDatabase(message, 4096)
+	return truncateForDatabase(message, healthEventMessageMaxLength)
 }
 
 func timeFromUnix(unixSeconds int64, fallback time.Time) time.Time {

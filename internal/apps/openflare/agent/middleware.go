@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	agentTokenHeader    = "X-Agent-Token"
+	agentTokenHeader    = "X-Agent-Token" //nolint:gosec // HTTP header name, not a credential value
 	agentNodeContextKey = "agent_node"
 )
 
-// AgentAuth validates X-Agent-Token against of_nodes.access_token.
-func AgentAuth() gin.HandlerFunc {
+// Auth validates X-Agent-Token against of_nodes.access_token.
+func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := strings.TrimSpace(c.GetHeader(agentTokenHeader))
 		node, err := AuthenticateAccessToken(c.Request.Context(), token)
@@ -30,8 +30,8 @@ func AgentAuth() gin.HandlerFunc {
 	}
 }
 
-// AgentRegisterAuth accepts either a node access token or the global discovery token.
-func AgentRegisterAuth() gin.HandlerFunc {
+// RegisterAuth accepts either a node access token or the global discovery token.
+func RegisterAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := strings.TrimSpace(c.GetHeader(agentTokenHeader))
 		if node, err := AuthenticateAccessToken(c.Request.Context(), token); err == nil {
@@ -48,8 +48,8 @@ func AgentRegisterAuth() gin.HandlerFunc {
 	}
 }
 
-// AgentNodeFromContext returns the authenticated agent node.
-func AgentNodeFromContext(c *gin.Context) (*model.OpenFlareNode, bool) {
+// NodeFromContext returns the authenticated agent node.
+func NodeFromContext(c *gin.Context) (*model.OpenFlareNode, bool) {
 	value, ok := c.Get(agentNodeContextKey)
 	if !ok {
 		return nil, false

@@ -1,5 +1,6 @@
 package nginx
 
+// DefaultMimeTypes is the embedded nginx mime.types map used by generated configs.
 const DefaultMimeTypes = `
 types {
     text/html                                        html htm shtml;

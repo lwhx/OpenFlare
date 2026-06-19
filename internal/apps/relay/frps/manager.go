@@ -1,3 +1,6 @@
+// Package frps manages the lifecycle of the frps reverse-proxy process:
+// rendering its TOML config, supervising the child process with exponential-
+// backoff restarts, and exposing runtime status to the heartbeat subsystem.
 package frps
 
 import (
@@ -15,6 +18,19 @@ import (
 	service "github.com/Rain-kl/Wavelet/pkg/protocol"
 )
 
+const (
+	statusUnhealthy = "unhealthy"
+
+	defaultFrpsWebServerPort      = 17500
+	frpsSupervisorPollInterval    = 100 * time.Millisecond
+	frpsOrphanProcessCleanupDelay = 500 * time.Millisecond
+	frpsDataDirPerm               = 0o750
+	frpsConfigFilePerm            = 0o600
+	frpsPidFilePerm               = 0o600
+)
+
+// Manager controls a single frps child process. It renders TOML configuration,
+// supervises the process with automatic restarts, and reports runtime status.
 type Manager struct {
 	frpsPath   string
 	dataDir    string
@@ -31,6 +47,7 @@ type Manager struct {
 	stopping     bool
 }
 
+// RuntimeStatus is a snapshot of the frps process state at the time of the call.
 type RuntimeStatus struct {
 	Status       string
 	LastError    string
@@ -41,6 +58,8 @@ type RuntimeStatus struct {
 	ProcessAlive bool
 }
 
+// NewManager constructs a Manager that will run frpsPath and store its PID file
+// and generated configuration under dataDir.
 func NewManager(frpsPath string, dataDir string, agentToken string) *Manager {
 	return &Manager{
 		frpsPath:   frpsPath,
@@ -52,11 +71,9 @@ func NewManager(frpsPath string, dataDir string, agentToken string) *Manager {
 	}
 }
 
-func (m *Manager) GetVersion() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, m.frpsPath, "-v")
+// GetVersion executes frps -v and returns the trimmed version string.
+func (m *Manager) GetVersion(ctx context.Context) string {
+	cmd := exec.CommandContext(ctx, m.frpsPath, "-v") //nolint:gosec // frpsPath is the configured trusted frps binary location
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		slog.Error("failed to get frps version", "error", err)
@@ -65,12 +82,16 @@ func (m *Manager) GetVersion() string {
 	return strings.TrimSpace(string(out))
 }
 
+// GetStatus returns the current status string (e.g. "healthy", "unhealthy") under
+// a read lock.
 func (m *Manager) GetStatus() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.status
 }
 
+// GetRuntimeStatus returns a RuntimeStatus snapshot without blocking the
+// supervisor goroutine for more than the duration of a read lock.
 func (m *Manager) GetRuntimeStatus() RuntimeStatus {
 	m.mu.RLock()
 	status := m.status
@@ -89,7 +110,10 @@ func (m *Manager) GetRuntimeStatus() RuntimeStatus {
 	}
 }
 
-func (m *Manager) UpdateConfig(cfg *service.RelayConfig) {
+// UpdateConfig applies a new RelayConfig. If the configuration has not changed
+// and frps is already running, this is a no-op. Otherwise the existing process
+// is killed and a new supervisor goroutine is started.
+func (m *Manager) UpdateConfig(ctx context.Context, cfg *service.RelayConfig) {
 	if cfg == nil {
 		return
 	}
@@ -109,11 +133,11 @@ func (m *Manager) UpdateConfig(cfg *service.RelayConfig) {
 			generation := m.generation
 			if err := m.renderConfig(cfg); err != nil {
 				slog.Error("failed to render frps config", "error", err)
-				m.status = "unhealthy"
+				m.status = statusUnhealthy
 				m.lastError = err.Error()
 				return
 			}
-			go m.supervise(generation)
+			go m.supervise(ctx, generation)
 		}
 		return
 	}
@@ -132,27 +156,27 @@ func (m *Manager) UpdateConfig(cfg *service.RelayConfig) {
 
 	if err := m.renderConfig(cfg); err != nil {
 		slog.Error("failed to render frps config", "error", err)
-		m.status = "unhealthy"
+		m.status = statusUnhealthy
 		m.lastError = err.Error()
 		return
 	}
 
-	go m.supervise(generation)
+	go m.supervise(ctx, generation)
 }
 
 func (m *Manager) renderConfig(cfg *service.RelayConfig) error {
-	if err := os.MkdirAll(m.dataDir, 0755); err != nil {
+	if err := os.MkdirAll(m.dataDir, frpsDataDirPerm); err != nil {
 		return err
 	}
 	var buf bytes.Buffer
-	buf.WriteString(fmt.Sprintf("bindPort = %d\n", cfg.BindPort))
+	fmt.Fprintf(&buf, "bindPort = %d\n", cfg.BindPort)
 	if cfg.VhostHTTPPort > 0 {
-		buf.WriteString(fmt.Sprintf("vhostHTTPPort = %d\n", cfg.VhostHTTPPort))
+		fmt.Fprintf(&buf, "vhostHTTPPort = %d\n", cfg.VhostHTTPPort)
 	}
 	if cfg.AuthToken != "" {
 		buf.WriteString("[auth]\n")
 		buf.WriteString("method = \"token\"\n")
-		buf.WriteString(fmt.Sprintf("token = \"%s\"\n", cfg.AuthToken))
+		fmt.Fprintf(&buf, "token = \"%s\"\n", cfg.AuthToken)
 	}
 
 	// WebServer configuration
@@ -162,19 +186,20 @@ func (m *Manager) renderConfig(cfg *service.RelayConfig) error {
 	} else {
 		buf.WriteString("addr = \"127.0.0.1\"\n")
 	}
-	buf.WriteString(fmt.Sprintf("port = %d\n", 17500))
+	fmt.Fprintf(&buf, "port = %d\n", defaultFrpsWebServerPort)
 	buf.WriteString("user = \"admin\"\n")
 
 	password := m.agentToken
 	if password == "" {
 		password = "admin"
 	}
-	buf.WriteString(fmt.Sprintf("password = \"%s\"\n", password))
+	fmt.Fprintf(&buf, "password = \"%s\"\n", password)
 
-	return os.WriteFile(m.configPath, buf.Bytes(), 0644)
+	return os.WriteFile(m.configPath, buf.Bytes(), frpsConfigFilePerm)
 }
 
-func (m *Manager) supervise(generation uint64) {
+func (m *Manager) supervise(ctx context.Context, generation uint64) {
+	procCtx := context.WithoutCancel(ctx)
 	backoff := 1 * time.Second
 	const maxBackoff = 60 * time.Second
 
@@ -187,13 +212,13 @@ func (m *Manager) supervise(generation uint64) {
 
 		ensureNoOrphanProcess(m.pidPath)
 
-		cmd := exec.Command(m.frpsPath, "-c", m.configPath)
+		cmd := exec.CommandContext(procCtx, m.frpsPath, "-c", m.configPath) //nolint:gosec // frpsPath and configPath are managed trusted locations
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
 		err := cmd.Start()
 		if err != nil {
-			m.status = "unhealthy"
+			m.status = statusUnhealthy
 			m.lastError = fmt.Sprintf("failed to start: %v", err)
 			slog.Error("failed to start frps", "error", err, "generation", generation)
 			m.mu.Unlock()
@@ -201,14 +226,14 @@ func (m *Manager) supervise(generation uint64) {
 			if !m.sleepOrInterrupt(generation, backoff) {
 				return
 			}
-			backoff = backoff * 2
+			backoff *= 2
 			if backoff > maxBackoff {
 				backoff = maxBackoff
 			}
 			continue
 		}
 
-		_ = os.WriteFile(m.pidPath, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0644)
+		_ = os.WriteFile(m.pidPath, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), frpsPidFilePerm)
 
 		m.cmd = cmd
 		m.status = "healthy"
@@ -222,7 +247,7 @@ func (m *Manager) supervise(generation uint64) {
 		m.mu.Lock()
 		if m.cmd == cmd {
 			m.cmd = nil
-			m.status = "unhealthy"
+			m.status = statusUnhealthy
 			if waitErr != nil {
 				m.lastError = fmt.Sprintf("exited with error: %v", waitErr)
 			} else {
@@ -244,7 +269,7 @@ func (m *Manager) supervise(generation uint64) {
 		if !m.sleepOrInterrupt(generation, backoff) {
 			return
 		}
-		backoff = backoff * 2
+		backoff *= 2
 		if backoff > maxBackoff {
 			backoff = maxBackoff
 		}
@@ -252,24 +277,24 @@ func (m *Manager) supervise(generation uint64) {
 }
 
 func (m *Manager) sleepOrInterrupt(generation uint64, d time.Duration) bool {
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(frpsSupervisorPollInterval)
 	defer ticker.Stop()
 
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
-		select {
-		case <-ticker.C:
-			m.mu.RLock()
-			interrupted := m.stopping || m.generation != generation
-			m.mu.RUnlock()
-			if interrupted {
-				return false
-			}
+		<-ticker.C
+		m.mu.RLock()
+		interrupted := m.stopping || m.generation != generation
+		m.mu.RUnlock()
+		if interrupted {
+			return false
 		}
 	}
 	return true
 }
 
+// Stop signals the supervisor to cease restarting frps and kills the running
+// process if one exists.
 func (m *Manager) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -280,11 +305,11 @@ func (m *Manager) Stop() {
 		m.cmd = nil
 	}
 	_ = os.Remove(m.pidPath)
-	m.status = "unhealthy"
+	m.status = statusUnhealthy
 }
 
 func ensureNoOrphanProcess(pidPath string) {
-	data, err := os.ReadFile(pidPath)
+	data, err := os.ReadFile(pidPath) //nolint:gosec // pidPath is a managed internal path, not user input
 	if err != nil {
 		return
 	}
@@ -300,7 +325,7 @@ func ensureNoOrphanProcess(pidPath string) {
 		slog.Warn("attempting to kill potentially orphan process", "pid", pid, "pid_path", pidPath)
 		_ = process.Kill()
 		// Wait a little bit to ensure the OS has reclaimed ports
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(frpsOrphanProcessCleanupDelay)
 	}
 	_ = os.Remove(pidPath)
 }

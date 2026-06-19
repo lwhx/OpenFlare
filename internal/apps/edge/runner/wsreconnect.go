@@ -1,3 +1,4 @@
+// Package runner provides shared WebSocket reconnect helpers for edge daemons.
 package runner
 
 import (
@@ -6,10 +7,12 @@ import (
 	"time"
 )
 
+// WSConnection defines the minimum interface required for a WebSocket connection that can be closed.
 type WSConnection interface {
 	Close() error
 }
 
+// WSReconnectConfig specifies configuration parameters for the WebSocket reconnect loop.
 type WSReconnectConfig struct {
 	ComponentName  string
 	ConnectBackoff time.Duration
@@ -17,6 +20,7 @@ type WSReconnectConfig struct {
 	OnShutdown     func()
 }
 
+// RunWSReconnectLoop runs a loop that attempts to keep a WebSocket connection active, automatically reconnecting when closed or failed.
 func RunWSReconnectLoop(ctx context.Context, cfg WSReconnectConfig,
 	connect func(context.Context) (WSConnection, error),
 	handle func(context.Context, WSConnection),
@@ -40,6 +44,7 @@ func RunWSReconnectLoop(ctx context.Context, cfg WSReconnectConfig,
 			}
 			return ctx.Err()
 		default:
+			// Continue reconnect loop
 		}
 
 		conn, err := connect(ctx)
@@ -56,6 +61,7 @@ func RunWSReconnectLoop(ctx context.Context, cfg WSReconnectConfig,
 	}
 }
 
+// SleepContext pauses execution for the given duration or until the context is canceled.
 func SleepContext(ctx context.Context, d time.Duration) {
 	select {
 	case <-ctx.Done():

@@ -1,24 +1,29 @@
+// Package protocol defines the communication protocol between OpenFlare server, agent, and relay components.
 package protocol
 
 import "encoding/json"
 
+// APIResponse is a generic API response wrapper.
 type APIResponse[T any] struct {
 	ErrorMsg string `json:"error_msg"`
 	Data     T      `json:"data"`
 }
 
+// HeartbeatData is the heartbeat request payload from agent.
 type HeartbeatData struct {
 	AgentSettings *AgentSettings    `json:"agent_settings"`
 	ActiveConfig  *ActiveConfigMeta `json:"active_config"`
 	WAFIPGroups   []WAFIPGroup      `json:"waf_ip_groups,omitempty"`
 }
 
+// HeartbeatResult is the heartbeat response payload.
 type HeartbeatResult struct {
 	AgentSettings *AgentSettings
 	ActiveConfig  *ActiveConfigMeta
 	WAFIPGroups   []WAFIPGroup
 }
 
+// AgentSettings holds agent configuration settings.
 type AgentSettings struct {
 	HeartbeatInterval       int    `json:"heartbeat_interval"`
 	WebsocketUpgradeEnabled bool   `json:"websocket_upgrade_enabled"`
@@ -30,6 +35,7 @@ type AgentSettings struct {
 	RestartOpenrestyNow     bool   `json:"restart_openresty_now"`
 }
 
+// WSMessageType constants define WebSocket message types.
 const (
 	WSMessageTypeStatus          = "status"
 	WSMessageTypeSettings        = "settings"
@@ -40,16 +46,19 @@ const (
 	WSMessageTypePong            = "pong"
 )
 
+// WSMessage represents a WebSocket message.
 type WSMessage struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
+// WSOutboundMessage represents an outbound WebSocket message.
 type WSOutboundMessage struct {
 	Type    string `json:"type"`
 	Payload any    `json:"payload,omitempty"`
 }
 
+// WebSocketConnection defines the WebSocket connection interface.
 type WebSocketConnection interface {
 	URL() string
 	SendStatus(payload NodePayload) error
@@ -58,12 +67,14 @@ type WebSocketConnection interface {
 	Close() error
 }
 
+// OpenrestyStatus constants define OpenResty health status values.
 const (
 	OpenrestyStatusHealthy   = "healthy"
 	OpenrestyStatusUnhealthy = "unhealthy"
 	OpenrestyStatusUnknown   = "unknown"
 )
 
+// NodePayload is the agent node registration payload.
 type NodePayload struct {
 	NodeID                string                        `json:"node_id"`
 	Name                  string                        `json:"name"`
@@ -84,6 +95,7 @@ type NodePayload struct {
 	WAFIPGroupChecksums   map[string]string             `json:"waf_ip_group_checksums,omitempty"`
 }
 
+// NodeSystemProfile describes the system profile of a node.
 type NodeSystemProfile struct {
 	Hostname         string `json:"hostname"`
 	OSName           string `json:"os_name"`
@@ -98,6 +110,7 @@ type NodeSystemProfile struct {
 	ReportedAtUnix   int64  `json:"reported_at_unix"`
 }
 
+// NodeMetricSnapshot is a metric snapshot of a node.
 type NodeMetricSnapshot struct {
 	CapturedAtUnix    int64   `json:"captured_at_unix"`
 	CPUUsagePercent   float64 `json:"cpu_usage_percent"`
@@ -111,6 +124,7 @@ type NodeMetricSnapshot struct {
 	NetworkTxBytes    int64   `json:"network_tx_bytes"`
 }
 
+// NodeOpenrestyObservation holds OpenResty observation data.
 type NodeOpenrestyObservation struct {
 	CapturedAtUnix       int64 `json:"captured_at_unix"`
 	OpenrestyRxBytes     int64 `json:"openresty_rx_bytes"`
@@ -118,6 +132,7 @@ type NodeOpenrestyObservation struct {
 	OpenrestyConnections int64 `json:"openresty_connections"`
 }
 
+// NodeTrafficReport is a traffic report from agent.
 type NodeTrafficReport struct {
 	WindowStartedAtUnix int64            `json:"window_started_at_unix"`
 	WindowEndedAtUnix   int64            `json:"window_ended_at_unix"`
@@ -129,6 +144,7 @@ type NodeTrafficReport struct {
 	SourceCountries     map[string]int64 `json:"source_countries"`
 }
 
+// NodeAccessLog is an access log entry from agent.
 type NodeAccessLog struct {
 	LoggedAtUnix int64  `json:"logged_at_unix"`
 	RemoteAddr   string `json:"remote_addr"`
@@ -137,6 +153,7 @@ type NodeAccessLog struct {
 	StatusCode   int    `json:"status_code"`
 }
 
+// BufferedObservabilityRecord is a buffered observability record.
 type BufferedObservabilityRecord struct {
 	WindowStartedAtUnix  int64                     `json:"window_started_at_unix"`
 	Snapshot             *NodeMetricSnapshot       `json:"snapshot,omitempty"`
@@ -145,6 +162,7 @@ type BufferedObservabilityRecord struct {
 	AccessLogs           []NodeAccessLog           `json:"access_logs,omitempty"`
 }
 
+// NodeHealthEvent represents a node health event.
 type NodeHealthEvent struct {
 	EventType       string            `json:"event_type"`
 	Severity        string            `json:"severity"`
@@ -153,12 +171,14 @@ type NodeHealthEvent struct {
 	Metadata        map[string]string `json:"metadata,omitempty"`
 }
 
+// RegisterNodeResponse is the node registration response.
 type RegisterNodeResponse struct {
 	NodeID      string `json:"node_id"`
 	AccessToken string `json:"agent_token"`
 	Name        string `json:"name"`
 }
 
+// ActiveConfigResponse is the active configuration response.
 type ActiveConfigResponse struct {
 	Version          string        `json:"version"`
 	Checksum         string        `json:"checksum"`
@@ -167,6 +187,7 @@ type ActiveConfigResponse struct {
 	CreatedAt        string        `json:"created_at"`
 }
 
+// WAFIPGroup defines a WAF IP group.
 type WAFIPGroup struct {
 	ID       uint     `json:"id"`
 	Name     string   `json:"name"`
@@ -176,15 +197,18 @@ type WAFIPGroup struct {
 	Checksum string   `json:"checksum"`
 }
 
+// WAFIPGroupSyncRequest is a WAF IP group sync request.
 type WAFIPGroupSyncRequest struct {
 	IDs       []uint            `json:"ids,omitempty"`
 	Checksums map[string]string `json:"checksums,omitempty"`
 }
 
+// WAFIPGroupSyncResponse is a WAF IP group sync response.
 type WAFIPGroupSyncResponse struct {
 	Groups []WAFIPGroup `json:"groups"`
 }
 
+// SupportFile represents a support file for relay.
 type SupportFile struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`

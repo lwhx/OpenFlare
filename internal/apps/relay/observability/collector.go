@@ -1,3 +1,4 @@
+// Package observability collects relay node profile data for heartbeat reporting.
 package observability
 
 import (
@@ -16,6 +17,8 @@ import (
 	service "github.com/Rain-kl/Wavelet/pkg/protocol"
 )
 
+// BuildProfile collects the node's system profile and returns it only when the
+// fingerprint has changed since the last heartbeat, avoiding redundant uploads.
 func BuildProfile(cfg *config.Config, stateStore *state.Store) *service.AgentNodeSystemProfile {
 	profile := collectProfile(cfg)
 	if profile == nil || stateStore == nil {
@@ -36,6 +39,9 @@ func BuildProfile(cfg *config.Config, stateStore *state.Store) *service.AgentNod
 	return profile
 }
 
+// BuildSnapshot captures a point-in-time metric snapshot including memory,
+// disk, network I/O, and CPU usage computed from a delta against the last
+// persisted CPU stat.
 func BuildSnapshot(cfg *config.Config, stateStore *state.Store) *service.AgentNodeMetricSnapshot {
 	now := time.Now().UTC()
 	metric := &service.AgentNodeMetricSnapshot{CapturedAtUnix: now.Unix()}
@@ -67,6 +73,8 @@ func BuildSnapshot(cfg *config.Config, stateStore *state.Store) *service.AgentNo
 	return metric
 }
 
+// BuildHealthEvents converts a RuntimeStatus into a list of health events.
+// An empty slice is returned when frps is healthy.
 func BuildHealthEvents(status frps.RuntimeStatus) []service.AgentNodeHealthEvent {
 	if strings.TrimSpace(status.Status) == "healthy" {
 		return []service.AgentNodeHealthEvent{}

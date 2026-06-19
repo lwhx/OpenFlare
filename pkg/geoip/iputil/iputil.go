@@ -1,3 +1,4 @@
+// Package iputil provides helpers for parsing, normalizing, and scoring IP addresses.
 package iputil
 
 import (
@@ -5,6 +6,12 @@ import (
 	"strings"
 )
 
+const (
+	scorePublic  = 2
+	scorePrivate = 1
+)
+
+// NormalizeIP parses and normalizes a raw IP address string, preferring the IPv4 form for mapped addresses.
 func NormalizeIP(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -20,6 +27,7 @@ func NormalizeIP(raw string) string {
 	return ip.String()
 }
 
+// NormalizeRemoteAddr extracts and normalizes the IP address from a host:port remote address string.
 func NormalizeRemoteAddr(remoteAddr string) string {
 	trimmed := strings.TrimSpace(remoteAddr)
 	if trimmed == "" {
@@ -31,6 +39,7 @@ func NormalizeRemoteAddr(remoteAddr string) string {
 	return NormalizeIP(trimmed)
 }
 
+// IsPublic reports whether the given IP address is a publicly routable unicast address.
 func IsPublic(ip net.IP) bool {
 	if ip == nil {
 		return false
@@ -44,11 +53,13 @@ func IsPublic(ip net.IP) bool {
 	return true
 }
 
+// IsPublicString parses raw and reports whether it represents a publicly routable IP address.
 func IsPublicString(raw string) bool {
 	ip := net.ParseIP(strings.TrimSpace(raw))
 	return IsPublic(ip)
 }
 
+// Score returns a preference score for the IP address: 2 for public, 1 for private, -1 for invalid or non-unicast.
 func Score(ip net.IP) int {
 	if ip == nil {
 		return -1
@@ -60,7 +71,7 @@ func Score(ip net.IP) int {
 		return -1
 	}
 	if IsPublic(ip) {
-		return 2
+		return scorePublic
 	}
-	return 1
+	return scorePrivate
 }

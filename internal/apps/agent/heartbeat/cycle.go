@@ -1,3 +1,5 @@
+// Package heartbeat implements the periodic heartbeat cycle executed by the agent,
+// including payload preparation, config sync, WAF IP group application, and observability buffering.
 package heartbeat
 
 import (
@@ -14,10 +16,7 @@ import (
 	edgeheartbeat "github.com/Rain-kl/Wavelet/internal/apps/edge/heartbeat"
 )
 
-type HeartbeatClient interface {
-	Heartbeat(ctx context.Context, payload protocol.NodePayload) (*protocol.HeartbeatResult, error)
-}
-
+// SyncService is the interface used by Cycle to sync active configuration and WAF IP groups.
 type SyncService interface {
 	SyncOnStartup(ctx context.Context, target *protocol.ActiveConfigMeta) error
 	SyncOnce(ctx context.Context, target *protocol.ActiveConfigMeta) error
@@ -25,23 +24,26 @@ type SyncService interface {
 	ApplyWAFIPGroups(ctx context.Context, groups []protocol.WAFIPGroup) error
 }
 
+// SettingsApplier is the interface used by Cycle to apply agent settings received from the server.
 type SettingsApplier interface {
 	Apply(settings *protocol.AgentSettings) (intervalChanged bool)
 	RestartOpenrestyIfNeeded(ctx context.Context)
 }
 
+// Cycle holds the dependencies required to execute a single agent heartbeat cycle.
 type Cycle struct {
 	Config              *config.Config
 	StateStore          *state.Store
 	ObservabilityBuffer *state.ObservabilityBufferStore
-	Heartbeat           HeartbeatClient
+	Heartbeat           API
 	Sync                SyncService
 	Updater             *updater.Service
 	RecordSyncError     func(err error)
 }
 
+// Perform executes one complete heartbeat cycle: sends the heartbeat, syncs config, and applies settings.
 func (c *Cycle) Perform(ctx context.Context, nodeID string, startup bool, settings SettingsApplier) (bool, error) {
-	payload, ackWindows := c.PrepareHeartbeatPayload(nodeID)
+	payload, ackWindows := c.PrepareHeartbeatPayload(ctx, nodeID)
 	heartbeatResult, err := c.Heartbeat.Heartbeat(ctx, payload)
 	if err != nil {
 		return false, err
@@ -79,14 +81,15 @@ func (c *Cycle) Perform(ctx context.Context, nodeID string, startup bool, settin
 	return changed, nil
 }
 
-func (c *Cycle) NodePayload(nodeID string) protocol.NodePayload {
+// NodePayload builds and returns the full NodePayload to be sent in a heartbeat request.
+func (c *Cycle) NodePayload(ctx context.Context, nodeID string) protocol.NodePayload {
 	snapshot, _ := c.StateStore.Load()
 	openrestyStatus := strings.TrimSpace(snapshot.OpenrestyStatus)
 	if openrestyStatus == "" {
 		openrestyStatus = protocol.OpenrestyStatusUnknown
 	}
 	profile := observability.BuildProfile(c.Config, c.StateStore)
-	managedOpenRestyMetrics := observability.CollectManagedOpenRestyMetrics(c.Config)
+	managedOpenRestyMetrics := observability.CollectManagedOpenRestyMetrics(ctx, c.Config)
 	trafficReport, accessLogs, fallbackMetrics := observability.BuildTrafficObservability(c.Config, c.StateStore, managedOpenRestyMetrics)
 	if managedOpenRestyMetrics == nil {
 		managedOpenRestyMetrics = fallbackMetrics
@@ -122,8 +125,9 @@ func (c *Cycle) NodePayload(nodeID string) protocol.NodePayload {
 	return payload
 }
 
-func (c *Cycle) PrepareHeartbeatPayload(nodeID string) (protocol.NodePayload, []int64) {
-	payload := c.NodePayload(nodeID)
+// PrepareHeartbeatPayload constructs the heartbeat payload with buffered observability records and returns the window timestamps to acknowledge.
+func (c *Cycle) PrepareHeartbeatPayload(ctx context.Context, nodeID string) (protocol.NodePayload, []int64) {
+	payload := c.NodePayload(ctx, nodeID)
 	if c.ObservabilityBuffer == nil || (payload.Snapshot == nil && payload.TrafficReport == nil && len(payload.AccessLogs) == 0) {
 		return payload, nil
 	}
@@ -173,6 +177,7 @@ func (c *Cycle) PrepareHeartbeatPayload(nodeID string) (protocol.NodePayload, []
 	return payload, ackWindows
 }
 
+// AckObservabilityWindows acknowledges the given observability window timestamps in the buffer store.
 func (c *Cycle) AckObservabilityWindows(windowStartedAtUnix []int64) {
 	if c.ObservabilityBuffer == nil || len(windowStartedAtUnix) == 0 {
 		return
@@ -183,6 +188,7 @@ func (c *Cycle) AckObservabilityWindows(windowStartedAtUnix []int64) {
 	}
 }
 
+// ApplyWAFIPGroups applies the WAF IP groups received from the server via the SyncService.
 func (c *Cycle) ApplyWAFIPGroups(ctx context.Context, groups []protocol.WAFIPGroup) {
 	if len(groups) == 0 || c.Sync == nil {
 		return
@@ -199,6 +205,7 @@ func (c *Cycle) recordSyncError(err error) {
 	}
 }
 
+// AgentSettingsToAutoUpdate converts AgentSettings to an AutoUpdateSettings value used by the edge heartbeat updater.
 func AgentSettingsToAutoUpdate(settings *protocol.AgentSettings) *edgeheartbeat.AutoUpdateSettings {
 	if settings == nil {
 		return nil

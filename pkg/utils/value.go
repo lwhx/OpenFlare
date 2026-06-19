@@ -2,14 +2,15 @@ package utils
 
 import "fmt"
 
+// Interface2String converts a string, int, or float64 value to its string representation.
 func Interface2String(inter interface{}) string {
-	switch inter.(type) {
+	switch v := inter.(type) {
 	case string:
-		return inter.(string)
+		return v
 	case int:
-		return fmt.Sprintf("%d", inter.(int))
+		return fmt.Sprintf("%d", v)
 	case float64:
-		return fmt.Sprintf("%f", inter.(float64))
+		return fmt.Sprintf("%f", v)
 	}
 	return "Not Implemented"
 }

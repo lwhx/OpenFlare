@@ -134,7 +134,7 @@ func TestRunDatabaseAutoCleanupOnceDeletesAllObservabilityTargets(t *testing.T) 
 		model.DatabaseAutoCleanupRetentionDays = previousRetentionDays
 	})
 
-	summary, err := RunDatabaseAutoCleanupOnce(now)
+	summary, err := RunDatabaseAutoCleanupOnce(ctx, now)
 	require.NoError(t, err)
 	require.NotNil(t, summary)
 	require.Len(t, summary.Results, 3)

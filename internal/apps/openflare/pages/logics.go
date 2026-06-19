@@ -256,7 +256,7 @@ func UploadDeployment(ctx context.Context, projectID uint, fileHeader *multipart
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tempPath)
+	defer func() { _ = os.Remove(tempPath) }()
 	manifest, err := inspectPagesZip(tempPath, rootDir, entryFile)
 	if err != nil {
 		return nil, err
@@ -370,10 +370,10 @@ func OpenDeploymentPackage(ctx context.Context, deploymentID uint) (*storage.Obj
 		}
 		obj, err := uploadstorage.OpenStoredObject(ctx, &uploadRecord)
 		if err != nil {
-			return nil, "", fmt.Errorf("Pages 部署包不存在: %w", err)
+			return nil, "", fmt.Errorf("pages 部署包不存在: %w", err)
 		}
 		if obj.ContentType == "" {
-			obj.ContentType = "application/zip"
+			obj.ContentType = mimeTypeApplicationZip
 		}
 		return obj, fileName, nil
 	}
@@ -382,17 +382,17 @@ func OpenDeploymentPackage(ctx context.Context, deploymentID uint) (*storage.Obj
 	}
 	file, err := os.Open(deployment.ArtifactPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("Pages 部署包不存在: %w", err)
+		return nil, "", fmt.Errorf("pages 部署包不存在: %w", err)
 	}
 	info, err := file.Stat()
 	if err != nil {
 		_ = file.Close()
-		return nil, "", fmt.Errorf("Pages 部署包不存在: %w", err)
+		return nil, "", fmt.Errorf("pages 部署包不存在: %w", err)
 	}
 	return &storage.Object{
 		Body:          file,
 		ContentLength: info.Size(),
-		ContentType:   "application/zip",
+		ContentType:   mimeTypeApplicationZip,
 	}, fileName, nil
 }
 

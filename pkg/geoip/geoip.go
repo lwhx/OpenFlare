@@ -1,3 +1,4 @@
+// Package geoip resolves geographic information for IP addresses.
 package geoip
 
 import (
@@ -12,19 +13,27 @@ import (
 	ristretto "github.com/dgraph-io/ristretto/v2"
 )
 
-var CurrentProvider GeoIPService
+// CurrentProvider is the active GeoIP backend used by package-level helpers.
+var CurrentProvider Service
 var geoCache *providerCache
 var providerMutex sync.RWMutex
 var providerFactory = newProvider
 
+// Supported GeoIP provider identifiers.
 const (
+	// ProviderDisabled disables GeoIP lookups.
 	ProviderDisabled = "disabled"
 	ProviderMaxMind  = "mmdb"
 	ProviderIPAPI    = "ip-api"
 	ProviderGeoJS    = "geojs"
 	ProviderIPInfo   = "ipinfo"
+
+	defaultGeoCacheDuration = 48 * time.Hour
+	isoCountryCodeLength    = 2
+	geoipDataDirPerm        = 0o750
 )
 
+// GeoInfo contains normalized geographic metadata for an IP address.
 type GeoInfo struct {
 	ISOCode   string
 	Name      string
@@ -34,11 +43,11 @@ type GeoInfo struct {
 
 func init() {
 	CurrentProvider = &EmptyProvider{}
-	geoCache = newProviderCache(48 * time.Hour)
+	geoCache = newProviderCache(defaultGeoCacheDuration)
 }
 
-// GeoIPService 接口定义了获取地理位置信息的核心方法。
-type GeoIPService interface {
+// Service defines the core GeoIP lookup operations implemented by providers.
+type Service interface {
 	Name() string
 	GetGeoInfo(ip net.IP) (*GeoInfo, error)
 	UpdateDatabase() error
@@ -94,8 +103,9 @@ func (c *providerCache) Flush() {
 	c.items.Clear()
 }
 
+// GetRegionUnicodeEmoji returns the regional indicator emoji for a two-letter ISO code.
 func GetRegionUnicodeEmoji(isoCode string) string {
-	if len(isoCode) != 2 {
+	if len(isoCode) != isoCountryCodeLength {
 		return ""
 	}
 	isoCode = strings.ToUpper(isoCode)
@@ -104,11 +114,12 @@ func GetRegionUnicodeEmoji(isoCode string) string {
 		return ""
 	}
 
-	rune1 := rune(0x1F1E6 + (rune(isoCode[0]) - 'A'))
-	rune2 := rune(0x1F1E6 + (rune(isoCode[1]) - 'A'))
+	rune1 := 0x1F1E6 + (rune(isoCode[0]) - 'A')
+	rune2 := 0x1F1E6 + (rune(isoCode[1]) - 'A')
 	return string(rune1) + string(rune2)
 }
 
+// InitGeoIP configures the active GeoIP provider.
 func InitGeoIP(provider string) {
 	providerName := normalizeProvider(provider)
 	nextProvider, err := providerFactory(providerName)
@@ -124,6 +135,7 @@ func InitGeoIP(provider string) {
 	slog.Info("GeoIP provider configured", "provider", CurrentProvider.Name())
 }
 
+// GetGeoInfo looks up geographic information for ip using the active provider.
 func GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	if ip == nil {
 		return nil, fmt.Errorf("IP address cannot be nil")
@@ -142,6 +154,7 @@ func GetGeoInfo(ip net.IP) (*GeoInfo, error) {
 	return info, err
 }
 
+// LookupGeoInfoWithProvider looks up geographic information using a temporary provider.
 func LookupGeoInfoWithProvider(providerName string, ip net.IP) (*GeoInfo, error) {
 	if ip == nil {
 		return nil, fmt.Errorf("IP address cannot be nil")
@@ -160,6 +173,7 @@ func LookupGeoInfoWithProvider(providerName string, ip net.IP) (*GeoInfo, error)
 	return provider.GetGeoInfo(ip)
 }
 
+// UpdateDatabase refreshes the active provider database and clears cached lookups.
 func UpdateDatabase() error {
 	err := getProvider().UpdateDatabase()
 	if err == nil {
@@ -169,6 +183,7 @@ func UpdateDatabase() error {
 	return err
 }
 
+// IsValidProvider reports whether provider names a supported GeoIP backend.
 func IsValidProvider(provider string) bool {
 	switch normalizeProvider(provider) {
 	case ProviderDisabled, ProviderMaxMind, ProviderIPAPI, ProviderGeoJS, ProviderIPInfo:
@@ -186,7 +201,7 @@ func normalizeProvider(provider string) string {
 	return normalized
 }
 
-func newProvider(provider string) (GeoIPService, error) {
+func newProvider(provider string) (Service, error) {
 	switch provider {
 	case ProviderDisabled:
 		return &EmptyProvider{}, nil
@@ -203,7 +218,7 @@ func newProvider(provider string) (GeoIPService, error) {
 	}
 }
 
-func setProvider(provider GeoIPService) {
+func setProvider(provider Service) {
 	providerMutex.Lock()
 	previous := CurrentProvider
 	CurrentProvider = provider
@@ -216,7 +231,7 @@ func setProvider(provider GeoIPService) {
 	}
 }
 
-func getProvider() GeoIPService {
+func getProvider() Service {
 	providerMutex.RLock()
 	defer providerMutex.RUnlock()
 	if CurrentProvider == nil {
@@ -229,11 +244,13 @@ func float64Pointer(value float64) *float64 {
 	return &value
 }
 
-func ProviderFactoryForTest() func(string) (GeoIPService, error) {
+// ProviderFactoryForTest returns the provider factory used by package helpers.
+func ProviderFactoryForTest() func(string) (Service, error) {
 	return providerFactory
 }
 
-func SetProviderFactoryForTest(factory func(string) (GeoIPService, error)) {
+// SetProviderFactoryForTest replaces the provider factory for tests.
+func SetProviderFactoryForTest(factory func(string) (Service, error)) {
 	if factory == nil {
 		providerFactory = newProvider
 		return

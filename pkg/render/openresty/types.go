@@ -1,5 +1,7 @@
 package openresty
 
+// Placeholder constants used as sentinel values in rendered OpenResty config
+// files; the deploy process replaces them with real paths before reload.
 const (
 	CertDirPlaceholder             = "__OPENFLARE_CERT_DIR__"
 	RouteConfigPlaceholder         = "__OPENFLARE_ROUTE_CONFIG__"
@@ -63,16 +65,22 @@ http {
 }
 `
 
+// SupportFile represents an auxiliary file (certificate, WAF config, etc.)
+// that is written alongside the main OpenResty configuration.
 type SupportFile struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
 }
 
+// CustomHeader is a key/value pair injected as an additional proxy_set_header
+// directive for a specific route.
 type CustomHeader struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
+// PoWListConfig holds the IP, CIDR, path, and user-agent lists used by the
+// Proof-of-Work whitelist or blacklist filter.
 type PoWListConfig struct {
 	IPs         []string `json:"ips"`
 	IPCidrs     []string `json:"ip_cidrs"`
@@ -81,6 +89,8 @@ type PoWListConfig struct {
 	UserAgents  []string `json:"user_agents"`
 }
 
+// PoWConfig holds the full Proof-of-Work challenge parameters for a route,
+// including difficulty, algorithm, TTLs, and allow/block lists.
 type PoWConfig struct {
 	Difficulty   int           `json:"difficulty"`
 	Algorithm    string        `json:"algorithm"`
@@ -90,6 +100,8 @@ type PoWConfig struct {
 	Blacklist    PoWListConfig `json:"blacklist"`
 }
 
+// Route describes a single proxy or pages site entry in the OpenFlare config
+// document, including upstream, TLS, caching, rate-limiting and WAF settings.
 type Route struct {
 	ID                 uint             `json:"id,omitempty"`
 	SiteName           string           `json:"site_name,omitempty"`
@@ -121,6 +133,8 @@ type Route struct {
 	PagesDeployment    *PagesDeployment `json:"pages_deployment,omitempty"`
 }
 
+// PagesDeployment holds the static-site deployment parameters for a Pages-type
+// route, including local root, entry file, SPA fallback, and API proxy options.
 type PagesDeployment struct {
 	ProjectID          uint   `json:"project_id"`
 	ProjectSlug        string `json:"project_slug"`
@@ -137,6 +151,8 @@ type PagesDeployment struct {
 	LocalRoot          string `json:"local_root"`
 }
 
+// WAFRuleGroup defines a WAF rule group with IP/country/region lists, PoW
+// integration, and per-group block status configuration.
 type WAFRuleGroup struct {
 	ID                uint       `json:"id"`
 	Name              string     `json:"name"`
@@ -156,6 +172,8 @@ type WAFRuleGroup struct {
 	PoWConfig         *PoWConfig `json:"pow_config,omitempty"`
 }
 
+// WAFIPGroup is a named, reusable list of IP addresses or CIDRs that can be
+// referenced by multiple WAF rule groups as a whitelist or blacklist.
 type WAFIPGroup struct {
 	ID      uint     `json:"id"`
 	Name    string   `json:"name"`
@@ -164,18 +182,24 @@ type WAFIPGroup struct {
 	IPList  []string `json:"ip_list,omitempty"`
 }
 
+// WAFBinding associates a route (by site name) with the WAF rule groups that
+// should be enforced for that site.
 type WAFBinding struct {
 	RouteID      uint   `json:"route_id"`
 	SiteName     string `json:"site_name"`
 	RuleGroupIDs []uint `json:"rule_group_ids"`
 }
 
+// WAFDocument is the top-level WAF configuration snapshot containing rule
+// groups, IP groups, and per-site bindings.
 type WAFDocument struct {
 	RuleGroups []WAFRuleGroup `json:"rule_groups"`
 	IPGroups   []WAFIPGroup   `json:"ip_groups,omitempty"`
 	Bindings   []WAFBinding   `json:"bindings"`
 }
 
+// ConfigSnapshot holds the full set of OpenResty tuning parameters that are
+// rendered into the nginx main configuration template.
 type ConfigSnapshot struct {
 	DefaultServerReturnStatus int    `json:"default_server_return_status"`
 	WorkerProcesses           string `json:"worker_processes"`
@@ -216,12 +240,16 @@ type ConfigSnapshot struct {
 	MainConfigTemplate        string `json:"main_config_template,omitempty"`
 }
 
+// Document is the top-level input structure for the OpenResty renderer,
+// combining routes, OpenResty tuning, and WAF configuration.
 type Document struct {
 	Routes          []Route        `json:"routes"`
 	OpenRestyConfig ConfigSnapshot `json:"openresty_config"`
 	WAF             WAFDocument    `json:"waf"`
 }
 
+// Result is the output produced by Render, containing the rendered main
+// config, route config, support files, and a content checksum.
 type Result struct {
 	MainConfig   string
 	RouteConfig  string

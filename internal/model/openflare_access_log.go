@@ -5,9 +5,17 @@ package model
 
 import (
 	"context"
+	"math"
 	"sort"
 	"strings"
 	"time"
+)
+
+const (
+	columnRemoteAddr = "remote_addr"
+	columnHost       = "host"
+	sortOrderAsc     = "asc"
+	secondsPerMinute = 60
 )
 
 type openFlareAccessLogBucketAggregateRow struct {
@@ -147,7 +155,7 @@ func ListOpenFlareAccessLogIPTrend(ctx context.Context, query OpenFlareAccessLog
 		Host:       query.Host,
 		Since:      query.Since,
 	}
-	bucketSeconds := int64(query.BucketMinutes * 60)
+	bucketSeconds := int64(query.BucketMinutes * secondsPerMinute)
 	if bucketSeconds <= 0 {
 		bucketSeconds = 1800
 	}
@@ -182,7 +190,7 @@ func DeleteOpenFlareAccessLogsByNodeBefore(ctx context.Context, nodeID string, c
 
 func buildOpenFlareAccessLogBucketRows(ctx context.Context, query OpenFlareAccessLogBucketQuery) ([]*OpenFlareAccessLogBucketRow, error) {
 	filter := openFlareAccessLogQueryFromBucket(query)
-	bucketSeconds := int64(query.FoldMinutes * 60)
+	bucketSeconds := int64(query.FoldMinutes * secondsPerMinute)
 	if bucketSeconds <= 0 {
 		bucketSeconds = 180
 	}
@@ -216,7 +224,7 @@ func buildOpenFlareAccessLogBucketRows(ctx context.Context, query OpenFlareAcces
 		accumulator.serverErrorCount += partial.ServerErrorCount
 	}
 
-	for _, column := range []string{"remote_addr", "host"} {
+	for _, column := range []string{columnRemoteAddr, columnHost} {
 		dimensions, err := currentAccessLogStore().BucketDimensions(ctx, filter, column, bucketSeconds)
 		if err != nil {
 			return nil, err
@@ -235,9 +243,9 @@ func buildOpenFlareAccessLogBucketRows(ctx context.Context, query OpenFlareAcces
 				continue
 			}
 			switch column {
-			case "remote_addr":
+			case columnRemoteAddr:
 				accumulator.uniqueIPs[trimmed] = struct{}{}
-			case "host":
+			case columnHost:
 				accumulator.uniqueHosts[trimmed] = struct{}{}
 			}
 		}
@@ -346,7 +354,7 @@ func openFlareAccessLogQueryFromBucket(query OpenFlareAccessLogBucketQuery) Open
 }
 
 func sortOpenFlareAccessLogBucketIPRows(items []*OpenFlareAccessLogBucketIPRow, sortBy string, sortOrder string) {
-	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != "asc"
+	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != sortOrderAsc
 	sort.Slice(items, func(i, j int) bool {
 		left := items[i]
 		right := items[j]
@@ -376,7 +384,7 @@ func sortOpenFlareAccessLogBucketIPRows(items []*OpenFlareAccessLogBucketIPRow, 
 }
 
 func sortOpenFlareAccessLogBucketRows(items []*OpenFlareAccessLogBucketRow, sortBy string, sortOrder string) {
-	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != "asc"
+	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != sortOrderAsc
 	sort.Slice(items, func(i, j int) bool {
 		left := items[i]
 		right := items[j]
@@ -401,7 +409,7 @@ func sortOpenFlareAccessLogBucketRows(items []*OpenFlareAccessLogBucketRow, sort
 }
 
 func sortOpenFlareAccessLogIPSummaryRows(items []*OpenFlareAccessLogIPSummaryRow, sortBy string, sortOrder string) {
-	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != "asc"
+	desc := openFlareAccessLogNormalizeSortOrder(sortOrder) != sortOrderAsc
 	sort.Slice(items, func(i, j int) bool {
 		left := items[i]
 		right := items[j]
@@ -451,10 +459,28 @@ func openFlareAccessLogPaginateBounds(total int, page int, pageSize int) (int, i
 }
 
 func openFlareAccessLogNormalizeSortOrder(sortOrder string) string {
-	if strings.EqualFold(strings.TrimSpace(sortOrder), "asc") {
-		return "asc"
+	if strings.EqualFold(strings.TrimSpace(sortOrder), sortOrderAsc) {
+		return sortOrderAsc
 	}
 	return "desc"
+}
+
+func openFlareAccessLogStatusCodeToInt32(code int) int32 {
+	switch {
+	case code > math.MaxInt32:
+		return math.MaxInt32
+	case code < math.MinInt32:
+		return math.MinInt32
+	default:
+		return int32(code)
+	}
+}
+
+func openFlareAccessLogUintToInt64(value uint) int64 {
+	if value > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(value)
 }
 
 func openFlareAccessLogCompareInt64(left int64, right int64) int {
@@ -467,4 +493,3 @@ func openFlareAccessLogCompareInt64(left int64, right int64) int {
 		return 0
 	}
 }
-

@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+const gitDescribeMinIdentifiers = 2
+
+// VersionInfo holds the parsed components of a semantic version string.
 type VersionInfo struct {
 	Valid               bool
 	IsDev               bool
@@ -14,6 +17,7 @@ type VersionInfo struct {
 	GitDescribeTail     []string
 }
 
+// ParseVersionInfo parses a version string into a structured VersionInfo.
 func ParseVersionInfo(version string) VersionInfo {
 	normalized := strings.TrimSpace(strings.TrimPrefix(version, "v"))
 	if normalized == "" || normalized == "dev" {
@@ -66,7 +70,7 @@ func ParseVersionInfo(version string) VersionInfo {
 }
 
 func parseGitDescribeIdentifiers(identifiers []string) (int, []string, bool) {
-	if len(identifiers) < 2 {
+	if len(identifiers) < gitDescribeMinIdentifiers {
 		return 0, nil, false
 	}
 	distance, err := strconv.Atoi(strings.TrimSpace(identifiers[0]))
@@ -109,100 +113,14 @@ func CompareVersions(local, remote string) int {
 		return 0
 	}
 
-	maxLen := len(left.Numbers)
-	if len(right.Numbers) > maxLen {
-		maxLen = len(right.Numbers)
+	if result := compareVersionNumbers(left, right); result != 0 {
+		return result
 	}
-	for index := 0; index < maxLen; index++ {
-		leftValue := 0
-		rightValue := 0
-		if index < len(left.Numbers) {
-			leftValue = left.Numbers[index]
-		}
-		if index < len(right.Numbers) {
-			rightValue = right.Numbers[index]
-		}
-		if leftValue < rightValue {
-			return -1
-		}
-		if leftValue > rightValue {
-			return 1
-		}
-	}
-
-	if left.GitDescribeDistance != right.GitDescribeDistance {
-		if left.GitDescribeDistance < right.GitDescribeDistance {
-			return -1
-		}
-		return 1
+	if result := compareGitDescribeDistance(left, right); result != 0 {
+		return result
 	}
 	if left.GitDescribeDistance > 0 || right.GitDescribeDistance > 0 {
-		maxLen = len(left.GitDescribeTail)
-		if len(right.GitDescribeTail) > maxLen {
-			maxLen = len(right.GitDescribeTail)
-		}
-		for index := 0; index < maxLen; index++ {
-			if index >= len(left.GitDescribeTail) {
-				return -1
-			}
-			if index >= len(right.GitDescribeTail) {
-				return 1
-			}
-			if left.GitDescribeTail[index] < right.GitDescribeTail[index] {
-				return -1
-			}
-			if left.GitDescribeTail[index] > right.GitDescribeTail[index] {
-				return 1
-			}
-		}
-		return 0
+		return compareGitDescribeTails(left, right)
 	}
-
-	if len(left.Prerelease) == 0 && len(right.Prerelease) == 0 {
-		return 0
-	}
-	if len(left.Prerelease) == 0 {
-		return 1
-	}
-	if len(right.Prerelease) == 0 {
-		return -1
-	}
-
-	maxLen = len(left.Prerelease)
-	if len(right.Prerelease) > maxLen {
-		maxLen = len(right.Prerelease)
-	}
-	for index := 0; index < maxLen; index++ {
-		if index >= len(left.Prerelease) {
-			return -1
-		}
-		if index >= len(right.Prerelease) {
-			return 1
-		}
-		leftPart := left.Prerelease[index]
-		rightPart := right.Prerelease[index]
-		leftNumber, leftErr := strconv.Atoi(leftPart)
-		rightNumber, rightErr := strconv.Atoi(rightPart)
-		switch {
-		case leftErr == nil && rightErr == nil:
-			if leftNumber < rightNumber {
-				return -1
-			}
-			if leftNumber > rightNumber {
-				return 1
-			}
-		case leftErr == nil:
-			return -1
-		case rightErr == nil:
-			return 1
-		default:
-			if leftPart < rightPart {
-				return -1
-			}
-			if leftPart > rightPart {
-				return 1
-			}
-		}
-	}
-	return 0
+	return comparePrereleaseIdentifiers(left, right)
 }

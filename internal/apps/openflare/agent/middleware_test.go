@@ -109,8 +109,8 @@ func TestAgentAuthMiddleware(t *testing.T) {
 	}).Error)
 
 	router := testhelper.NewTestGinEngine()
-	router.GET("/protected", AgentAuth(), func(c *gin.Context) {
-		node, ok := AgentNodeFromContext(c)
+	router.GET("/protected", Auth(), func(c *gin.Context) {
+		node, ok := NodeFromContext(c)
 		if !ok {
 			c.Status(http.StatusInternalServerError)
 			return
@@ -157,8 +157,8 @@ func TestAgentRegisterAuthMiddleware(t *testing.T) {
 	require.NoError(t, model.UpdateOpenFlareOption(ctx, "AgentDiscoveryToken", "discovery-token"))
 
 	router := testhelper.NewTestGinEngine()
-	router.POST("/register", AgentRegisterAuth(), func(c *gin.Context) {
-		if node, ok := AgentNodeFromContext(c); ok {
+	router.POST("/register", RegisterAuth(), func(c *gin.Context) {
+		if node, ok := NodeFromContext(c); ok {
 			c.JSON(http.StatusOK, response.OK(gin.H{"mode": "node", "node_id": node.NodeID}))
 			return
 		}

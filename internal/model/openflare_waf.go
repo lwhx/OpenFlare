@@ -144,7 +144,7 @@ func UpdateOpenFlareWAFRuleGroup(ctx context.Context, group *OpenFlareWAFRuleGro
 	}
 	return conn.Model(&OpenFlareWAFRuleGroup{}).Where("id = ?", group.ID).Updates(map[string]any{
 		"name":                group.Name,
-		"enabled":             group.Enabled,
+		colEnabled:            group.Enabled,
 		"is_global":           group.IsGlobal,
 		"block_status_code":   group.BlockStatusCode,
 		"block_response_body": group.BlockResponseBody,
@@ -158,7 +158,7 @@ func UpdateOpenFlareWAFRuleGroup(ctx context.Context, group *OpenFlareWAFRuleGro
 		"region_blacklist":    group.RegionBlacklist,
 		"pow_enabled":         group.PoWEnabled,
 		"pow_config":          group.PoWConfig,
-		"remark":              group.Remark,
+		colRemark:             group.Remark,
 	}).Error
 }
 

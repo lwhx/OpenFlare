@@ -395,7 +395,7 @@ func TestRunnerHeartbeatPayloadIncludesObservabilityExtensions(t *testing.T) {
 		t.Fatalf("failed to prepare access log: %v", err)
 	}
 
-	firstPayload := runner.HeartbeatCycle.NodePayload("node-observe")
+	firstPayload := runner.HeartbeatCycle.NodePayload(context.Background(), "node-observe")
 	if firstPayload.Profile == nil {
 		t.Fatal("expected first heartbeat payload to include system profile")
 	}
@@ -412,7 +412,7 @@ func TestRunnerHeartbeatPayloadIncludesObservabilityExtensions(t *testing.T) {
 		t.Fatalf("expected health events for openresty and sync error, got %+v", firstPayload.HealthEvents)
 	}
 
-	secondPayload := runner.HeartbeatCycle.NodePayload("node-observe")
+	secondPayload := runner.HeartbeatCycle.NodePayload(context.Background(), "node-observe")
 	if secondPayload.Profile != nil {
 		t.Fatal("expected unchanged profile to be omitted on subsequent heartbeat")
 	}

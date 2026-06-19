@@ -19,6 +19,16 @@ const (
 	AuthSourceTypeOIDC = "oidc"
 )
 
+// Shared GORM column name constants used across model package.
+const (
+	colName                     = "name"
+	colEnabled                  = "enabled"
+	colRemark                   = "remark"
+	tableOfProxyRoutes          = "of_proxy_routes"
+	optionKeyUptimeKumaPassword = "UptimeKumaPassword"
+	optionValueTrue             = "true"
+)
+
 var authSourceNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$`)
 
 // AuthSource 认证源实体
@@ -192,7 +202,7 @@ func UpdateAuthSource(ctx context.Context, source *AuthSource, keepSecret bool) 
 		return err
 	}
 	return db.DB(ctx).Model(&current).Updates(map[string]any{
-		"name":                 source.Name,
+		colName:                source.Name,
 		"type":                 source.Type,
 		"display_name":         source.DisplayName,
 		"is_active":            source.IsActive,

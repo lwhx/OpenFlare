@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	defaultObservabilityWindow = 24 * time.Hour
-	defaultObservabilityLimit  = 120
-	maxObservabilityLimit      = 500
+	defaultObservabilityWindow      = 24 * time.Hour
+	defaultObservabilityLimit       = 120
+	maxObservabilityLimit           = 500
+	defaultTrafficDistributionLimit = 8
 )
 
 // NodeQuery filters node observability data.
@@ -106,7 +107,7 @@ func GetNodeObservability(ctx context.Context, id uint, query NodeQuery) (*NodeV
 	if err != nil {
 		return nil, err
 	}
-	accessLogRegions, err := model.ListOpenFlareAccessLogRegionCounts(ctx, node.NodeID, since, 8)
+	accessLogRegions, err := model.ListOpenFlareAccessLogRegionCounts(ctx, node.NodeID, since, defaultTrafficDistributionLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func GetNodeObservability(ctx context.Context, id uint, query NodeQuery) (*NodeV
 		HealthEvents:    events,
 		Analytics: NodeAnalytics{
 			Traffic:       buildTrafficWindowSummary(latestTrafficReport(reports)),
-			Distributions: BuildTrafficDistributions(reports, accessLogRegions, 8),
+			Distributions: BuildTrafficDistributions(reports, accessLogRegions, defaultTrafficDistributionLimit),
 			Health:        buildHealthSummary(latestMetricSnapshot(snapshots), latestTrafficReport(reports), events),
 		},
 		Trends: NodeTrends{

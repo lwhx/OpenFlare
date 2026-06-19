@@ -18,12 +18,14 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/state"
 )
 
+// Apply result constants indicate the outcome reported back to the server.
 const (
 	ApplyResultSuccess = "success"
 	ApplyResultWarning = "warning"
 	ApplyResultFailed  = "failed"
 )
 
+// ConfigClient is the interface for communicating with the server control plane.
 type ConfigClient interface {
 	GetActiveConfig(ctx context.Context) (*protocol.ActiveConfigResponse, error)
 	DownloadPagesDeploymentPackage(ctx context.Context, deploymentID uint) ([]byte, error)
@@ -31,6 +33,7 @@ type ConfigClient interface {
 	SyncWAFIPGroups(ctx context.Context, payload protocol.WAFIPGroupSyncRequest) (*protocol.WAFIPGroupSyncResponse, error)
 }
 
+// NginxManager is the interface for managing the local OpenResty instance.
 type NginxManager interface {
 	Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) nginx.ApplyOutcome
 	EnsureRuntime(ctx context.Context, recreate bool) error
@@ -40,6 +43,7 @@ type NginxManager interface {
 	SyncWAFIPGroups(groups []protocol.WAFIPGroup) error
 }
 
+// Service orchestrates configuration synchronisation between the server and the local OpenResty instance.
 type Service struct {
 	client       ConfigClient
 	nginxManager NginxManager
@@ -47,10 +51,12 @@ type Service struct {
 	pagesDir     string
 }
 
+// SetPagesDir sets the local directory used for pages deployment packages.
 func (s *Service) SetPagesDir(path string) {
 	s.pagesDir = strings.TrimSpace(path)
 }
 
+// New creates a new Service with the given client, nginx manager, and state store.
 func New(client ConfigClient, nginxManager NginxManager, stateStore *state.Store) *Service {
 	return &Service{
 		client:       client,
@@ -59,100 +65,34 @@ func New(client ConfigClient, nginxManager NginxManager, stateStore *state.Store
 	}
 }
 
+// SyncOnce performs a single periodic sync against the given active config summary.
 func (s *Service) SyncOnce(ctx context.Context, target *protocol.ActiveConfigMeta) error {
 	return s.sync(ctx, false, target)
 }
 
+// SyncOnStartup performs an initial sync at agent startup, applying config even when checksums already match.
 func (s *Service) SyncOnStartup(ctx context.Context, target *protocol.ActiveConfigMeta) error {
 	return s.sync(ctx, true, target)
 }
 
 func (s *Service) sync(ctx context.Context, startup bool, target *protocol.ActiveConfigMeta) error {
-	mode := "periodic"
-	if startup {
-		mode = "startup"
-	}
-	snapshot, err := s.stateStore.Load()
+	mode := syncMode(startup)
+	snapshot, currentChecksum, err := s.loadSyncState()
 	if err != nil {
 		return err
 	}
-	currentChecksum, err := s.nginxManager.CurrentChecksum()
-	if err != nil {
-		return err
-	}
-
-	if target != nil {
-		target.Version = strings.TrimSpace(target.Version)
-		target.Checksum = strings.TrimSpace(target.Checksum)
-	}
+	normalizeSyncTarget(target)
 
 	if target == nil || target.Version == "" || target.Checksum == "" {
-		if !startup {
-			slog.Debug("skipping sync because heartbeat returned no active config summary", "mode", mode)
-			return nil
-		}
-		slog.Debug("sync startup fallback: active config summary unavailable, fetching active config directly")
-		config, fetchErr := s.client.GetActiveConfig(ctx)
-		if fetchErr != nil {
-			slog.Error("fetch active config failed", "mode", mode, "error", fetchErr)
-			return fetchErr
-		}
-		target = &protocol.ActiveConfigMeta{
-			Version:  config.Version,
-			Checksum: config.Checksum,
-		}
-		return s.applyIfNeeded(ctx, mode, startup, snapshot, currentChecksum, target, config)
+		return s.syncWithoutTarget(ctx, mode, startup, snapshot, currentChecksum)
 	}
-
 	if currentChecksum == target.Checksum {
-		if startup {
-			config, fetchErr := s.client.GetActiveConfig(ctx)
-			if fetchErr != nil {
-				slog.Error("fetch active config failed", "mode", mode, "error", fetchErr)
-				return fetchErr
-			}
-			return s.applyIfNeeded(ctx, mode, startup, snapshot, currentChecksum, target, config)
-		}
-		slog.Debug("local openresty config already up to date", "mode", mode, "version", target.Version)
-		shouldReport := shouldReportNoopApply(snapshot, target.Version, target.Checksum)
-		if shouldReport {
-			if err = s.reportNoopApply(ctx, snapshot.NodeID, target.Version, target.Checksum, "", "", 0); err != nil {
-				return err
-			}
-		}
-		snapshot.CurrentVersion = target.Version
-		snapshot.CurrentChecksum = target.Checksum
-		clearBlockedTarget(snapshot)
-		snapshot.LastError = ""
-		slog.Debug("sync finished without changes", "mode", mode, "version", target.Version)
-		return s.stateStore.Save(snapshot)
+		return s.syncMatchingChecksum(ctx, mode, startup, snapshot, currentChecksum, target)
 	}
-	if isBlockedTarget(snapshot, target.Version, target.Checksum) {
-		slog.Warn("skipping blocked config version after previous failed apply", "mode", mode, "version", target.Version, "checksum", target.Checksum)
-		if startup {
-			if err = s.ensureRuntimeForCurrentConfig(ctx, mode, snapshot, currentChecksum); err != nil {
-				return err
-			}
-			return s.stateStore.Save(snapshot)
-		}
-		return nil
-	}
-	if hasBlockedTarget(snapshot) {
-		clearBlockedTarget(snapshot)
-	}
-	if snapshot.CurrentVersion == target.Version && snapshot.CurrentChecksum == target.Checksum && !startup {
-		slog.Debug("skipping config fetch because state already records target version/checksum", "version", target.Version, "checksum", target.Checksum)
-		return s.stateStore.Save(snapshot)
-	}
-
-	config, err := s.client.GetActiveConfig(ctx)
-	if err != nil {
-		slog.Error("fetch active config failed", "mode", mode, "error", err)
-		return err
-	}
-	return s.applyIfNeeded(ctx, mode, startup, snapshot, currentChecksum, target, config)
+	return s.syncMismatchedChecksum(ctx, mode, startup, snapshot, currentChecksum, target)
 }
 
+// ForceSyncOnce clears any blocked target state then unconditionally fetches and applies the active config.
 func (s *Service) ForceSyncOnce(ctx context.Context, target *protocol.ActiveConfigMeta) error {
 	snapshot, err := s.stateStore.Load()
 	if err != nil {
@@ -174,6 +114,7 @@ func (s *Service) ForceSyncOnce(ctx context.Context, target *protocol.ActiveConf
 	return s.applyIfNeeded(ctx, "force", true, snapshot, currentChecksum, target, config)
 }
 
+// WAFIPGroupChecksums returns the current per-group checksums held by the nginx manager.
 func (s *Service) WAFIPGroupChecksums() (map[string]string, error) {
 	if s.nginxManager == nil {
 		return map[string]string{}, nil
@@ -181,7 +122,8 @@ func (s *Service) WAFIPGroupChecksums() (map[string]string, error) {
 	return s.nginxManager.WAFIPGroupChecksums()
 }
 
-func (s *Service) ApplyWAFIPGroups(ctx context.Context, groups []protocol.WAFIPGroup) error {
+// ApplyWAFIPGroups writes the given WAF IP groups to the nginx manager.
+func (s *Service) ApplyWAFIPGroups(_ context.Context, groups []protocol.WAFIPGroup) error {
 	if len(groups) == 0 || s.nginxManager == nil {
 		return nil
 	}
@@ -190,36 +132,13 @@ func (s *Service) ApplyWAFIPGroups(ctx context.Context, groups []protocol.WAFIPG
 
 func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, snapshot *state.Snapshot, currentChecksum string, target *protocol.ActiveConfigMeta, config *protocol.ActiveConfigResponse) error {
 	if currentChecksum == config.Checksum && !startup {
-		slog.Debug("local openresty config already up to date", "mode", mode, "version", config.Version)
-		shouldReport := shouldReportNoopApply(snapshot, config.Version, config.Checksum)
-		if shouldReport {
-			rendered, renderErr := renderActiveConfig(config)
-			if renderErr != nil {
-				return renderErr
-			}
-			if err := s.reportNoopApply(ctx, snapshot.NodeID, config.Version, config.Checksum, checksumString(rendered.mainConfig), checksumString(rendered.routeConfig), len(rendered.supportFiles)); err != nil {
-				return err
-			}
-		}
-		snapshot.CurrentVersion = config.Version
-		snapshot.CurrentChecksum = config.Checksum
-		clearBlockedTarget(snapshot)
-		snapshot.LastError = ""
-		slog.Debug("sync finished without changes", "mode", mode, "version", config.Version)
-		return s.stateStore.Save(snapshot)
+		return s.handleUpToDateConfig(ctx, mode, snapshot, config)
 	}
 	if target != nil && (target.Version != config.Version || target.Checksum != config.Checksum) {
 		slog.Warn("active config changed between heartbeat and fetch", "heartbeat_version", target.Version, "heartbeat_checksum", target.Checksum, "fetched_version", config.Version, "fetched_checksum", config.Checksum)
 	}
-	if isBlockedTarget(snapshot, config.Version, config.Checksum) {
-		slog.Warn("skipping blocked config after fetch because the same version previously failed", "mode", mode, "version", config.Version, "checksum", config.Checksum)
-		if startup {
-			if err := s.ensureRuntimeForCurrentConfig(ctx, mode, snapshot, currentChecksum); err != nil {
-				return err
-			}
-			return s.stateStore.Save(snapshot)
-		}
-		return nil
+	if handled, err := s.handleBlockedConfigAfterFetch(ctx, mode, startup, snapshot, currentChecksum, config); handled {
+		return err
 	}
 	if hasBlockedTarget(snapshot) {
 		clearBlockedTarget(snapshot)
@@ -228,6 +147,10 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 		slog.Debug("skipping apply because state already records target version/checksum", "version", config.Version, "checksum", config.Checksum)
 		return s.stateStore.Save(snapshot)
 	}
+	return s.applyRenderedConfig(ctx, mode, snapshot, currentChecksum, config)
+}
+
+func (s *Service) applyRenderedConfig(ctx context.Context, mode string, snapshot *state.Snapshot, currentChecksum string, config *protocol.ActiveConfigResponse) error {
 	rendered, err := renderActiveConfig(config)
 	if err != nil {
 		return err
@@ -238,49 +161,8 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 	mainConfigChecksum := checksumString(rendered.mainConfig)
 	routeConfigChecksum := checksumString(rendered.routeConfig)
 	slog.Info("applying new openresty config", "mode", mode, "from_version", snapshot.CurrentVersion, "to_version", config.Version, "old_checksum", currentChecksum, "new_checksum", config.Checksum)
-	outcome := s.nginxManager.Apply(ctx, rendered.mainConfig, rendered.routeConfig, rendered.supportFiles)
-	message := strings.TrimSpace(outcome.Message)
-	if outcome.Status == "" {
-		outcome.Status = nginx.ApplyStatusFatal
-		if message == "" {
-			message = "openresty apply returned empty outcome"
-		}
-	}
-
-	reportResult := ApplyResultFailed
-	switch outcome.Status {
-	case nginx.ApplyStatusSuccess:
-		slog.Info("openresty config applied successfully", "mode", mode, "version", config.Version)
-		snapshot.CurrentVersion = config.Version
-		snapshot.CurrentChecksum = config.Checksum
-		clearBlockedTarget(snapshot)
-		snapshot.LastError = ""
-		snapshot.OpenrestyStatus = protocol.OpenrestyStatusHealthy
-		snapshot.OpenrestyMessage = ""
-		reportResult = ApplyResultSuccess
-		if message == "" {
-			message = "apply success"
-		}
-	case nginx.ApplyStatusWarning:
-		if message == "" {
-			message = "apply rolled back to previous config"
-		}
-		slog.Warn("openresty config apply rolled back", "mode", mode, "version", config.Version, "message", message)
-		markBlockedTarget(snapshot, config.Version, config.Checksum, message)
-		snapshot.LastError = message
-		snapshot.OpenrestyStatus = protocol.OpenrestyStatusHealthy
-		snapshot.OpenrestyMessage = message
-		reportResult = ApplyResultWarning
-	default:
-		if message == "" {
-			message = "openresty apply failed"
-		}
-		slog.Error("apply openresty config failed", "mode", mode, "version", config.Version, "message", message)
-		markBlockedTarget(snapshot, config.Version, config.Checksum, message)
-		snapshot.LastError = message
-		snapshot.OpenrestyStatus = protocol.OpenrestyStatusUnhealthy
-		snapshot.OpenrestyMessage = message
-	}
+	outcome, message := normalizeApplyOutcome(s.nginxManager.Apply(ctx, rendered.mainConfig, rendered.routeConfig, rendered.supportFiles))
+	applyResult := updateSnapshotFromApplyOutcome(mode, snapshot, config, outcome, message)
 
 	if err := s.stateStore.Save(snapshot); err != nil {
 		return err
@@ -288,25 +170,25 @@ func (s *Service) applyIfNeeded(ctx context.Context, mode string, startup bool, 
 	if err := s.client.ReportApplyLog(ctx, protocol.ApplyLogPayload{
 		NodeID:              snapshot.NodeID,
 		Version:             config.Version,
-		Result:              reportResult,
-		Message:             message,
+		Result:              applyResult.reportResult,
+		Message:             applyResult.message,
 		Checksum:            config.Checksum,
 		MainConfigChecksum:  mainConfigChecksum,
 		RouteConfigChecksum: routeConfigChecksum,
 		SupportFileCount:    len(rendered.supportFiles),
 	}); err != nil {
-		slog.Error("report apply log failed", "version", config.Version, "result", reportResult, "error", err)
+		slog.Error("report apply log failed", "version", config.Version, "result", applyResult.reportResult, "error", err)
 		return err
 	}
-	if reportResult == ApplyResultFailed {
+	if applyResult.reportResult == ApplyResultFailed {
 		slog.Warn("failed apply log reported", "version", config.Version)
-		return outcomeError(config.Version, message)
+		return outcomeError(config.Version, applyResult.message)
 	}
 	if err := s.syncReferencedWAFIPGroups(ctx, rendered.supportFiles); err != nil {
 		slog.Error("sync referenced waf ip groups failed", "version", config.Version, "error", err)
 		return err
 	}
-	slog.Debug("apply log reported", "version", config.Version, "result", reportResult)
+	slog.Debug("apply log reported", "version", config.Version, "result", applyResult.reportResult)
 	return nil
 }
 
@@ -476,13 +358,13 @@ func (s *Service) ensureRuntimeForCurrentConfig(ctx context.Context, mode string
 	if err := s.nginxManager.EnsureRuntime(ctx, true); err != nil {
 		if strings.TrimSpace(snapshot.CurrentChecksum) == "" {
 			reason := fmt.Sprintf("blocked config %s has no historical config and current local config cannot start: %v", strings.TrimSpace(snapshot.BlockedVersion), err)
-			if fallbackErr := s.nginxManager.EnsureSafeFallbackRuntime(ctx, reason); fallbackErr == nil {
+			fallbackErr := s.nginxManager.EnsureSafeFallbackRuntime(ctx, reason)
+			if fallbackErr == nil {
 				snapshot.OpenrestyStatus = protocol.OpenrestyStatusHealthy
 				snapshot.OpenrestyMessage = "safe default fallback runtime started"
 				return nil
-			} else {
-				err = fmt.Errorf("%v; fallback recovery failed: %w", err, fallbackErr)
 			}
+			err = fmt.Errorf("%v; fallback recovery failed: %w", err, fallbackErr)
 		}
 		snapshot.OpenrestyStatus = protocol.OpenrestyStatusUnhealthy
 		snapshot.OpenrestyMessage = err.Error()

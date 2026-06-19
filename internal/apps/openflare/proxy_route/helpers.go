@@ -30,6 +30,13 @@ const (
 	proxyRouteCachePolicySuffix     = "suffix"
 	proxyRouteCachePolicyPathPrefix = "path_prefix"
 	proxyRouteCachePolicyPathExact  = "path_exact"
+	proxyRouteSchemeHTTP            = "http"
+	proxyRouteSchemeHTTPS           = "https"
+	proxyRouteUpstreamTypeTunnel    = "tunnel"
+	proxyRouteUpstreamTypePages     = "pages"
+
+	maxOriginHostnameLength = 253
+	originURIPathQueryParts = 2
 )
 
 type tlsCertificateRow struct {
@@ -100,7 +107,7 @@ func validateOriginAddress(address string) error {
 	if ip := net.ParseIP(address); ip != nil {
 		return nil
 	}
-	if len(address) > 253 {
+	if len(address) > maxOriginHostnameLength {
 		return errors.New(errProxyRouteOriginInvalid)
 	}
 	labels := strings.Split(address, ".")
@@ -136,7 +143,7 @@ func normalizeOriginPort(raw string) (string, error) {
 func normalizeOriginScheme(raw string) (string, error) {
 	scheme := strings.ToLower(strings.TrimSpace(raw))
 	switch scheme {
-	case "http", "https":
+	case proxyRouteSchemeHTTP, proxyRouteSchemeHTTPS:
 		return scheme, nil
 	default:
 		return "", errors.New(errProxyRouteOriginSchemeOnly)
@@ -187,7 +194,7 @@ func buildOriginURLFromParts(scheme, address, port, uri string) (string, error) 
 		if strings.HasPrefix(normalizedURI, "?") {
 			parsed.RawQuery = strings.TrimPrefix(normalizedURI, "?")
 		} else {
-			pathQuery := strings.SplitN(normalizedURI, "?", 2)
+			pathQuery := strings.SplitN(normalizedURI, "?", originURIPathQueryParts)
 			parsed.Path = pathQuery[0]
 			if len(pathQuery) > 1 {
 				parsed.RawQuery = pathQuery[1]
@@ -465,65 +472,14 @@ func normalizeProxyRouteDomainCertificateIDs(
 	}
 
 	if len(rawDomainCertIDs) > 0 {
-		if len(rawDomainCertIDs) != len(domains) {
-			return nil, nil, nil, errors.New(errProxyRouteCertDomainLength)
-		}
-
-		normalizedDomainCertIDs := make([]uint, len(rawDomainCertIDs))
-		uniqueCertIDs := make([]uint, 0, len(rawDomainCertIDs))
-		seen := make(map[uint]struct{}, len(rawDomainCertIDs))
-		hasAssignedCertificate := false
-		for index, item := range rawDomainCertIDs {
-			if item == 0 {
-				continue
-			}
-			if _, err := lookupTLSCertificateByID(ctx, item); err != nil {
-				return nil, nil, nil, errors.New(errProxyRouteCertNotFound)
-			}
-			normalizedDomainCertIDs[index] = item
-			hasAssignedCertificate = true
-			if _, ok := seen[item]; ok {
-				continue
-			}
-			seen[item] = struct{}{}
-			uniqueCertIDs = append(uniqueCertIDs, item)
-		}
-		if !hasAssignedCertificate {
-			return nil, nil, nil, errors.New(errProxyRouteCertRequired)
-		}
-
-		primaryCertID := &uniqueCertIDs[0]
-		return normalizedDomainCertIDs, uniqueCertIDs, primaryCertID, nil
+		return normalizeExplicitDomainCertIDs(ctx, domains, rawDomainCertIDs)
 	}
 
 	normalizedCertIDs, err := normalizeProxyRouteCertificateIDs(ctx, enableHTTPS, certID, certIDs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	switch {
-	case len(normalizedCertIDs) == 0:
-		return nil, nil, nil, errors.New(errProxyRouteCertRequired)
-	case len(normalizedCertIDs) == 1:
-		domainCertIDs := make([]uint, len(domains))
-		for index := range domainCertIDs {
-			domainCertIDs[index] = normalizedCertIDs[0]
-		}
-		primaryCertID := &normalizedCertIDs[0]
-		return domainCertIDs, normalizedCertIDs, primaryCertID, nil
-	case len(normalizedCertIDs) == len(domains):
-		domainCertIDs := make([]uint, len(normalizedCertIDs))
-		copy(domainCertIDs, normalizedCertIDs)
-		primaryCertID := &normalizedCertIDs[0]
-		return domainCertIDs, normalizedCertIDs, primaryCertID, nil
-	default:
-		domainCertIDs, err := deriveDomainCertIDsFromCertificateSet(ctx, domains, normalizedCertIDs)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		primaryCertID := &normalizedCertIDs[0]
-		return domainCertIDs, normalizedCertIDs, primaryCertID, nil
-	}
+	return normalizeDerivedDomainCertIDs(ctx, domains, normalizedCertIDs)
 }
 
 func validateProxyRouteDomainCertificateCoverage(ctx context.Context, domains []string, domainCertIDs []uint) error {
@@ -635,65 +591,6 @@ func hasStructuredOriginInput(input Input) bool {
 		strings.TrimSpace(input.OriginAddress) != "" ||
 		strings.TrimSpace(input.OriginPort) != "" ||
 		strings.TrimSpace(input.OriginURI) != ""
-}
-
-func resolveProxyRoutePrimaryOrigin(ctx context.Context, input Input) (string, *uint, error) {
-	if hasStructuredOriginInput(input) {
-		scheme, err := normalizeOriginScheme(input.OriginScheme)
-		if err != nil {
-			return "", nil, err
-		}
-		port, err := normalizeOriginPort(input.OriginPort)
-		if err != nil {
-			return "", nil, err
-		}
-		uri, err := normalizeOriginURI(input.OriginURI)
-		if err != nil {
-			return "", nil, err
-		}
-		if input.OriginID != nil && *input.OriginID != 0 {
-			origin, err := model.GetOriginByID(ctx, *input.OriginID)
-			if err != nil {
-				return "", nil, errors.New(errProxyRouteOriginNotFound)
-			}
-			originURL, err := buildOriginURLFromParts(scheme, origin.Address, port, uri)
-			if err != nil {
-				return "", nil, err
-			}
-			return originURL, &origin.ID, nil
-		}
-
-		address := normalizeOriginAddress(input.OriginAddress)
-		if err := validateOriginAddress(address); err != nil {
-			return "", nil, err
-		}
-		originURL, err := buildOriginURLFromParts(scheme, address, port, uri)
-		if err != nil {
-			return "", nil, err
-		}
-		origin, err := getOrCreateOriginByAddress(ctx, address)
-		if err != nil {
-			return "", nil, err
-		}
-		return originURL, &origin.ID, nil
-	}
-
-	originURL := strings.TrimSpace(input.OriginURL)
-	if originURL == "" {
-		return "", nil, errors.New(errProxyRouteOriginEmpty)
-	}
-	address, err := extractOriginAddress(originURL)
-	if err != nil {
-		return "", nil, err
-	}
-	origin, findErr := model.GetOriginByAddress(ctx, address)
-	if findErr == nil {
-		return originURL, &origin.ID, nil
-	}
-	if !errors.Is(findErr, gorm.ErrRecordNotFound) {
-		return "", nil, findErr
-	}
-	return originURL, nil, nil
 }
 
 func normalizeCustomHeaders(headers []CustomHeaderInput) ([]CustomHeaderInput, error) {
@@ -942,7 +839,7 @@ func validateOriginURL(raw string) error {
 	if err != nil {
 		return errors.New(errProxyRouteOriginInvalid)
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+	if parsed.Scheme != proxyRouteSchemeHTTP && parsed.Scheme != proxyRouteSchemeHTTPS {
 		return errors.New(errProxyRouteOriginScheme)
 	}
 	if parsed.Host == "" {
@@ -996,7 +893,7 @@ func validateTunnelRouteInput(ctx context.Context, tunnelNodeID *uint, targetAdd
 		return errors.New(errProxyRouteTunnelAddrReq)
 	}
 	switch strings.ToLower(strings.TrimSpace(targetProtocol)) {
-	case "", "http", "https":
+	case "", proxyRouteSchemeHTTP, proxyRouteSchemeHTTPS:
 		return nil
 	default:
 		return errors.New(errProxyRouteTunnelProtocol)
@@ -1025,10 +922,10 @@ func validatePagesRouteInput(ctx context.Context, projectID *uint) error {
 
 func normalizeUpstreamType(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "tunnel":
-		return "tunnel"
-	case "pages":
-		return "pages"
+	case proxyRouteUpstreamTypeTunnel:
+		return proxyRouteUpstreamTypeTunnel
+	case proxyRouteUpstreamTypePages:
+		return proxyRouteUpstreamTypePages
 	default:
 		return "direct"
 	}
@@ -1036,9 +933,9 @@ func normalizeUpstreamType(raw string) string {
 
 func normalizeTunnelTargetProtocol(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "https":
-		return "https"
+	case proxyRouteSchemeHTTPS:
+		return proxyRouteSchemeHTTPS
 	default:
-		return "http"
+		return proxyRouteSchemeHTTP
 	}
 }

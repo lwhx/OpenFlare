@@ -1,3 +1,4 @@
+// Package nodeip detects the preferred public IP address for edge nodes.
 package nodeip
 
 import (
@@ -9,20 +10,36 @@ import (
 	"github.com/Rain-kl/Wavelet/pkg/geoip/iputil"
 )
 
+const (
+	outboundIPLookupTimeout = 5 * time.Second
+	publicIPPriorityScore   = 2 // matches iputil.Score for public IPv4 addresses
+)
+
+// LookupOutboundIP and LookupLocalIP are the provider functions used to detect the node's outbound/local IP.
+// They are package-level variables so they can be overridden in tests.
 var (
 	LookupOutboundIP = geoip.GetOutboundIP
 	LookupLocalIP    = DetectLocal
 )
 
+// Detect returns the best available outbound or local IPv4 address for this node.
 func Detect() string {
-	if ip := detectOutbound(); ip != "" {
+	if ip := detectOutbound(context.Background()); ip != "" {
 		return ip
 	}
 	return LookupLocalIP()
 }
 
-func detectOutbound() string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// DetectWithContext returns the best available outbound or local IPv4 address, respecting ctx for cancellation.
+func DetectWithContext(ctx context.Context) string {
+	if ip := detectOutbound(ctx); ip != "" {
+		return ip
+	}
+	return LookupLocalIP()
+}
+
+func detectOutbound(ctx context.Context) string {
+	ctx, cancel := context.WithTimeout(ctx, outboundIPLookupTimeout)
 	defer cancel()
 	ip, err := LookupOutboundIP(ctx)
 	if err != nil || ip == nil {
@@ -31,6 +48,7 @@ func detectOutbound() string {
 	return ip.String()
 }
 
+// DetectLocal returns the highest-priority non-loopback local IPv4 address found on system interfaces.
 func DetectLocal() string {
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -60,7 +78,7 @@ func DetectLocal() string {
 				bestIP = ipv4.String()
 				bestPriority = priority
 			}
-			if bestPriority == 2 {
+			if bestPriority == publicIPPriorityScore {
 				return bestIP
 			}
 		}

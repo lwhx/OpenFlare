@@ -1,3 +1,4 @@
+// Package config loads and persists agent daemon configuration.
 package config
 
 import (
@@ -30,8 +31,12 @@ const (
 	defaultObservabilityReplayMinutes      = 15
 	defaultMMDBUpdateInterval              = 24 * time.Hour
 	defaultMMDBDownloadURL                 = "https://raw.githubusercontent.com/Loyalsoldier/geoip/release/GeoLite2-Country.mmdb"
+	defaultHeartbeatInterval               = 10 * time.Second
+	defaultRequestTimeout                  = 10 * time.Second
+	configFilePerm                         = 0o600
 )
 
+// Config holds the full runtime configuration for the OpenFlare agent.
 type Config struct {
 	ServerURL                  string              `json:"server_url"`
 	AccessToken                string              `json:"agent_token"`
@@ -61,7 +66,7 @@ type Config struct {
 	StatePath                  string              `json:"state_path"`
 	HeartbeatInterval          MillisecondDuration `json:"heartbeat_interval"`
 	RequestTimeout             MillisecondDuration `json:"request_timeout"`
-	configPath                 string
+	configPath                 string              `json:"-"`
 }
 
 type configFile struct {
@@ -93,8 +98,17 @@ type configFile struct {
 	RequestTimeout             MillisecondDuration `json:"request_timeout"`
 }
 
+func transferPersistedConfig(dst, src any) error {
+	data, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, dst)
+}
+
+// Load reads and parses the agent configuration file at the given path.
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is the configured agent config location
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -107,33 +121,11 @@ func Load(path string) (*Config, error) {
 	if err != nil && !hasEnvConfig() {
 		return nil, err
 	}
-	cfg := &Config{
-		ServerURL:                  file.ServerURL,
-		AccessToken:                file.AccessToken,
-		DiscoveryToken:             file.DiscoveryToken,
-		NodeName:                   file.NodeName,
-		NodeIP:                     file.NodeIP,
-		OpenrestyPath:              file.OpenrestyPath,
-		OpenrestyResolvers:         append([]string{}, file.OpenrestyResolvers...),
-		DataDir:                    file.DataDir,
-		MainConfigPath:             file.MainConfigPath,
-		RouteConfigPath:            file.RouteConfigPath,
-		AccessLogPath:              file.AccessLogPath,
-		CertDir:                    file.CertDir,
-		OpenrestyCertDir:           file.OpenrestyCertDir,
-		LuaDir:                     file.LuaDir,
-		OpenrestyLuaDir:            file.OpenrestyLuaDir,
-		RuntimeConfigDir:           file.RuntimeConfigDir,
-		PagesDir:                   file.PagesDir,
-		MMDBPath:                   file.MMDBPath,
-		MMDBUpdateInterval:         file.MMDBUpdateInterval,
-		MMDBDownloadURL:            file.MMDBDownloadURL,
-		OpenrestyObservabilityPort: file.OpenrestyObservabilityPort,
-		ObservabilityBufferPath:    file.ObservabilityBufferPath,
-		ObservabilityReplayMinutes: file.ObservabilityReplayMinutes,
-		StatePath:                  file.StatePath,
-		HeartbeatInterval:          file.HeartbeatInterval,
-		RequestTimeout:             file.RequestTimeout,
+	cfg := &Config{}
+	if err == nil {
+		if err = transferPersistedConfig(cfg, file); err != nil {
+			return nil, err
+		}
 	}
 	cfg.configPath = path
 	applyEnvOverrides(cfg)
@@ -148,11 +140,15 @@ func applyDefaults(cfg *Config, baseDir string) {
 	baseDir = filepath.Clean(baseDir)
 	cfg.Version = Version
 	cfg.OpenrestyResolvers = utils.UniqueAndCleanStringSlice(cfg.OpenrestyResolvers)
+	applyAgentIdentityDefaults(cfg)
+	applyAgentPathDefaults(cfg, baseDir)
+	applyAgentTimingDefaults(cfg)
+	normalizeManagedPaths(cfg)
+}
+
+func applyAgentIdentityDefaults(cfg *Config) {
 	if cfg.OpenrestyPath == "" {
 		cfg.OpenrestyPath = "openresty"
-	}
-	if cfg.DataDir == "" {
-		cfg.DataDir = filepath.Join(baseDir, "data")
 	}
 	if cfg.NodeName == "" {
 		cfg.NodeName = detectHostname()
@@ -160,39 +156,42 @@ func applyDefaults(cfg *Config, baseDir string) {
 	if cfg.NodeIP == "" {
 		cfg.NodeIP = nodeip.Detect()
 	}
-	if cfg.MainConfigPath == "" {
-		cfg.MainConfigPath = joinManagedPath(cfg.DataDir, defaultMainConfigRelativePath)
+}
+
+func applyAgentPathDefaults(cfg *Config, baseDir string) {
+	if cfg.DataDir == "" {
+		cfg.DataDir = filepath.Join(baseDir, "data")
 	}
-	if cfg.RouteConfigPath == "" {
-		cfg.RouteConfigPath = joinManagedPath(cfg.DataDir, defaultRouteConfigRelativePath)
+	type managedPathDefault struct {
+		target   *string
+		relative string
 	}
-	if cfg.AccessLogPath == "" {
-		cfg.AccessLogPath = joinManagedPath(cfg.DataDir, defaultAccessLogRelativePath)
+	pathDefaults := []managedPathDefault{
+		{&cfg.MainConfigPath, defaultMainConfigRelativePath},
+		{&cfg.RouteConfigPath, defaultRouteConfigRelativePath},
+		{&cfg.AccessLogPath, defaultAccessLogRelativePath},
+		{&cfg.StatePath, defaultStateRelativePath},
+		{&cfg.CertDir, defaultCertDirRelativePath},
+		{&cfg.LuaDir, defaultLuaDirRelativePath},
+		{&cfg.RuntimeConfigDir, defaultRuntimeConfigDirRelativePath},
+		{&cfg.PagesDir, defaultPagesDirRelativePath},
+		{&cfg.MMDBPath, defaultMMDBRelativePath},
+		{&cfg.ObservabilityBufferPath, defaultObservabilityBufferRelativePath},
 	}
-	if cfg.StatePath == "" {
-		cfg.StatePath = joinManagedPath(cfg.DataDir, defaultStateRelativePath)
-	}
-	if cfg.CertDir == "" {
-		cfg.CertDir = joinManagedPath(cfg.DataDir, defaultCertDirRelativePath)
+	for _, item := range pathDefaults {
+		if strings.TrimSpace(*item.target) == "" {
+			*item.target = joinManagedPath(cfg.DataDir, item.relative)
+		}
 	}
 	if cfg.OpenrestyCertDir == "" {
 		cfg.OpenrestyCertDir = cfg.CertDir
 	}
-	if cfg.LuaDir == "" {
-		cfg.LuaDir = joinManagedPath(cfg.DataDir, defaultLuaDirRelativePath)
-	}
 	if cfg.OpenrestyLuaDir == "" {
 		cfg.OpenrestyLuaDir = cfg.LuaDir
 	}
-	if cfg.RuntimeConfigDir == "" {
-		cfg.RuntimeConfigDir = joinManagedPath(cfg.DataDir, defaultRuntimeConfigDirRelativePath)
-	}
-	if cfg.PagesDir == "" {
-		cfg.PagesDir = joinManagedPath(cfg.DataDir, defaultPagesDirRelativePath)
-	}
-	if cfg.MMDBPath == "" {
-		cfg.MMDBPath = joinManagedPath(cfg.DataDir, defaultMMDBRelativePath)
-	}
+}
+
+func applyAgentTimingDefaults(cfg *Config) {
 	if cfg.MMDBUpdateInterval <= 0 {
 		cfg.MMDBUpdateInterval = MillisecondDuration(defaultMMDBUpdateInterval)
 	}
@@ -202,19 +201,15 @@ func applyDefaults(cfg *Config, baseDir string) {
 	if cfg.OpenrestyObservabilityPort <= 0 {
 		cfg.OpenrestyObservabilityPort = defaultOpenRestyObservabilityPort
 	}
-	if cfg.ObservabilityBufferPath == "" {
-		cfg.ObservabilityBufferPath = joinManagedPath(cfg.DataDir, defaultObservabilityBufferRelativePath)
-	}
 	if cfg.ObservabilityReplayMinutes <= 0 {
 		cfg.ObservabilityReplayMinutes = defaultObservabilityReplayMinutes
 	}
 	if cfg.HeartbeatInterval <= 0 {
-		cfg.HeartbeatInterval = MillisecondDuration(10 * time.Second)
+		cfg.HeartbeatInterval = MillisecondDuration(defaultHeartbeatInterval)
 	}
 	if cfg.RequestTimeout <= 0 {
-		cfg.RequestTimeout = MillisecondDuration(10 * time.Second)
+		cfg.RequestTimeout = MillisecondDuration(defaultRequestTimeout)
 	}
-	normalizeManagedPaths(cfg)
 }
 
 func normalizeManagedPaths(cfg *Config) {
@@ -360,6 +355,7 @@ func validate(cfg *Config) error {
 	return nil
 }
 
+// InitialAuthToken returns the agent access token, falling back to the discovery token if absent.
 func (cfg *Config) InitialAuthToken() string {
 	if cfg == nil {
 		return ""
@@ -370,6 +366,15 @@ func (cfg *Config) InitialAuthToken() string {
 	return strings.TrimSpace(cfg.DiscoveryToken)
 }
 
+func (cfg *Config) toConfigFile() configFile {
+	var file configFile
+	if err := transferPersistedConfig(&file, cfg); err != nil {
+		return configFile{}
+	}
+	return file
+}
+
+// Save persists the current configuration back to its original file path.
 func (cfg *Config) Save() error {
 	if cfg == nil {
 		return errors.New("config 不能为空")
@@ -377,11 +382,11 @@ func (cfg *Config) Save() error {
 	if cfg.configPath == "" {
 		return errors.New("config path 未初始化")
 	}
-	data, err := json.MarshalIndent(cfg, "", "  ")
+	data, err := json.MarshalIndent(cfg.toConfigFile(), "", "  ") //nolint:gosec // agent token must be persisted in local config file
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cfg.configPath, data, 0o644)
+	return os.WriteFile(cfg.configPath, data, configFilePerm)
 }
 
 func detectHostname() string {
@@ -391,5 +396,3 @@ func detectHostname() string {
 	}
 	return strings.TrimSpace(host)
 }
-
-

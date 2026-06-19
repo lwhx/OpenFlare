@@ -12,15 +12,15 @@ func registerAgentRoutes(apiV1Router *gin.RouterGroup) {
 	agentRoute := apiV1Router.Group("/agent")
 	{
 		discoveryRoute := agentRoute.Group("/")
-		discoveryRoute.Use(agent.AgentRegisterAuth())
+		discoveryRoute.Use(agent.RegisterAuth())
 		{
 			discoveryRoute.POST("/nodes/register", agent.RegisterHandler)
 		}
 
 		authorizedRoute := agentRoute.Group("/")
-		authorizedRoute.Use(agent.AgentAuth())
+		authorizedRoute.Use(agent.Auth())
 		{
-			authorizedRoute.GET("/ws", agent.AgentWebSocketHandler)
+			authorizedRoute.GET("/ws", agent.WebSocketHandler)
 			authorizedRoute.POST("/nodes/heartbeat", agent.HeartbeatHandler)
 			authorizedRoute.GET("/config-versions/active", agent.GetActiveConfigHandler)
 			authorizedRoute.GET("/pages/deployments/:deployment_id/package", agent.DownloadPagesPackageHandler)

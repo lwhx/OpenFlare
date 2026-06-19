@@ -16,6 +16,8 @@ import (
 	openrestyrender "github.com/Rain-kl/Wavelet/pkg/render/openresty"
 )
 
+const supportFilesPerCertificate = 2
+
 type snapshotRoute struct {
 	ID                 uint                `json:"id,omitempty"`
 	SiteName           string              `json:"site_name,omitempty"`
@@ -227,13 +229,14 @@ func buildSnapshotRoutes(ctx context.Context, routes []*model.ProxyRoute) ([]sna
 		var tunnelTargetAddr string
 		var tunnelTargetProtocol string
 		var pagesProjectID *uint
-		if upstreamType == "tunnel" {
+		switch upstreamType {
+		case "tunnel":
 			originURL = resolveTunnelOpenRestyUpstreamURL(ctx)
 			upstreams = []string{originURL}
 			tunnelNodeID = route.TunnelNodeID
 			tunnelTargetAddr = strings.TrimSpace(route.TunnelTargetAddr)
 			tunnelTargetProtocol = normalizeTunnelTargetProtocol(route.TunnelTargetProtocol)
-		} else if upstreamType == "pages" {
+		case "pages":
 			return nil, fmt.Errorf("路由 %s Pages 配置无效: pages module is not available", route.Domain)
 		}
 		cacheRules, err := decodeStoredCacheRules(route.CacheRules)
@@ -495,7 +498,7 @@ func buildCertificateSupportFiles(ctx context.Context, routes []snapshotRoute) (
 		certIDs = append(certIDs, certID)
 	}
 	sort.Slice(certIDs, func(i, j int) bool { return certIDs[i] < certIDs[j] })
-	files := make([]SupportFile, 0, len(certIDs)*2)
+	files := make([]SupportFile, 0, len(certIDs)*supportFilesPerCertificate)
 	for _, certID := range certIDs {
 		certificate, err := model.GetTLSCertificateByID(ctx, certID)
 		if err != nil {

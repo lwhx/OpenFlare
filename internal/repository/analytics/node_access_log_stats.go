@@ -139,7 +139,7 @@ func IPAggregatesNodeAccessLogs(ctx context.Context, filter NodeAccessLogFilter,
 	tableName := nodeAccessLogTableName()
 	sql := fmt.Sprintf(`
 SELECT
-	trim(remote_addr) AS remote_addr,
+	trim(remote_addr) AS trimmed_remote_addr,
 	count() AS request_count,
 	countIf(status_code < 400) AS success_count,
 	countIf(status_code >= 400 AND status_code < 500) AS client_error_count,
@@ -147,7 +147,7 @@ SELECT
 	max(%s) AS last_seen_epoch
 FROM %s
 WHERE %s AND trim(remote_addr) != ''
-GROUP BY trim(remote_addr)`, lastSeenExpr, tableName, queryClause)
+GROUP BY trimmed_remote_addr`, lastSeenExpr, tableName, queryClause)
 	rows, err := conn.Query(ctx, sql, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("ip aggregates node access logs: %w", err)
@@ -183,13 +183,13 @@ func IPSummariesNodeAccessLogs(ctx context.Context, filter NodeAccessLogFilter, 
 	tableName := nodeAccessLogTableName()
 	sql := fmt.Sprintf(`
 SELECT
-	trim(remote_addr) AS remote_addr,
+	trim(remote_addr) AS trimmed_remote_addr,
 	count() AS total_requests,
 	sum(%s) AS recent_requests,
 	max(%s) AS last_seen_epoch
 FROM %s
 WHERE %s AND trim(remote_addr) != ''
-GROUP BY trim(remote_addr)`, recentClause, lastSeenExpr, tableName, clause)
+GROUP BY trimmed_remote_addr`, recentClause, lastSeenExpr, tableName, clause)
 	rows, err := conn.Query(ctx, sql, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("ip summaries node access logs: %w", err)

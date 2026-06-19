@@ -1,3 +1,4 @@
+// Command flared runs the OpenFlare tunnel client daemon.
 package main
 
 import (
@@ -41,7 +42,7 @@ func main() {
 	frpcManager := frpc.NewManager(cfg)
 	_ = frpcManager.LoadState()
 
-	slog.Info("detected frpc version", "version", frpcManager.GetVersion())
+	slog.Info("detected frpc version", "version", frpcManager.GetVersion(context.Background()))
 
 	httpClient := httpclient.New(cfg.ServerURL, cfg.InitialAuthToken(), cfg.RequestTimeout.Duration())
 	wsClient := wsclient.New(cfg.ServerURL, cfg.InitialAuthToken(), cfg.RequestTimeout.Duration())
@@ -52,20 +53,21 @@ func main() {
 	runner := &flared.Runner{
 		Config:           cfg,
 		FrpcManager:      frpcManager,
-		HttpClient:       httpClient,
+		HTTPClient:       httpClient,
 		WebSocketService: wsClient,
 		HeartbeatService: heartbeatService,
 		SyncService:      syncService,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	slog.Info("flared process started")
 
 	if err := runner.Run(ctx); err != nil && err != context.Canceled {
 		slog.Error("flared process exited with error", "error", err)
+		stop()
 		os.Exit(1)
 	}
+	stop()
 	slog.Info("flared process stopped")
 }

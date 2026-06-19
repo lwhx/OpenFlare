@@ -1,3 +1,4 @@
+// Package relay implements the relay node daemon runtime loop.
 package relay
 
 import (
@@ -15,15 +16,17 @@ import (
 	service "github.com/Rain-kl/Wavelet/pkg/protocol"
 )
 
+// Runner manages the relay process.
 type Runner struct {
 	Config           *config.Config
 	StateStore       *state.Store
 	HeartbeatService *heartbeat.Service
 	FrpsManager      *frps.Manager
 	WebSocketService *wsclient.Client
-	HttpClient       *httpclient.Client
+	HTTPClient       *httpclient.Client
 }
 
+// Run starts the relay process by initiating the heartbeat and WS reconnection loop.
 func (r *Runner) Run(ctx context.Context) error {
 	go r.HeartbeatService.Run(ctx)
 
@@ -41,7 +44,7 @@ type relayWSHandler struct {
 	runner *Runner
 }
 
-func (h *relayWSHandler) OnConnect(ctx context.Context) error {
+func (h *relayWSHandler) OnConnect(_ context.Context) error {
 	return nil
 }
 
@@ -53,7 +56,7 @@ func (h *relayWSHandler) HandleMessage(ctx context.Context, msg wsclient.WSMessa
 			slog.Error("failed to unmarshal relay_config", "error", err)
 			return nil
 		}
-		h.runner.FrpsManager.UpdateConfig(&cfg)
+		h.runner.FrpsManager.UpdateConfig(ctx, &cfg)
 	default:
 		slog.Debug("ignored unknown ws message type", "type", msg.Type)
 	}

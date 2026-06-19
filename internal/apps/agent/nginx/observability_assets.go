@@ -146,6 +146,7 @@ ngx.header.content_type = "application/json"
 ngx.say(cjson.encode(payload))
 `
 
+// ManagedObservabilityLuaFiles returns embedded Lua assets for OpenResty observability.
 func ManagedObservabilityLuaFiles() []protocol.SupportFile {
 	return []protocol.SupportFile{
 		{Path: "init.lua", Content: openRestyObservabilityInitLua},

@@ -48,7 +48,7 @@ type ProxyRoute struct {
 
 // TableName 表名。
 func (ProxyRoute) TableName() string {
-	return "of_proxy_routes"
+	return tableOfProxyRoutes
 }
 
 // ListProxyRoutes 列出全部代理规则。
@@ -84,7 +84,7 @@ func UpdateProxyRouteRecord(ctx context.Context, route *ProxyRoute) error {
 		"origin_url":             route.OriginURL,
 		"origin_host":            route.OriginHost,
 		"upstreams":              route.Upstreams,
-		"enabled":                route.Enabled,
+		colEnabled:               route.Enabled,
 		"enable_https":           route.EnableHTTPS,
 		"cert_id":                route.CertID,
 		"cert_ids":               route.CertIDs,
@@ -100,7 +100,7 @@ func UpdateProxyRouteRecord(ctx context.Context, route *ProxyRoute) error {
 		"basic_auth_enabled":     route.BasicAuthEnabled,
 		"basic_auth_username":    route.BasicAuthUsername,
 		"basic_auth_password":    route.BasicAuthPassword,
-		"remark":                 route.Remark,
+		colRemark:                route.Remark,
 		"upstream_type":          route.UpstreamType,
 		"tunnel_node_id":         route.TunnelNodeID,
 		"tunnel_target_addr":     route.TunnelTargetAddr,

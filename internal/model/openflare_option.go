@@ -34,81 +34,81 @@ var (
 	StartTime = time.Now().Unix()
 
 	// Hot-reload mirrors for frequently read options (legacy OpenFlare keys).
-	SystemName                                  = "OpenFlare"
-	ServerAddress                               = ""
-	Footer                                      = ""
-	HomePageLink                                = ""
-	PasswordLoginEnabled                        = true
-	CapLoginEnabled                             = true
-	PasswordRegisterEnabled                     = false
-	EmailVerificationEnabled                    = false
-	GitHubOAuthEnabled                          = false
-	WeChatAuthEnabled                           = false
-	GitHubClientId                              = ""
-	GitHubClientSecret                          = ""
-	WeChatServerAddress                         = ""
-	WeChatServerToken                           = ""
-	WeChatAccountQRCodeImageURL                 = ""
-	SMTPServer                                  = ""
-	SMTPPort                                    = 587
-	SMTPAccount                                 = ""
-	SMTPToken                                   = ""
-	AgentDiscoveryToken                         = ""
-	AgentHeartbeatInterval                      = 10000
-	AgentWebsocketUpgradeEnabled                = true
-	NodeOfflineThreshold                        = 2 * time.Minute
-	AgentUpdateRepo                             = "Rain-kl/OpenFlare"
-	GeoIPProvider                               = "ipinfo"
-	DatabaseAutoCleanupEnabled                  = false
-	DatabaseAutoCleanupRetentionDays            = 30
-	UptimeKumaEnabled                           = false
-	UptimeKumaUrl                               = ""
-	UptimeKumaUsername                          = ""
-	UptimeKumaPassword                          = ""
-	UptimeKumaMonitorScope                      = "all"
-	UptimeKumaSelectedSites                     = ""
-	UptimeKumaSyncInterval                      = 5
-	UptimeKumaInterval                          = 60
-	UptimeKumaRetry                             = 0
-	UptimeKumaRetryInterval                     = 60
-	UptimeKumaTimeout                           = 48
-	OpenRestyDefaultServerReturnStatus          = 421
-	OpenRestyWorkerProcesses                    = "auto"
-	OpenRestyWorkerConnections                  = 4096
-	OpenRestyWorkerRlimitNofile                 = 65535
-	OpenRestyEventsUse                          = "epoll"
-	OpenRestyEventsMultiAcceptEnabled           = true
-	OpenRestyKeepaliveTimeout                   = 20
-	OpenRestyKeepaliveRequests                  = 1000
-	OpenRestyClientHeaderTimeout                = 15
-	OpenRestyClientBodyTimeout                  = 15
-	OpenRestyClientMaxBodySize                  = "64m"
-	OpenRestyLargeClientHeaderBuffers           = "4 16k"
-	OpenRestySendTimeout                        = 30
-	OpenRestyResolvers                          = ""
-	OpenRestyProxyConnectTimeout                = 3
-	OpenRestyProxySendTimeout                   = 60
-	OpenRestyProxyReadTimeout                   = 60
-	OpenRestyWebsocketEnabled                   = true
-	OpenRestyHTTP3Enabled                       = true
-	OpenRestyProxyRequestBufferingEnabled       = false
-	OpenRestyProxyBufferingEnabled              = true
-	OpenRestyProxyBuffers                       = "16 16k"
-	OpenRestyProxyBufferSize                    = "8k"
-	OpenRestyProxyBusyBuffersSize               = "64k"
-	OpenRestyGzipEnabled                        = true
-	OpenRestyGzipMinLength                      = 1024
-	OpenRestyGzipCompLevel                      = 5
-	OpenRestyCacheEnabled                       = false
-	OpenRestyCachePath                          = ""
-	OpenRestyCacheLevels                        = "1:2"
-	OpenRestyCacheInactive                      = "30m"
-	OpenRestyCacheMaxSize                       = "1g"
-	OpenRestyCacheKeyTemplate                   = "$scheme$host$request_uri"
-	OpenRestyCacheLockEnabled                   = true
-	OpenRestyCacheLockTimeout                   = "5s"
-	OpenRestyCacheUseStale                      = "error timeout updating http_500 http_502 http_503 http_504"
-	OpenRestyMainConfigTemplate = defaultOpenRestyMainConfigTemplate
+	SystemName                            = "OpenFlare"
+	ServerAddress                         = ""
+	Footer                                = ""
+	HomePageLink                          = ""
+	PasswordLoginEnabled                  = true
+	CapLoginEnabled                       = true
+	PasswordRegisterEnabled               = false
+	EmailVerificationEnabled              = false
+	GitHubOAuthEnabled                    = false
+	WeChatAuthEnabled                     = false
+	GitHubClientID                        = ""
+	GitHubClientSecret                    = ""
+	WeChatServerAddress                   = ""
+	WeChatServerToken                     = ""
+	WeChatAccountQRCodeImageURL           = ""
+	SMTPServer                            = ""
+	SMTPPort                              = 587
+	SMTPAccount                           = ""
+	SMTPToken                             = ""
+	AgentDiscoveryToken                   = ""
+	AgentHeartbeatInterval                = 10000
+	AgentWebsocketUpgradeEnabled          = true
+	NodeOfflineThreshold                  = 2 * time.Minute
+	AgentUpdateRepo                       = "Rain-kl/OpenFlare"
+	GeoIPProvider                         = "ipinfo"
+	DatabaseAutoCleanupEnabled            = false
+	DatabaseAutoCleanupRetentionDays      = 30
+	UptimeKumaEnabled                     = false
+	UptimeKumaURL                         = ""
+	UptimeKumaUsername                    = ""
+	UptimeKumaPassword                    = ""
+	UptimeKumaMonitorScope                = "all"
+	UptimeKumaSelectedSites               = ""
+	UptimeKumaSyncInterval                = 5
+	UptimeKumaInterval                    = 60
+	UptimeKumaRetry                       = 0
+	UptimeKumaRetryInterval               = 60
+	UptimeKumaTimeout                     = 48
+	OpenRestyDefaultServerReturnStatus    = 421
+	OpenRestyWorkerProcesses              = "auto"
+	OpenRestyWorkerConnections            = 4096
+	OpenRestyWorkerRlimitNofile           = 65535
+	OpenRestyEventsUse                    = "epoll"
+	OpenRestyEventsMultiAcceptEnabled     = true
+	OpenRestyKeepaliveTimeout             = 20
+	OpenRestyKeepaliveRequests            = 1000
+	OpenRestyClientHeaderTimeout          = 15
+	OpenRestyClientBodyTimeout            = 15
+	OpenRestyClientMaxBodySize            = "64m"
+	OpenRestyLargeClientHeaderBuffers     = "4 16k"
+	OpenRestySendTimeout                  = 30
+	OpenRestyResolvers                    = ""
+	OpenRestyProxyConnectTimeout          = 3
+	OpenRestyProxySendTimeout             = 60
+	OpenRestyProxyReadTimeout             = 60
+	OpenRestyWebsocketEnabled             = true
+	OpenRestyHTTP3Enabled                 = true
+	OpenRestyProxyRequestBufferingEnabled = false
+	OpenRestyProxyBufferingEnabled        = true
+	OpenRestyProxyBuffers                 = "16 16k"
+	OpenRestyProxyBufferSize              = "8k"
+	OpenRestyProxyBusyBuffersSize         = "64k"
+	OpenRestyGzipEnabled                  = true
+	OpenRestyGzipMinLength                = 1024
+	OpenRestyGzipCompLevel                = 5
+	OpenRestyCacheEnabled                 = false
+	OpenRestyCachePath                    = ""
+	OpenRestyCacheLevels                  = "1:2"
+	OpenRestyCacheInactive                = "30m"
+	OpenRestyCacheMaxSize                 = "1g"
+	OpenRestyCacheKeyTemplate             = "$scheme$host$request_uri"
+	OpenRestyCacheLockEnabled             = true
+	OpenRestyCacheLockTimeout             = "5s"
+	OpenRestyCacheUseStale                = "error timeout updating http_500 http_502 http_503 http_504"
+	OpenRestyMainConfigTemplate           = defaultOpenRestyMainConfigTemplate
 )
 
 const defaultOpenRestyMainConfigTemplate = `# This file is generated by OpenFlare. Do not edit manually.
@@ -183,9 +183,9 @@ func DefaultOpenFlareOptions() map[string]string {
 		"GeoIPProvider":                         GeoIPProvider,
 		"DatabaseAutoCleanupEnabled":            strconv.FormatBool(DatabaseAutoCleanupEnabled),
 		"UptimeKumaEnabled":                     strconv.FormatBool(UptimeKumaEnabled),
-		"UptimeKumaUrl":                         UptimeKumaUrl,
+		"UptimeKumaUrl":                         UptimeKumaURL,
 		"UptimeKumaUsername":                    UptimeKumaUsername,
-		"UptimeKumaPassword":                    UptimeKumaPassword,
+		optionKeyUptimeKumaPassword:             UptimeKumaPassword,
 		"UptimeKumaMonitorScope":                UptimeKumaMonitorScope,
 		"UptimeKumaSelectedSites":               UptimeKumaSelectedSites,
 		"UptimeKumaSyncInterval":                strconv.Itoa(UptimeKumaSyncInterval),
@@ -229,7 +229,7 @@ func DefaultOpenFlareOptions() map[string]string {
 		"OpenRestyCacheLockEnabled":             strconv.FormatBool(OpenRestyCacheLockEnabled),
 		"OpenRestyCacheLockTimeout":             OpenRestyCacheLockTimeout,
 		"OpenRestyCacheUseStale":                OpenRestyCacheUseStale,
-		"OpenRestyMainConfigTemplate": OpenRestyMainConfigTemplate,
+		"OpenRestyMainConfigTemplate":           OpenRestyMainConfigTemplate,
 	}
 }
 
@@ -271,7 +271,7 @@ func UpdateOpenFlareOptions(ctx context.Context, options []OpenFlareOption) erro
 
 	if err := db.DB(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, item := range options {
-			if item.Key == "UptimeKumaPassword" && strings.TrimSpace(item.Value) == "" {
+			if item.Key == optionKeyUptimeKumaPassword && strings.TrimSpace(item.Value) == "" {
 				continue
 			}
 			option := OpenFlareOption{Key: item.Key}
@@ -289,7 +289,7 @@ func UpdateOpenFlareOptions(ctx context.Context, options []OpenFlareOption) erro
 	}
 
 	for _, item := range options {
-		if item.Key == "UptimeKumaPassword" && strings.TrimSpace(item.Value) == "" {
+		if item.Key == optionKeyUptimeKumaPassword && strings.TrimSpace(item.Value) == "" {
 			continue
 		}
 		applyOptionMap(item.Key, item.Value)
@@ -316,112 +316,13 @@ func ResetOptionMapForTest() {
 
 func applyOptionMap(key, value string) {
 	OptionMapRWMutex.Lock()
+	defer OptionMapRWMutex.Unlock()
 	if OptionMap == nil {
 		OptionMap = make(map[string]string)
 	}
 	OptionMap[key] = value
-	if strings.HasSuffix(key, "Enabled") {
-		boolValue := value == "true"
-		switch key {
-		case "PasswordRegisterEnabled":
-			PasswordRegisterEnabled = boolValue
-		case "PasswordLoginEnabled":
-			PasswordLoginEnabled = boolValue
-		case "CapLoginEnabled":
-			CapLoginEnabled = boolValue
-		case "EmailVerificationEnabled":
-			EmailVerificationEnabled = boolValue
-		case "GitHubOAuthEnabled":
-			GitHubOAuthEnabled = boolValue
-		case "WeChatAuthEnabled":
-			WeChatAuthEnabled = boolValue
-		}
-	}
-	switch key {
-	case "SMTPServer":
-		SMTPServer = value
-	case "SMTPPort":
-		if intValue, err := strconv.Atoi(value); err == nil {
-			SMTPPort = intValue
-		}
-	case "SMTPAccount":
-		SMTPAccount = value
-	case "SMTPToken":
-		SMTPToken = value
-	case "ServerAddress":
-		ServerAddress = value
-	case "GitHubClientId":
-		GitHubClientId = value
-	case "GitHubClientSecret":
-		GitHubClientSecret = value
-	case "Footer":
-		Footer = value
-	case "HomePageLink":
-		HomePageLink = value
-	case "SystemName":
-		SystemName = value
-	case "WeChatServerAddress":
-		WeChatServerAddress = value
-	case "WeChatServerToken":
-		WeChatServerToken = value
-	case "WeChatAccountQRCodeImageURL":
-		WeChatAccountQRCodeImageURL = value
-	case "AgentDiscoveryToken":
-		AgentDiscoveryToken = value
-	case "AgentHeartbeatInterval":
-		if v, err := strconv.Atoi(value); err == nil && v > 0 {
-			AgentHeartbeatInterval = v
-		}
-	case "AgentWebsocketUpgradeEnabled":
-		AgentWebsocketUpgradeEnabled = value == "true"
-	case "NodeOfflineThreshold":
-		if v, err := strconv.Atoi(value); err == nil && v > 0 {
-			NodeOfflineThreshold = time.Duration(v) * time.Millisecond
-		}
-	case "AgentUpdateRepo":
-		if value != "" {
-			AgentUpdateRepo = value
-		}
-	case "GeoIPProvider":
-		GeoIPProvider = value
-	case "UptimeKumaEnabled":
-		UptimeKumaEnabled = value == "true"
-	case "UptimeKumaUrl":
-		UptimeKumaUrl = value
-	case "UptimeKumaUsername":
-		UptimeKumaUsername = value
-	case "UptimeKumaPassword":
-		UptimeKumaPassword = value
-	case "UptimeKumaMonitorScope":
-		UptimeKumaMonitorScope = value
-	case "UptimeKumaSelectedSites":
-		UptimeKumaSelectedSites = value
-	case "UptimeKumaSyncInterval":
-		if v, err := strconv.Atoi(value); err == nil && v > 0 {
-			UptimeKumaSyncInterval = v
-		}
-	case "UptimeKumaInterval":
-		if v, err := strconv.Atoi(value); err == nil && v > 0 {
-			UptimeKumaInterval = v
-		}
-	case "UptimeKumaRetry":
-		if v, err := strconv.Atoi(value); err == nil && v >= 0 {
-			UptimeKumaRetry = v
-		}
-	case "UptimeKumaRetryInterval":
-		if v, err := strconv.Atoi(value); err == nil && v > 0 {
-			UptimeKumaRetryInterval = v
-		}
-	case "UptimeKumaTimeout":
-		if v, err := strconv.Atoi(value); err == nil && v > 0 {
-			UptimeKumaTimeout = v
-		}
-	case "DatabaseAutoCleanupEnabled":
-		DatabaseAutoCleanupEnabled = value == "true"
-	case "DatabaseAutoCleanupRetentionDays":
-		if v, err := strconv.Atoi(value); err == nil && v >= 1 {
-			DatabaseAutoCleanupRetentionDays = v
-		}
-	}
-	OptionMapRWMutex.Unlock()
+	applyEnabledOptionMirror(key, value)
+	applyStringOptionMirror(key, value)
+	applyIntegerOptionMirror(key, value)
+	applySpecialOptionMirror(key, value)
 }

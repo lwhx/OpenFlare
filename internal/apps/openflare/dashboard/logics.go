@@ -120,7 +120,7 @@ func buildOverviewView(ctx context.Context) (*OverviewView, error) {
 	if err != nil {
 		return nil, err
 	}
-	accessLogRegions, err := model.ListOpenFlareAccessLogRegionCounts(ctx, "", since, 8)
+	accessLogRegions, err := model.ListOpenFlareAccessLogRegionCounts(ctx, "", since, dashboardDistributionLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func buildOverviewView(ctx context.Context) (*OverviewView, error) {
 	view := &OverviewView{
 		GeneratedAt:   now,
 		Nodes:         make([]NodeHealth, 0, len(nodes)),
-		Distributions: observability.BuildTrafficDistributions(reports, accessLogRegions, 8),
+		Distributions: observability.BuildTrafficDistributions(reports, accessLogRegions, dashboardDistributionLimit),
 		Trends: observability.NodeTrends{
 			Traffic24h:  observability.BuildTrafficTrendPoints(now, reports),
 			Capacity24h: observability.BuildCapacityTrendPoints(now, snapshots),
@@ -183,41 +183,8 @@ func buildOverviewView(ctx context.Context) (*OverviewView, error) {
 			ActiveEventCount: len(nodeActiveEvents),
 		}
 
-		if latestSnapshot != nil {
-			nodeHealth.CPUUsagePercent = latestSnapshot.CPUUsagePercent
-			nodeHealth.MemoryUsagePercent = observability.Percentage(latestSnapshot.MemoryUsedBytes, latestSnapshot.MemoryTotalBytes)
-			nodeHealth.StorageUsagePercent = observability.Percentage(latestSnapshot.StorageUsedBytes, latestSnapshot.StorageTotalBytes)
-			if latestSnapshot.CPUUsagePercent > 0 {
-				view.Capacity.AverageCPUUsagePercent += latestSnapshot.CPUUsagePercent
-				cpuNodeCount++
-			}
-			if nodeHealth.MemoryUsagePercent > 0 {
-				view.Capacity.AverageMemoryUsagePercent += nodeHealth.MemoryUsagePercent
-				memoryNodeCount++
-			}
-			if latestSnapshot.CPUUsagePercent >= 80 {
-				view.Capacity.HighCPUNodes++
-			}
-			if nodeHealth.MemoryUsagePercent >= 85 {
-				view.Capacity.HighMemoryNodes++
-			}
-			if nodeHealth.StorageUsagePercent >= 85 {
-				view.Capacity.HighStorageNodes++
-			}
-		}
-
-		if latestTraffic != nil {
-			nodeHealth.RequestCount = latestTraffic.RequestCount
-			nodeHealth.ErrorCount = latestTraffic.ErrorCount
-			nodeHealth.UniqueVisitorCount = latestTraffic.UniqueVisitorCount
-			view.Traffic.RequestCount += latestTraffic.RequestCount
-			view.Traffic.UniqueVisitors += latestTraffic.UniqueVisitorCount
-			view.Traffic.ErrorCount += latestTraffic.ErrorCount
-			if duration := latestTraffic.WindowEndedAt.Sub(latestTraffic.WindowStartedAt).Seconds(); duration > 0 {
-				view.Traffic.EstimatedQPS += float64(latestTraffic.RequestCount) / duration
-			}
-			view.Traffic.ReportedNodes++
-		}
+		cpuNodeCount, memoryNodeCount = applyNodeSnapshotMetrics(&nodeHealth, latestSnapshot, view, cpuNodeCount, memoryNodeCount)
+		applyNodeTrafficMetrics(&nodeHealth, latestTraffic, view)
 
 		view.Nodes = append(view.Nodes, nodeHealth)
 	}
@@ -238,6 +205,49 @@ func buildOverviewView(ctx context.Context) (*OverviewView, error) {
 	})
 
 	return view, nil
+}
+
+func applyNodeSnapshotMetrics(nodeHealth *NodeHealth, snapshot *model.OpenFlareMetricSnapshot, view *OverviewView, cpuNodeCount, memoryNodeCount int) (int, int) {
+	if snapshot == nil {
+		return cpuNodeCount, memoryNodeCount
+	}
+	nodeHealth.CPUUsagePercent = snapshot.CPUUsagePercent
+	nodeHealth.MemoryUsagePercent = observability.Percentage(snapshot.MemoryUsedBytes, snapshot.MemoryTotalBytes)
+	nodeHealth.StorageUsagePercent = observability.Percentage(snapshot.StorageUsedBytes, snapshot.StorageTotalBytes)
+	if snapshot.CPUUsagePercent > 0 {
+		view.Capacity.AverageCPUUsagePercent += snapshot.CPUUsagePercent
+		cpuNodeCount++
+	}
+	if nodeHealth.MemoryUsagePercent > 0 {
+		view.Capacity.AverageMemoryUsagePercent += nodeHealth.MemoryUsagePercent
+		memoryNodeCount++
+	}
+	if snapshot.CPUUsagePercent >= highCPUUsagePercentThreshold {
+		view.Capacity.HighCPUNodes++
+	}
+	if nodeHealth.MemoryUsagePercent >= highMemoryUsagePercentThreshold {
+		view.Capacity.HighMemoryNodes++
+	}
+	if nodeHealth.StorageUsagePercent >= highStorageUsagePercentThreshold {
+		view.Capacity.HighStorageNodes++
+	}
+	return cpuNodeCount, memoryNodeCount
+}
+
+func applyNodeTrafficMetrics(nodeHealth *NodeHealth, traffic *model.OpenFlareRequestReport, view *OverviewView) {
+	if traffic == nil {
+		return
+	}
+	nodeHealth.RequestCount = traffic.RequestCount
+	nodeHealth.ErrorCount = traffic.ErrorCount
+	nodeHealth.UniqueVisitorCount = traffic.UniqueVisitorCount
+	view.Traffic.RequestCount += traffic.RequestCount
+	view.Traffic.UniqueVisitors += traffic.UniqueVisitorCount
+	view.Traffic.ErrorCount += traffic.ErrorCount
+	if duration := traffic.WindowEndedAt.Sub(traffic.WindowStartedAt).Seconds(); duration > 0 {
+		view.Traffic.EstimatedQPS += float64(traffic.RequestCount) / duration
+	}
+	view.Traffic.ReportedNodes++
 }
 
 func compressOverview(view *OverviewView) *OverviewPayload {

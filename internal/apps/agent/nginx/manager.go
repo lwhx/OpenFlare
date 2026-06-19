@@ -1,3 +1,4 @@
+// Package nginx manages OpenResty configuration, runtime, and supporting assets.
 package nginx
 
 import (
@@ -26,10 +27,26 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/protocol"
 )
 
+// RuntimeConfigDirPlaceholder is substituted into generated configs at apply time.
 const RuntimeConfigDirPlaceholder = "__OPENFLARE_RUNTIME_CONFIG_DIR__"
-const ResolverDirectivePlaceholder = "__OPENFLARE_RESOLVER_DIRECTIVE__"
-const WAFIPGroupsConfigFileName = "waf_ip_groups.json"
 
+// ResolverDirectivePlaceholder is substituted into generated configs at apply time.
+const ResolverDirectivePlaceholder = "__OPENFLARE_RESOLVER_DIRECTIVE__"
+
+// WAFIPGroupsConfigFileName is the runtime filename for synced WAF IP group data.
+const WAFIPGroupsConfigFileName = "waf_ip_groups.json"
+const powConfigFileName = "pow_config.json"
+
+const (
+	nginxConfigFilePerm       = 0o644
+	nginxPrivateKeyFilePerm   = 0o600
+	nginxDirPerm              = 0o755
+	stubStatusCheckTimeout    = 1500 * time.Millisecond
+	nginxVersionSubmatchCount = 2
+	resolverAddressCapacity   = 2
+)
+
+// Executor controls OpenResty validation, reload, health, and lifecycle operations.
 type Executor interface {
 	Test(ctx context.Context) error
 	Reload(ctx context.Context) error
@@ -38,44 +55,49 @@ type Executor interface {
 	Restart(ctx context.Context) error
 }
 
+// CommandRunner executes external commands on behalf of an Executor.
 type CommandRunner interface {
 	Run(ctx context.Context, name string, args ...string) ([]byte, error)
 }
 
+// OSCommandRunner runs commands using the host operating system.
 type OSCommandRunner struct{}
 
+// Run executes the named command and returns its combined output.
 func (r *OSCommandRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	slog.Debug("OSCommandRunner starting command", "name", name, "args", args)
 	tmpFile, err := os.CreateTemp("", "openflare-cmd-*")
 	if err != nil {
 		slog.Error("OSCommandRunner failed to create temp file, falling back to CombinedOutput", "error", err)
-		cmd := exec.CommandContext(ctx, name, args...)
+		cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // command name and args come from trusted OpenResty management paths
 		output, outErr := cmd.CombinedOutput()
 		slog.Debug("OSCommandRunner finished CombinedOutput", "name", name, "error", outErr)
 		return output, outErr
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // command name and args come from trusted OpenResty management paths
 	cmd.Stdout = tmpFile
 	cmd.Stderr = tmpFile
 
 	slog.Debug("OSCommandRunner executing cmd.Run()", "name", name)
 	runErr := cmd.Run()
 	slog.Debug("OSCommandRunner cmd.Run() returned", "name", name, "error", runErr)
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	output, _ := os.ReadFile(tmpFile.Name())
 	slog.Debug("OSCommandRunner command complete", "name", name, "output_len", len(output))
 	return output, runErr
 }
 
+// PathExecutor runs OpenResty using a configured binary and config path.
 type PathExecutor struct {
 	Path       string
 	ConfigPath string
 	Runner     CommandRunner
 }
 
+// Test validates the current OpenResty configuration.
 func (e *PathExecutor) Test(ctx context.Context) error {
 	slog.Debug("running openresty test with binary", "path", e.Path, "config", e.ConfigPath)
 	output, err := e.Runner.Run(ctx, e.Path, "-t", "-c", e.ConfigPath)
@@ -86,6 +108,7 @@ func (e *PathExecutor) Test(ctx context.Context) error {
 	return nil
 }
 
+// Reload reloads OpenResty or starts it when no runtime process is running.
 func (e *PathExecutor) Reload(ctx context.Context) error {
 	slog.Debug("running openresty reload with binary", "path", e.Path, "config", e.ConfigPath)
 	output, err := e.Runner.Run(ctx, e.Path, "-s", "reload", "-c", e.ConfigPath)
@@ -104,6 +127,7 @@ func (e *PathExecutor) Reload(ctx context.Context) error {
 	return nil
 }
 
+// EnsureRuntime validates configuration and reloads the OpenResty runtime.
 func (e *PathExecutor) EnsureRuntime(ctx context.Context, _ bool) error {
 	if err := e.Test(ctx); err != nil {
 		return err
@@ -111,10 +135,12 @@ func (e *PathExecutor) EnsureRuntime(ctx context.Context, _ bool) error {
 	return e.Reload(ctx)
 }
 
+// CheckHealth reports whether the OpenResty configuration is valid.
 func (e *PathExecutor) CheckHealth(ctx context.Context) error {
 	return e.Test(ctx)
 }
 
+// Restart stops and starts the OpenResty runtime process.
 func (e *PathExecutor) Restart(ctx context.Context) error {
 	slog.Info("restarting openresty with binary", "path", e.Path, "config", e.ConfigPath)
 	output, err := e.Runner.Run(ctx, e.Path, "-s", "quit", "-c", e.ConfigPath)
@@ -132,6 +158,7 @@ func (e *PathExecutor) Restart(ctx context.Context) error {
 	return nil
 }
 
+// Manager applies OpenResty configuration and manages runtime assets.
 type Manager struct {
 	MainConfigPath               string
 	RouteConfigPath              string
@@ -148,9 +175,12 @@ type Manager struct {
 	Executor                     Executor
 }
 
+// ApplyStatus reports the outcome of an OpenResty configuration apply.
 type ApplyStatus string
 
+// Apply outcome status values.
 const (
+	// ApplyStatusSuccess indicates the configuration was applied successfully.
 	ApplyStatusSuccess ApplyStatus = "success"
 	ApplyStatusWarning ApplyStatus = "warning"
 	ApplyStatusFatal   ApplyStatus = "fatal"
@@ -188,6 +218,7 @@ const safeDefaultFallbackObservabilityServerBlock = `
     }
 `
 
+// ApplyOutcome contains the status and message from a configuration apply.
 type ApplyOutcome struct {
 	Status  ApplyStatus
 	Message string
@@ -197,6 +228,7 @@ type wafIPGroupsRuntimeConfig struct {
 	Groups map[string]protocol.WAFIPGroup `json:"groups"`
 }
 
+// Apply writes, validates, and activates new OpenResty configuration files.
 func (m *Manager) Apply(ctx context.Context, mainConfig string, routeConfig string, supportFiles []protocol.SupportFile) ApplyOutcome {
 	slog.Info("openresty apply started", "main_config", m.MainConfigPath, "route_config", m.RouteConfigPath, "cert_files", len(supportFiles))
 	backup, err := m.backup()
@@ -236,11 +268,11 @@ func (m *Manager) writeTargetFiles(mainConfig string, routeConfig string, suppor
 		slog.Warn("runtime-resolved hostname upstreams detected without available resolvers; hostname origin requests may fail until resolvers are configured")
 	}
 	renderedMainConfig := m.renderMainConfig(mainConfig)
-	if err := os.WriteFile(m.MainConfigPath, []byte(renderedMainConfig), 0o644); err != nil {
+	if err := os.WriteFile(m.MainConfigPath, []byte(renderedMainConfig), nginxConfigFilePerm); err != nil {
 		return err
 	}
 	renderedRouteConfig := m.renderRouteConfig(routeConfig)
-	if err := os.WriteFile(m.RouteConfigPath, []byte(renderedRouteConfig), 0o644); err != nil {
+	if err := os.WriteFile(m.RouteConfigPath, []byte(renderedRouteConfig), nginxConfigFilePerm); err != nil {
 		return err
 	}
 	return nil
@@ -293,6 +325,7 @@ func fatalApplyOutcome(err error) ApplyOutcome {
 	}
 }
 
+// EnsureLuaAssets synchronizes managed Lua and static assets to the runtime directory.
 func (m *Manager) EnsureLuaAssets() error {
 	if strings.TrimSpace(m.LuaDir) == "" {
 		return nil
@@ -317,12 +350,13 @@ func (m *Manager) EnsureLuaAssets() error {
 		files = append(files, managedFile{
 			Path:    filepath.ToSlash(relativePath),
 			Content: []byte(file.Content),
-			Mode:    0o644,
+			Mode:    nginxConfigFilePerm,
 		})
 	}
 	return syncManagedFiles(m.LuaDir, files)
 }
 
+// EnsureRuntime validates and reloads the current OpenResty runtime configuration.
 func (m *Manager) EnsureRuntime(ctx context.Context, recreate bool) error {
 	if m.Executor == nil {
 		return errors.New("executor 未配置")
@@ -331,6 +365,7 @@ func (m *Manager) EnsureRuntime(ctx context.Context, recreate bool) error {
 	return m.Executor.EnsureRuntime(ctx, recreate)
 }
 
+// EnsureSafeFallbackRuntime starts a minimal safe default OpenResty runtime.
 func (m *Manager) EnsureSafeFallbackRuntime(ctx context.Context, reason string) error {
 	if m.Executor == nil {
 		return errors.New("executor 未配置")
@@ -350,6 +385,7 @@ func (m *Manager) EnsureSafeFallbackRuntime(ctx context.Context, reason string) 
 	return nil
 }
 
+// CheckHealth verifies that OpenResty configuration and health endpoints are available.
 func (m *Manager) CheckHealth(ctx context.Context) error {
 	if m.Executor == nil {
 		return errors.New("executor 未配置")
@@ -365,6 +401,7 @@ func (m *Manager) CheckHealth(ctx context.Context) error {
 	return m.checkStubStatus(ctx)
 }
 
+// Restart restarts the OpenResty runtime process.
 func (m *Manager) Restart(ctx context.Context) error {
 	if m.Executor == nil {
 		return errors.New("executor 未配置")
@@ -373,6 +410,7 @@ func (m *Manager) Restart(ctx context.Context) error {
 	return m.Executor.Restart(ctx)
 }
 
+// CurrentChecksum returns a stable checksum for the active OpenResty configuration bundle.
 func (m *Manager) CurrentChecksum() (string, error) {
 	if m.RouteConfigPath == "" {
 		return "", errors.New("route config path 不能为空")
@@ -435,6 +473,7 @@ func (m *Manager) CurrentChecksum() (string, error) {
 	return result, nil
 }
 
+// WAFIPGroupChecksums returns checksums for locally synced WAF IP groups.
 func (m *Manager) WAFIPGroupChecksums() (map[string]string, error) {
 	config, err := m.readWAFIPGroupsRuntimeConfig()
 	if err != nil {
@@ -449,6 +488,7 @@ func (m *Manager) WAFIPGroupChecksums() (map[string]string, error) {
 	return result, nil
 }
 
+// SyncWAFIPGroups writes WAF IP group definitions to the runtime config directory.
 func (m *Manager) SyncWAFIPGroups(groups []protocol.WAFIPGroup) error {
 	if m.RuntimeConfigDir == "" || len(groups) == 0 {
 		return nil
@@ -470,11 +510,11 @@ func (m *Manager) SyncWAFIPGroups(groups []protocol.WAFIPGroup) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(m.RuntimeConfigDir, 0o755); err != nil {
+	if err := os.MkdirAll(m.RuntimeConfigDir, nginxDirPerm); err != nil {
 		return err
 	}
 	path := filepath.Join(m.RuntimeConfigDir, WAFIPGroupsConfigFileName)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, nginxConfigFilePerm); err != nil {
 		return fmt.Errorf("write %s: %w", WAFIPGroupsConfigFileName, err)
 	}
 	slog.Info("synced waf ip groups", "path", path, "group_count", len(groups))
@@ -487,7 +527,7 @@ func (m *Manager) readWAFIPGroupsRuntimeConfig() (*wafIPGroupsRuntimeConfig, err
 		return config, nil
 	}
 	path := filepath.Join(m.RuntimeConfigDir, WAFIPGroupsConfigFileName)
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is under managed RuntimeConfigDir
 	if err != nil {
 		if os.IsNotExist(err) {
 			return config, nil
@@ -506,6 +546,7 @@ func (m *Manager) readWAFIPGroupsRuntimeConfig() (*wafIPGroupsRuntimeConfig, err
 	return config, nil
 }
 
+// ExecutorOptions configures construction of an OpenResty Executor.
 type ExecutorOptions struct {
 	NginxPath                  string
 	MainConfigPath             string
@@ -517,6 +558,7 @@ type ExecutorOptions struct {
 	OpenrestyObservabilityPort int
 }
 
+// NewExecutor creates an Executor backed by a configured OpenResty binary.
 func NewExecutor(options ExecutorOptions) Executor {
 	runner := &OSCommandRunner{}
 	return &PathExecutor{
@@ -526,6 +568,7 @@ func NewExecutor(options ExecutorOptions) Executor {
 	}
 }
 
+// DetectVersion returns the OpenResty version reported by the configured binary.
 func DetectVersion(ctx context.Context, options ExecutorOptions) string {
 	version, err := detectVersion(ctx, options, &OSCommandRunner{})
 	if err != nil {
@@ -556,7 +599,7 @@ func detectVersion(ctx context.Context, options ExecutorOptions, runner CommandR
 
 func parseExtVersion(output string) string {
 	matches := nginxVersionPattern.FindStringSubmatch(output)
-	if len(matches) != 2 {
+	if len(matches) != nginxVersionSubmatchCount {
 		return ""
 	}
 	return matches[1]
@@ -606,24 +649,24 @@ func (m *Manager) backup() (*backupState, error) {
 	if m.RouteConfigPath == "" {
 		return nil, errors.New("route config path 不能为空")
 	}
-	if err := os.MkdirAll(filepath.Dir(m.MainConfigPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(m.MainConfigPath), nginxDirPerm); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(m.RouteConfigPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(m.RouteConfigPath), nginxDirPerm); err != nil {
 		return nil, err
 	}
 	if m.AccessLogPath != "" {
-		if err := os.MkdirAll(filepath.Dir(m.AccessLogPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(m.AccessLogPath), nginxDirPerm); err != nil {
 			return nil, err
 		}
 	}
 	if m.CertDir != "" {
-		if err := os.MkdirAll(m.CertDir, 0o755); err != nil {
+		if err := os.MkdirAll(m.CertDir, nginxDirPerm); err != nil {
 			return nil, err
 		}
 	}
 	if m.RuntimeConfigDir != "" {
-		if err := os.MkdirAll(m.RuntimeConfigDir, 0o755); err != nil {
+		if err := os.MkdirAll(m.RuntimeConfigDir, nginxDirPerm); err != nil {
 			return nil, err
 		}
 	}
@@ -672,14 +715,14 @@ func (m *Manager) restore(state *backupState) error {
 	}
 	slog.Warn("restoring nginx backup", "main_existed", state.MainExisted, "route_existed", state.RouteExisted, "cert_files", len(state.Files))
 	if state.MainExisted {
-		if err := os.WriteFile(m.MainConfigPath, state.MainData, 0o644); err != nil {
+		if err := os.WriteFile(m.MainConfigPath, state.MainData, nginxConfigFilePerm); err != nil {
 			return err
 		}
 	} else if err := os.Remove(m.MainConfigPath); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if state.RouteExisted {
-		if err := os.WriteFile(m.RouteConfigPath, state.RouteData, 0o644); err != nil {
+		if err := os.WriteFile(m.RouteConfigPath, state.RouteData, nginxConfigFilePerm); err != nil {
 			return err
 		}
 	} else if err := os.Remove(m.RouteConfigPath); err != nil && !os.IsNotExist(err) {
@@ -690,7 +733,7 @@ func (m *Manager) restore(state *backupState) error {
 			return err
 		}
 	}
-	if err := m.restoreRuntimeConfig(state.PowConfig, "pow_config.json"); err != nil {
+	if err := m.restoreRuntimeConfig(state.PowConfig, powConfigFileName); err != nil {
 		return err
 	}
 	if err := m.restoreRuntimeConfig(state.WAFConfig, "waf_config.json"); err != nil {
@@ -710,10 +753,10 @@ func (m *Manager) writePowConfig(supportFiles []protocol.SupportFile) error {
 	if m.RuntimeConfigDir == "" {
 		return nil
 	}
-	configPath := filepath.Join(m.RuntimeConfigDir, "pow_config.json")
+	configPath := filepath.Join(m.RuntimeConfigDir, powConfigFileName)
 	for _, file := range supportFiles {
-		if file.Path == "pow_config.json" {
-			if err := os.WriteFile(configPath, []byte(file.Content), 0o644); err != nil {
+		if file.Path == powConfigFileName {
+			if err := os.WriteFile(configPath, []byte(file.Content), nginxConfigFilePerm); err != nil {
 				return fmt.Errorf("write pow_config.json: %w", err)
 			}
 			slog.Info("wrote pow config", "path", configPath, "size", len(file.Content))
@@ -723,10 +766,10 @@ func (m *Manager) writePowConfig(supportFiles []protocol.SupportFile) error {
 	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove pow_config.json: %w", err)
 	}
-	if err := removeLegacyPowConfig(filepath.Join(m.LuaDir, "pow_config.json")); err != nil {
+	if err := removeLegacyPowConfig(filepath.Join(m.LuaDir, powConfigFileName)); err != nil {
 		return err
 	}
-	if err := removeLegacyPowConfig(filepath.Join(m.CertDir, "pow_config.json")); err != nil {
+	if err := removeLegacyPowConfig(filepath.Join(m.CertDir, powConfigFileName)); err != nil {
 		return err
 	}
 	return nil
@@ -739,7 +782,7 @@ func (m *Manager) writeWAFConfig(supportFiles []protocol.SupportFile) error {
 	configPath := filepath.Join(m.RuntimeConfigDir, "waf_config.json")
 	for _, file := range supportFiles {
 		if file.Path == "waf_config.json" {
-			if err := os.WriteFile(configPath, []byte(file.Content), 0o644); err != nil {
+			if err := os.WriteFile(configPath, []byte(file.Content), nginxConfigFilePerm); err != nil {
 				return fmt.Errorf("write waf_config.json: %w", err)
 			}
 			slog.Info("wrote waf config", "path", configPath, "size", len(file.Content))
@@ -759,7 +802,7 @@ func (m *Manager) writeSourceConfig(supportFiles []protocol.SupportFile) error {
 	configPath := filepath.Join(m.RuntimeConfigDir, openrestyrender.SourceConfigFileName)
 	for _, file := range supportFiles {
 		if file.Path == openrestyrender.SourceConfigFileName {
-			if err := os.WriteFile(configPath, []byte(file.Content), 0o644); err != nil {
+			if err := os.WriteFile(configPath, []byte(file.Content), nginxConfigFilePerm); err != nil {
 				return fmt.Errorf("write %s: %w", openrestyrender.SourceConfigFileName, err)
 			}
 			slog.Info("wrote openresty source config", "path", configPath, "size", len(file.Content))
@@ -775,7 +818,7 @@ func (m *Manager) writeSourceConfig(supportFiles []protocol.SupportFile) error {
 func (m *Manager) writeManagedCertFiles(certFiles []protocol.SupportFile) error {
 	files := make([]managedFile, 0, len(certFiles))
 	for _, file := range certFiles {
-		if file.Path == "pow_config.json" || file.Path == "waf_config.json" || file.Path == openrestyrender.SourceConfigFileName {
+		if file.Path == powConfigFileName || file.Path == "waf_config.json" || file.Path == openrestyrender.SourceConfigFileName {
 			continue
 		}
 		targetPath, err := m.certFileTargetPath(file.Path)
@@ -817,10 +860,10 @@ func (m *Manager) readCertFiles() ([]protocol.SupportFile, error) {
 		if err != nil {
 			return err
 		}
-		if filepath.ToSlash(relativePath) == "pow_config.json" {
+		if filepath.ToSlash(relativePath) == powConfigFileName {
 			return nil
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // path is under managed baseDir walk root
 		if err != nil {
 			return err
 		}
@@ -840,7 +883,7 @@ func (m *Manager) readCertFiles() ([]protocol.SupportFile, error) {
 }
 
 func (m *Manager) readPowConfigFile() (*protocol.SupportFile, error) {
-	return m.readRuntimeConfigFile("pow_config.json")
+	return m.readRuntimeConfigFile(powConfigFileName)
 }
 
 func (m *Manager) readRuntimeConfigFile(name string) (*protocol.SupportFile, error) {
@@ -848,7 +891,7 @@ func (m *Manager) readRuntimeConfigFile(name string) (*protocol.SupportFile, err
 		return nil, nil
 	}
 	configPath := filepath.Join(m.RuntimeConfigDir, name)
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) //nolint:gosec // configPath is under managed RuntimeConfigDir
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -894,7 +937,7 @@ func (m *Manager) restoreRuntimeConfig(file *protocol.SupportFile, name string) 
 		}
 		return nil
 	}
-	return os.WriteFile(configPath, []byte(file.Content), 0o644)
+	return os.WriteFile(configPath, []byte(file.Content), nginxConfigFilePerm)
 }
 
 func (m *Manager) writeSafeDefaultFallbackFiles() error {
@@ -904,16 +947,16 @@ func (m *Manager) writeSafeDefaultFallbackFiles() error {
 	if strings.TrimSpace(m.RouteConfigPath) == "" {
 		return errors.New("route config path 不能为空")
 	}
-	if err := os.MkdirAll(filepath.Dir(m.MainConfigPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(m.MainConfigPath), nginxDirPerm); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(m.RouteConfigPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(m.RouteConfigPath), nginxDirPerm); err != nil {
 		return err
 	}
-	if err := os.WriteFile(m.RouteConfigPath, nil, 0o644); err != nil {
+	if err := os.WriteFile(m.RouteConfigPath, nil, nginxConfigFilePerm); err != nil {
 		return err
 	}
-	if err := os.WriteFile(m.MainConfigPath, []byte(m.safeDefaultFallbackMainConfig()), 0o644); err != nil {
+	if err := os.WriteFile(m.MainConfigPath, []byte(m.safeDefaultFallbackMainConfig()), nginxConfigFilePerm); err != nil {
 		return err
 	}
 	return nil
@@ -928,10 +971,10 @@ func (m *Manager) safeDefaultFallbackMainConfig() string {
 }
 
 func (m *Manager) checkStubStatus(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, stubStatusCheckTimeout)
 	defer cancel()
-	openrestyStubUrl := fmt.Sprintf("http://127.0.0.1:%d/openflare/stub_status", m.OpenrestyObservabilityPort)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, openrestyStubUrl, nil)
+	openrestyStubURL := fmt.Sprintf("http://127.0.0.1:%d/openflare/stub_status", m.OpenrestyObservabilityPort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, openrestyStubURL, nil)
 	if err != nil {
 		return err
 	}
@@ -939,11 +982,11 @@ func (m *Manager) checkStubStatus(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("openresty health endpoint unreachable: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("openresty health endpoint returned %s", resp.Status)
 	}
-	slog.Debug("openresty health endpoint is healthy", "url", openrestyStubUrl)
+	slog.Debug("openresty health endpoint is healthy", "url", openrestyStubURL)
 	return nil
 }
 
@@ -986,11 +1029,11 @@ func (m *Manager) certFileTargetPath(relativePath string) (string, error) {
 func certFileMode(relativePath string) fs.FileMode {
 	switch strings.ToLower(filepath.Ext(strings.TrimSpace(relativePath))) {
 	case ".crt", ".pem":
-		return 0o644
+		return nginxConfigFilePerm
 	case ".key":
-		return 0o600
+		return nginxPrivateKeyFilePerm
 	default:
-		return 0o644
+		return nginxConfigFilePerm
 	}
 }
 
@@ -1029,7 +1072,7 @@ func syncManagedFiles(baseDir string, files []managedFile) error {
 	} else if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	if err := os.MkdirAll(baseDir, nginxDirPerm); err != nil {
 		return err
 	}
 
@@ -1060,14 +1103,14 @@ func syncManagedFiles(baseDir string, files []managedFile) error {
 		if _, ok := desired[filepath.Clean(relativePath)]; ok {
 			return nil
 		}
-		return os.Remove(path)
+		return os.Remove(path) //nolint:gosec // path is resolved under the managed baseDir walk root
 	}); err != nil {
 		return err
 	}
 
 	for _, file := range desired {
 		targetPath := filepath.Join(baseDir, file.Path)
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(targetPath), nginxDirPerm); err != nil {
 			return err
 		}
 		if err := os.WriteFile(targetPath, file.Content, file.Mode); err != nil {
@@ -1119,10 +1162,10 @@ func (m *Manager) ensureMimeTypes() error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, nginxDirPerm); err != nil {
 		return err
 	}
-	return os.WriteFile(mimeTypesPath, []byte(DefaultMimeTypes), 0o644)
+	return os.WriteFile(mimeTypesPath, []byte(DefaultMimeTypes), nginxConfigFilePerm)
 }
 
 func (m *Manager) renderRouteConfig(content string) string {
@@ -1183,6 +1226,7 @@ func (m *Manager) managedWAFLuaFiles() []protocol.SupportFile {
 	return files
 }
 
+// ObservabilityListenAddress returns the localhost listen address for stub_status.
 func ObservabilityListenAddress(port int) string {
 	if port <= 0 {
 		return ""
@@ -1190,6 +1234,7 @@ func ObservabilityListenAddress(port int) string {
 	return fmt.Sprintf("127.0.0.1:%d", port)
 }
 
+// ResolverDirective renders the nginx resolver block for runtime upstream lookups.
 func ResolverDirective(explicitResolvers []string) string {
 	resolvers := resolverAddresses(explicitResolvers)
 	if len(resolvers) == 0 {
@@ -1211,7 +1256,7 @@ func resolverAddresses(explicitResolvers []string) []string {
 
 func parseResolverAddresses(content string, dockerMode bool) []string {
 	lines := strings.Split(content, "\n")
-	resolvers := make([]string, 0, 2)
+	resolvers := make([]string, 0, resolverAddressCapacity)
 	seen := make(map[string]struct{})
 	for _, line := range lines {
 		fields := strings.Fields(strings.TrimSpace(line))
@@ -1242,6 +1287,7 @@ func isUsableDockerResolver(addr string) bool {
 	return !ip.IsLoopback() && !ip.IsUnspecified()
 }
 
+// RequiresRuntimeResolver reports whether originURL needs a runtime DNS resolver.
 func RequiresRuntimeResolver(originURL string) bool {
 	parsed, err := url.Parse(strings.TrimSpace(originURL))
 	if err != nil || parsed.Hostname() == "" {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"regexp"
 	"sort"
@@ -28,6 +29,11 @@ type accessLogRecord struct {
 	RequestLength int64  `json:"request_length"`
 }
 
+const (
+	combinedAccessLogMatchGroupCount = 5
+	trafficTopDomainsLimit           = 8
+)
+
 var combinedAccessLogPattern = regexp.MustCompile(`^(\S+)\s+\S+\s+\S+\s+\[([^]]+)]\s+"\S+\s+(\S+)(?:\s+[^"]*)?"\s+(\d{3})\s+\S+`)
 
 type trafficAggregate struct {
@@ -43,11 +49,13 @@ type trafficAggregate struct {
 	logs             []protocol.NodeAccessLog
 }
 
+// BuildTrafficReport generates a traffic report using access logs or falling back to managed metrics.
 func BuildTrafficReport(cfg *config.Config, stateStore *state.Store, managed *ManagedOpenRestyMetrics) *protocol.NodeTrafficReport {
 	report, _, _ := BuildTrafficObservability(cfg, stateStore, managed)
 	return report
 }
 
+// BuildTrafficObservability returns the traffic report, parsed access logs, and managed metrics.
 func BuildTrafficObservability(cfg *config.Config, stateStore *state.Store, managed *ManagedOpenRestyMetrics) (*protocol.NodeTrafficReport, []protocol.NodeAccessLog, *ManagedOpenRestyMetrics) {
 	if cfg == nil || stateStore == nil {
 		if managed != nil && managed.TrafficReport != nil {
@@ -78,7 +86,7 @@ func readAccessLogDelta(cfg *config.Config, stateStore *state.Store) *trafficAgg
 	}
 
 	logPath := managedAccessLogPath(cfg)
-	file, err := os.Open(logPath)
+	file, err := os.Open(logPath) //nolint:gosec // path is the configured managed access log location
 	if err != nil {
 		if os.IsNotExist(err) {
 			if snapshot.AccessLogOffset != 0 {
@@ -167,7 +175,7 @@ func (aggregate *trafficAggregate) consume(line []byte) {
 	}
 
 	aggregate.requestCount++
-	if record.Status >= 500 {
+	if record.Status >= http.StatusInternalServerError {
 		aggregate.errorCount++
 	}
 	if record.Status > 0 {
@@ -234,7 +242,7 @@ func parseJSONAccessLogRecord(raw string) (parsedAccessLogRecord, bool) {
 
 func parseCombinedAccessLogRecord(raw string) (parsedAccessLogRecord, bool) {
 	matches := combinedAccessLogPattern.FindStringSubmatch(raw)
-	if len(matches) != 5 {
+	if len(matches) != combinedAccessLogMatchGroupCount {
 		return parsedAccessLogRecord{}, false
 	}
 	timestamp, err := parseAccessLogTime(matches[2])
@@ -265,7 +273,7 @@ func (aggregate *trafficAggregate) report() *protocol.NodeTrafficReport {
 		ErrorCount:          aggregate.errorCount,
 		UniqueVisitorCount:  int64(len(aggregate.visitors)),
 		StatusCodes:         cloneTrafficCounts(aggregate.statusCodes, 0),
-		TopDomains:          topCounts(aggregate.topDomains, 8),
+		TopDomains:          topCounts(aggregate.topDomains, trafficTopDomainsLimit),
 		SourceCountries:     map[string]int64{},
 	}
 }

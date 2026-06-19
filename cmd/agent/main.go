@@ -1,3 +1,4 @@
+// Command agent runs the OpenFlare edge agent daemon.
 package main
 
 import (
@@ -95,8 +96,8 @@ func main() {
 	heartbeatService := heartbeat.New(client)
 	updateService := updater.New()
 	runner := &agent.Runner{
-		Config:           cfg,
-		StateStore:       stateStore,
+		Config:     cfg,
+		StateStore: stateStore,
 		HeartbeatCycle: &heartbeat.Cycle{
 			Config:              cfg,
 			StateStore:          stateStore,
@@ -112,7 +113,6 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 	geoIPUpdater := &geoipupdate.Updater{
 		MMDBPath:       cfg.MMDBPath,
 		DownloadURL:    cfg.MMDBDownloadURL,
@@ -123,7 +123,9 @@ func main() {
 
 	if err = runner.Run(ctx); err != nil && err != context.Canceled {
 		slog.Error("agent process exited with error", "error", err)
+		stop()
 		os.Exit(1)
 	}
+	stop()
 	slog.Info("agent process stopped")
 }

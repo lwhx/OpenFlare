@@ -1,6 +1,7 @@
 // Copyright 2026 Arctel.net
 // SPDX-License-Identifier: Apache-2.0
 
+// Package option provides handler-level error message constants for the openflare option module.
 package option
 
 const (

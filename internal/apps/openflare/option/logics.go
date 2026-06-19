@@ -161,7 +161,7 @@ func getStatus(ctx context.Context, baseAPIPath string) (*statusView, error) {
 		StartTime:               model.StartTime,
 		EmailVerification:       model.EmailVerificationEnabled,
 		GitHubOAuth:             model.GitHubOAuthEnabled,
-		GitHubClientID:          model.GitHubClientId,
+		GitHubClientID:          model.GitHubClientID,
 		SystemName:              model.SystemName,
 		HomePageLink:            model.HomePageLink,
 		FooterHTML:              model.Footer,

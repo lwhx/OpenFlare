@@ -28,6 +28,13 @@ const (
 	openrestyStatusUnhealthy = "unhealthy"
 	openrestyStatusUnknown   = "unknown"
 	githubReleasesAPIBase    = "https://api.github.com/repos/%s/releases"
+	nodeTypeTunnelRelay      = "tunnel_relay"
+	nodeTypeTunnelClient     = "tunnel_client"
+	nodeTypeEdgeNode         = "edge_node"
+
+	nodeTokenByteLength  = 16
+	maxNodeIPLength      = 64
+	maxNodeGeoNameLength = 128
 )
 
 type releaseChannel string
@@ -49,7 +56,7 @@ type githubReleaseResponse struct {
 }
 
 func newRandomToken() (string, error) {
-	buf := make([]byte, 16)
+	buf := make([]byte, nodeTokenByteLength)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
@@ -66,12 +73,12 @@ func newServerNodeID() (string, error) {
 
 func normalizeNodeType(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "tunnel_relay":
-		return "tunnel_relay"
-	case "tunnel_client":
-		return "tunnel_client"
+	case nodeTypeTunnelRelay:
+		return nodeTypeTunnelRelay
+	case nodeTypeTunnelClient:
+		return nodeTypeTunnelClient
 	default:
-		return "edge_node"
+		return nodeTypeEdgeNode
 	}
 }
 
@@ -134,40 +141,50 @@ func normalizeNodeInput(input Input) (string, string, string, *float64, *float64
 	name := strings.TrimSpace(input.Name)
 	ip := strings.TrimSpace(input.IP)
 	geoName := strings.TrimSpace(input.GeoName)
-	manualOverride := input.GeoManualOverride || geoName != "" || input.GeoLatitude != nil || input.GeoLongitude != nil
-	if len(ip) > 64 {
-		return "", "", "", nil, nil, false, fmt.Errorf("%s", errNodeIPTooLong)
+	if err := validateNodeIPInput(input, ip); err != nil {
+		return "", "", "", nil, nil, false, err
 	}
-	if ip != "" && net.ParseIP(ip) == nil {
-		return "", "", "", nil, nil, false, fmt.Errorf("%s", errNodeIPInvalid)
-	}
-	if input.IPManualOverride != nil && *input.IPManualOverride && ip == "" {
-		return "", "", "", nil, nil, false, fmt.Errorf("%s", errNodeIPManualRequired)
-	}
-	if len(geoName) > 128 {
+	if len(geoName) > maxNodeGeoNameLength {
 		return "", "", "", nil, nil, false, fmt.Errorf("%s", errNodeGeoNameTooLong)
 	}
 
 	geoLatitude := cloneCoordinate(input.GeoLatitude)
 	geoLongitude := cloneCoordinate(input.GeoLongitude)
+	if err := validateNodeGeoCoordinates(geoLatitude, geoLongitude); err != nil {
+		return "", "", "", nil, nil, false, err
+	}
+
+	manualOverride := input.GeoManualOverride || geoName != "" || geoLatitude != nil || geoLongitude != nil
+	if !manualOverride || (geoLatitude == nil && geoLongitude == nil && geoName == "") {
+		return name, ip, "", nil, nil, false, nil
+	}
+	return name, ip, geoName, geoLatitude, geoLongitude, true, nil
+}
+
+func validateNodeIPInput(input Input, ip string) error {
+	if len(ip) > maxNodeIPLength {
+		return fmt.Errorf("%s", errNodeIPTooLong)
+	}
+	if ip != "" && net.ParseIP(ip) == nil {
+		return fmt.Errorf("%s", errNodeIPInvalid)
+	}
+	if input.IPManualOverride != nil && *input.IPManualOverride && ip == "" {
+		return fmt.Errorf("%s", errNodeIPManualRequired)
+	}
+	return nil
+}
+
+func validateNodeGeoCoordinates(geoLatitude, geoLongitude *float64) error {
 	if (geoLatitude == nil) != (geoLongitude == nil) {
-		return "", "", "", nil, nil, false, fmt.Errorf("%s", errNodeGeoCoordinateMismatch)
+		return fmt.Errorf("%s", errNodeGeoCoordinateMismatch)
 	}
 	if geoLatitude != nil && (*geoLatitude < -90 || *geoLatitude > 90) {
-		return "", "", "", nil, nil, false, fmt.Errorf("%s", errNodeGeoLatitudeInvalid)
+		return fmt.Errorf("%s", errNodeGeoLatitudeInvalid)
 	}
 	if geoLongitude != nil && (*geoLongitude < -180 || *geoLongitude > 180) {
-		return "", "", "", nil, nil, false, fmt.Errorf("%s", errNodeGeoLongitudeInvalid)
+		return fmt.Errorf("%s", errNodeGeoLongitudeInvalid)
 	}
-
-	if !manualOverride {
-		return name, ip, "", nil, nil, false, nil
-	}
-	if geoLatitude == nil && geoLongitude == nil && geoName == "" {
-		return name, ip, "", nil, nil, false, nil
-	}
-
-	return name, ip, geoName, geoLatitude, geoLongitude, true, nil
+	return nil
 }
 
 func computeNodeStatus(node *model.OpenFlareNode) string {
@@ -189,12 +206,12 @@ func nodeViewLastSeenAt(node *model.OpenFlareNode) any {
 	}
 	nodeType := strings.TrimSpace(node.NodeType)
 	if nodeType == "" {
-		nodeType = "edge_node"
+		nodeType = nodeTypeEdgeNode
 	}
-	if nodeType == "tunnel_relay" && ofws.IsRelayConnected(node.NodeID) {
+	if nodeType == nodeTypeTunnelRelay && ofws.IsRelayConnected(node.NodeID) {
 		return ofws.RelayWSConnectedLastSeenValue
 	}
-	if nodeType == "tunnel_client" && ofws.IsFlaredConnected(node.NodeID) {
+	if nodeType == nodeTypeTunnelClient && ofws.IsFlaredConnected(node.NodeID) {
 		return ofws.FlaredWSConnectedLastSeenValue
 	}
 	if ofws.IsAgentConnected(node.NodeID) {
@@ -250,7 +267,7 @@ func buildNodeView(node *model.OpenFlareNode) *View {
 		view.UpdateChannel = releaseChannelStable.String()
 	}
 	if view.NodeType == "" {
-		view.NodeType = "edge_node"
+		view.NodeType = nodeTypeEdgeNode
 	}
 	return view
 }
@@ -378,7 +395,7 @@ func fetchLatestStableGitHubRelease(ctx context.Context, repo string) (*githubRe
 	if err != nil {
 		return nil, fmt.Errorf("获取最新版本失败: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GitHub 返回异常状态: %s", resp.Status)
 	}
@@ -395,7 +412,7 @@ func fetchLatestPreviewGitHubRelease(ctx context.Context, repo string) (*githubR
 	if err != nil {
 		return nil, fmt.Errorf("获取 preview 版本失败: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GitHub 返回异常状态: %s", resp.Status)
 	}
@@ -427,7 +444,7 @@ func fetchGitHubReleaseByTag(ctx context.Context, repo string, tag string) (*git
 	if err != nil {
 		return nil, fmt.Errorf("获取指定版本失败: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("未找到指定版本: %s", tag)
 	}
@@ -460,14 +477,4 @@ func isUniqueConstraintError(err error) bool {
 		return false
 	}
 	return strings.Contains(strings.ToLower(err.Error()), "unique")
-}
-
-func setReleaseHTTPClientForTest(client *http.Client) *http.Client {
-	previous := releaseHTTPClient
-	if client == nil {
-		releaseHTTPClient = &http.Client{Timeout: 30 * time.Second}
-	} else {
-		releaseHTTPClient = client
-	}
-	return previous
 }

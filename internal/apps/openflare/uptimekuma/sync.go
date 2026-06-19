@@ -10,17 +10,18 @@ import (
 	"log/slog"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/Rain-kl/Wavelet/internal/model"
 )
+
+const uptimeKumaTagOpenFlare = "OpenFlare"
 
 var isSyncing atomic.Bool
 
 // SyncToUptimeKuma synchronizes enabled proxy routes to Uptime Kuma monitors.
 func SyncToUptimeKuma(ctx context.Context) error {
 	if !model.UptimeKumaEnabled {
-		return fmt.Errorf("Uptime Kuma integration is disabled")
+		return fmt.Errorf("uptime Kuma integration is disabled")
 	}
 
 	if !isSyncing.CompareAndSwap(false, true) {
@@ -28,14 +29,9 @@ func SyncToUptimeKuma(ctx context.Context) error {
 	}
 	defer isSyncing.Store(false)
 
-	kumaURL := strings.TrimSpace(model.UptimeKumaUrl)
-	kumaUsername := strings.TrimSpace(model.UptimeKumaUsername)
-	kumaPassword := strings.TrimSpace(model.UptimeKumaPassword)
-	if kumaURL == "" || kumaUsername == "" || kumaPassword == "" {
-		return fmt.Errorf(
-			"Uptime Kuma URL, username, or password is not configured (URL: %q, Username: %q, PasswordLength: %d)",
-			kumaURL, kumaUsername, len(kumaPassword),
-		)
+	kumaURL, kumaUsername, kumaPassword, err := validateUptimeKumaConfig()
+	if err != nil {
+		return err
 	}
 
 	slog.Info("Starting Uptime Kuma sync process",
@@ -54,42 +50,11 @@ func SyncToUptimeKuma(ctx context.Context) error {
 		return err
 	}
 
-	slog.Debug("Connecting to Uptime Kuma socket endpoint", "url", kumaURL)
-	client := NewSocketIOClient(kumaURL)
-	if err := client.Connect(); err != nil {
-		slog.Error("Failed to connect to Uptime Kuma endpoint", "url", kumaURL, "error", err)
-		return fmt.Errorf("failed to connect to Uptime Kuma: %w", err)
+	client, err := connectAndLoginUptimeKuma(kumaURL, kumaUsername, kumaPassword)
+	if err != nil {
+		return err
 	}
 	defer client.Close()
-
-	slog.Debug("Sending login request to Uptime Kuma", "username", kumaUsername)
-	loginPayload := map[string]string{
-		"username": kumaUsername,
-		"password": kumaPassword,
-	}
-	loginAck, err := client.Emit("login", loginPayload)
-	if err != nil {
-		slog.Error("Failed to send login request to Uptime Kuma", "username", kumaUsername, "error", err)
-		return fmt.Errorf("login request failed: %w", err)
-	}
-
-	var loginResult struct {
-		Ok bool `json:"ok"`
-	}
-	if err := ParseAckResponse(loginAck, &loginResult); err != nil || !loginResult.Ok {
-		slog.Error("Uptime Kuma login verification failed", "username", kumaUsername, "error", err)
-		return fmt.Errorf("login failed: %w", err)
-	}
-	slog.Debug("Successfully logged into Uptime Kuma", "username", kumaUsername)
-
-	slog.Debug("Waiting for monitor list push from Uptime Kuma")
-	select {
-	case <-client.GetMonitorListChan():
-		slog.Debug("Received monitor list from Uptime Kuma")
-	case <-time.After(5 * time.Second):
-		slog.Error("Timeout waiting for Uptime Kuma monitorList push event")
-		return fmt.Errorf("timeout waiting for monitorList event from Uptime Kuma")
-	}
 
 	openFlareTagID, err := ensureOpenFlareTag(client)
 	if err != nil {
@@ -97,45 +62,8 @@ func SyncToUptimeKuma(ctx context.Context) error {
 	}
 
 	existingOpenFlareMonitors := filterOpenFlareMonitors(client.GetMonitorList(), openFlareTagID)
-	expectedSitesMap := make(map[string]bool)
-
-	for _, route := range expectedRoutes {
-		expectedSitesMap[route.SiteName] = true
-		targetURL, urlErr := routeMonitorURL(route)
-		if urlErr != nil {
-			slog.Error("Failed to resolve monitor URL", "name", route.SiteName, "error", urlErr)
-			continue
-		}
-
-		existing, exists := existingOpenFlareMonitors[route.SiteName]
-		if !exists {
-			if err := createMonitor(client, route.SiteName, targetURL, openFlareTagID); err != nil {
-				slog.Error("Failed to add monitor to Uptime Kuma", "name", route.SiteName, "error", err)
-			}
-			continue
-		}
-
-		if monitorNeedsUpdate(existing, targetURL) {
-			if err := updateMonitor(client, existing.ID, route.SiteName, targetURL); err != nil {
-				slog.Error("Failed to edit monitor in Uptime Kuma", "name", route.SiteName, "error", err)
-			}
-		}
-	}
-
-	for name, monitor := range existingOpenFlareMonitors {
-		if expectedSitesMap[name] {
-			continue
-		}
-		slog.Info("Deleting monitor in Uptime Kuma", "name", name, "monitorID", monitor.ID)
-		deleteAck, err := client.Emit("deleteMonitor", monitor.ID)
-		if err != nil {
-			slog.Error("Failed to delete monitor in Uptime Kuma", "name", name, "monitorID", monitor.ID, "error", err)
-			continue
-		}
-		if err := ParseAckResponse(deleteAck, nil); err != nil {
-			slog.Error("Failed to parse delete monitor result", "name", name, "monitorID", monitor.ID, "error", err)
-		}
-	}
+	expectedSitesMap := syncRouteMonitors(client, expectedRoutes, existingOpenFlareMonitors, openFlareTagID)
+	removeStaleMonitors(client, existingOpenFlareMonitors, expectedSitesMap)
 
 	return nil
 }
@@ -178,8 +106,8 @@ func ensureOpenFlareTag(client *SocketIOClient) (int, error) {
 	}
 
 	var tagsResult struct {
-		Ok   bool                `json:"ok"`
-		Tags []UptimeKumaTagItem `json:"tags"`
+		Ok   bool      `json:"ok"`
+		Tags []TagItem `json:"tags"`
 	}
 	if err := ParseAckResponse(tagsAck, &tagsResult); err != nil {
 		slog.Error("Failed to parse tags response from Uptime Kuma", "error", err)
@@ -187,7 +115,7 @@ func ensureOpenFlareTag(client *SocketIOClient) (int, error) {
 	}
 
 	for _, tag := range tagsResult.Tags {
-		if tag.Name == "OpenFlare" {
+		if tag.Name == uptimeKumaTagOpenFlare {
 			slog.Debug("Found existing OpenFlare tag", "tag_id", tag.ID)
 			return tag.ID, nil
 		}
@@ -195,7 +123,7 @@ func ensureOpenFlareTag(client *SocketIOClient) (int, error) {
 
 	slog.Debug("OpenFlare tag not found, creating new tag")
 	addTagAck, err := client.Emit("addTag", map[string]string{
-		"name":  "OpenFlare",
+		"name":  uptimeKumaTagOpenFlare,
 		"color": "#4f46e5",
 	})
 	if err != nil {
@@ -218,12 +146,12 @@ func ensureOpenFlareTag(client *SocketIOClient) (int, error) {
 	return tagResult.Tag.ID, nil
 }
 
-func filterOpenFlareMonitors(monitors map[string]UptimeKumaMonitor, openFlareTagID int) map[string]UptimeKumaMonitor {
-	existingOpenFlareMonitors := make(map[string]UptimeKumaMonitor)
+func filterOpenFlareMonitors(monitors map[string]Monitor, openFlareTagID int) map[string]Monitor {
+	existingOpenFlareMonitors := make(map[string]Monitor)
 	for _, monitor := range monitors {
 		hasOpenFlareTag := false
 		for _, tag := range monitor.Tags {
-			if tag.Name == "OpenFlare" || tag.ID == openFlareTagID {
+			if tag.Name == uptimeKumaTagOpenFlare || tag.ID == openFlareTagID {
 				hasOpenFlareTag = true
 				break
 			}
@@ -295,8 +223,8 @@ func monitorPayload(id int, name, targetURL string) map[string]any {
 	return payload
 }
 
-func monitorNeedsUpdate(existing UptimeKumaMonitor, targetURL string) bool {
-	return existing.Url != targetURL ||
+func monitorNeedsUpdate(existing Monitor, targetURL string) bool {
+	return existing.URL != targetURL ||
 		existing.Interval != model.UptimeKumaInterval ||
 		existing.MaxRetries != model.UptimeKumaRetry ||
 		existing.RetryInterval != model.UptimeKumaRetryInterval ||

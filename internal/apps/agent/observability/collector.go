@@ -1,3 +1,4 @@
+// Package observability provides system and service level observability data collection for the agent.
 package observability
 
 import (
@@ -15,6 +16,9 @@ import (
 	edgeobs "github.com/Rain-kl/Wavelet/internal/apps/edge/observability"
 )
 
+const nodeHealthEventInitialCapacity = 2
+
+// BuildProfile collects the system profile and returns it only if the fingerprint has changed.
 func BuildProfile(cfg *config.Config, stateStore *state.Store) *protocol.NodeSystemProfile {
 	profile := collectProfile(cfg)
 	if profile == nil {
@@ -38,6 +42,7 @@ func BuildProfile(cfg *config.Config, stateStore *state.Store) *protocol.NodeSys
 	return profile
 }
 
+// BuildSnapshot captures current system metrics and returns a metric snapshot.
 func BuildSnapshot(cfg *config.Config, stateStore *state.Store) *protocol.NodeMetricSnapshot {
 	now := time.Now().UTC()
 	metric := &protocol.NodeMetricSnapshot{
@@ -79,6 +84,7 @@ func BuildSnapshot(cfg *config.Config, stateStore *state.Store) *protocol.NodeMe
 	return metric
 }
 
+// BuildOpenrestyObservation builds the OpenResty observation protocol model from the managed metrics.
 func BuildOpenrestyObservation(managed *ManagedOpenRestyMetrics) *protocol.NodeOpenrestyObservation {
 	if managed == nil {
 		return nil
@@ -91,11 +97,12 @@ func BuildOpenrestyObservation(managed *ManagedOpenRestyMetrics) *protocol.NodeO
 	}
 }
 
+// BuildHealthEvents converts system snapshot health state into a list of health events.
 func BuildHealthEvents(snapshot *state.Snapshot) []protocol.NodeHealthEvent {
 	if snapshot == nil {
 		return []protocol.NodeHealthEvent{}
 	}
-	events := make([]protocol.NodeHealthEvent, 0, 2)
+	events := make([]protocol.NodeHealthEvent, 0, nodeHealthEventInitialCapacity)
 	nowUnix := time.Now().UTC().Unix()
 	if strings.TrimSpace(snapshot.OpenrestyStatus) == protocol.OpenrestyStatusUnhealthy {
 		events = append(events, protocol.NodeHealthEvent{

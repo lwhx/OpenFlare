@@ -1,3 +1,4 @@
+// Package config loads and persists relay daemon configuration.
 package config
 
 import (
@@ -12,8 +13,16 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/apps/edge/nodeip"
 )
 
+const (
+	defaultHeartbeatInterval = 10 * time.Second
+	defaultRequestTimeout    = 10 * time.Second
+	configFilePerm           = 0o600
+)
+
+// MillisecondDuration is a JSON-friendly duration type shared with edge config.
 type MillisecondDuration = edgeconfig.MillisecondDuration
 
+// Config holds relay daemon settings loaded from file and environment.
 type Config struct {
 	ServerURL         string              `json:"server_url"`
 	AgentToken        string              `json:"agent_token"`
@@ -28,8 +37,9 @@ type Config struct {
 	configPath        string
 }
 
+// Load reads configuration from path, applying environment overrides and defaults.
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is the relay config file from startup
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -105,10 +115,10 @@ func applyDefaults(cfg *Config, baseDir string) {
 		cfg.StatePath = filepath.Join(cfg.DataDir, "relay-state.json")
 	}
 	if cfg.HeartbeatInterval <= 0 {
-		cfg.HeartbeatInterval = MillisecondDuration(10 * time.Second)
+		cfg.HeartbeatInterval = MillisecondDuration(defaultHeartbeatInterval)
 	}
 	if cfg.RequestTimeout <= 0 {
-		cfg.RequestTimeout = MillisecondDuration(10 * time.Second)
+		cfg.RequestTimeout = MillisecondDuration(defaultRequestTimeout)
 	}
 }
 
@@ -125,6 +135,7 @@ func validate(cfg *Config) error {
 	return nil
 }
 
+// InitialAuthToken returns the agent or discovery token used for authentication.
 func (cfg *Config) InitialAuthToken() string {
 	if cfg == nil {
 		return ""
@@ -135,6 +146,7 @@ func (cfg *Config) InitialAuthToken() string {
 	return strings.TrimSpace(cfg.DiscoveryToken)
 }
 
+// Save writes the current configuration back to the loaded config path.
 func (cfg *Config) Save() error {
 	if cfg == nil {
 		return errors.New("config 不能为空")
@@ -146,7 +158,5 @@ func (cfg *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cfg.configPath, data, 0o644)
+	return os.WriteFile(cfg.configPath, data, configFilePerm)
 }
-
-

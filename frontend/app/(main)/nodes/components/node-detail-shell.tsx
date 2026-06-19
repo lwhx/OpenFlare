@@ -88,8 +88,6 @@ export function NodeDetailShell({
     [pathname, router, searchParams],
   );
 
-  const activeTabMeta = TAB_CONFIGS.find((tab) => tab.id === activeTab) ?? TAB_CONFIGS[0];
-
   return (
     <div className="py-6 px-1 space-y-6">
       <section className="overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-muted/30">

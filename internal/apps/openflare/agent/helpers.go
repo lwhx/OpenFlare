@@ -20,10 +20,12 @@ const (
 	openrestyStatusUnhealthy = "unhealthy"
 	openrestyStatusUnknown   = "unknown"
 	releaseChannelStable     = "stable"
+	randomTokenBytes         = 16
+	maxDatabaseTextLength    = 16000
 )
 
 func newRandomToken() (string, error) {
-	buf := make([]byte, 16)
+	buf := make([]byte, randomTokenBytes)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
@@ -55,9 +57,9 @@ func normalizeNodePayload(payload NodePayload) NodePayload {
 	payload.Version = strings.TrimSpace(payload.Version)
 	payload.ExtVersion = strings.TrimSpace(payload.ExtVersion)
 	payload.CurrentVersion = strings.TrimSpace(payload.CurrentVersion)
-	payload.LastError = truncateForDatabase(payload.LastError, 16000)
+	payload.LastError = truncateForDatabase(payload.LastError, maxDatabaseTextLength)
 	payload.OpenrestyStatus = normalizeOpenrestyStatus(payload.OpenrestyStatus)
-	payload.OpenrestyMessage = truncateForDatabase(payload.OpenrestyMessage, 16000)
+	payload.OpenrestyMessage = truncateForDatabase(payload.OpenrestyMessage, maxDatabaseTextLength)
 	return payload
 }
 
@@ -92,12 +94,12 @@ func applyNodeRuntime(node *model.OpenFlareNode, payload NodePayload, preserveNa
 	node.Version = strings.TrimSpace(payload.Version)
 	node.ExtVersion = strings.TrimSpace(payload.ExtVersion)
 	node.OpenrestyStatus = normalizeOpenrestyStatus(payload.OpenrestyStatus)
-	node.OpenrestyMessage = truncateForDatabase(payload.OpenrestyMessage, 16000)
+	node.OpenrestyMessage = truncateForDatabase(payload.OpenrestyMessage, maxDatabaseTextLength)
 	node.Status = nodeStatusOnline
 	node.CurrentVersion = strings.TrimSpace(payload.CurrentVersion)
 	now := time.Now()
 	node.LastSeenAt = &now
-	node.LastError = truncateForDatabase(payload.LastError, 16000)
+	node.LastError = truncateForDatabase(payload.LastError, maxDatabaseTextLength)
 	if !node.GeoManualOverride {
 		applyGeoInfoFromIP(node, node.IP)
 	}
@@ -135,15 +137,15 @@ func cloneCoordinate(value *float64) *float64 {
 	return &cloned
 }
 
-func truncateForDatabase(value string, max int) string {
-	if max <= 0 {
+func truncateForDatabase(value string, maxVal int) string {
+	if maxVal <= 0 {
 		return ""
 	}
 	runes := []rune(strings.TrimSpace(value))
-	if len(runes) <= max {
+	if len(runes) <= maxVal {
 		return string(runes)
 	}
-	return string(runes[:max])
+	return string(runes[:maxVal])
 }
 
 func resolveReportedNodeIP(reportedIP string, remoteAddr string) string {
@@ -277,7 +279,7 @@ func normalizeApplyLogPayload(payload ApplyLogPayload) ApplyLogPayload {
 	payload.NodeID = strings.TrimSpace(payload.NodeID)
 	payload.Version = strings.TrimSpace(payload.Version)
 	payload.Result = strings.ToLower(strings.TrimSpace(payload.Result))
-	payload.Message = truncateForDatabase(strings.TrimSpace(payload.Message), 16000)
+	payload.Message = truncateForDatabase(strings.TrimSpace(payload.Message), maxDatabaseTextLength)
 	payload.Checksum = strings.TrimSpace(payload.Checksum)
 	payload.MainConfigChecksum = strings.TrimSpace(payload.MainConfigChecksum)
 	payload.RouteConfigChecksum = strings.TrimSpace(payload.RouteConfigChecksum)
@@ -292,7 +294,7 @@ func isUniqueConstraintError(err error) bool {
 }
 
 // RefreshAccessTokenCache updates the in-memory node cache after heartbeat mutations.
-func RefreshAccessTokenCache(ctx context.Context, node *model.OpenFlareNode) {
+func RefreshAccessTokenCache(_ context.Context, node *model.OpenFlareNode) {
 	if node == nil {
 		return
 	}

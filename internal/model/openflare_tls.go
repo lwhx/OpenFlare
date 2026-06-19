@@ -22,7 +22,7 @@ type TLSCertificate struct {
 	Remark        string    `json:"remark" gorm:"size:255"`
 	Provider      string    `json:"provider" gorm:"size:64;default:upload"`
 	AcmeAccountID uint      `json:"acme_account_id"`
-	DnsAccountID  uint      `json:"dns_account_id"`
+	DNSAccountID  uint      `json:"dns_account_id"`
 	KeyAlgorithm  string    `json:"key_algorithm" gorm:"size:32"`
 	AutoRenew     bool      `json:"auto_renew"`
 	PrimaryDomain string    `json:"primary_domain" gorm:"size:255"`
@@ -52,7 +52,7 @@ type TLSProxyRouteRef struct {
 
 // TableName 表名。
 func (TLSProxyRouteRef) TableName() string {
-	return "of_proxy_routes"
+	return tableOfProxyRoutes
 }
 
 // HasTLSProxyRoutesTable 判断代理规则表是否已迁移。

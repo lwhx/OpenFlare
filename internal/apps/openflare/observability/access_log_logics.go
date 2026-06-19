@@ -1,6 +1,4 @@
-// Copyright 2026 Arctel.net
-// SPDX-License-Identifier: Apache-2.0
-
+// Package observability provides monitoring, metrics, and access log analysis for OpenFlare.
 package observability
 
 import (
@@ -22,6 +20,8 @@ const (
 	defaultIPTrendBucketMinute = 30
 	maxIPTrendHours            = 168
 	nodeAccessLogRetentionDays = 90
+	accessLogFieldRemoteAddr   = "remote_addr"
+	accessLogFieldRequestCount = "request_count"
 )
 
 var nodeAccessLogRetentionWindow = nodeAccessLogRetentionDays * 24 * time.Hour
@@ -524,9 +524,9 @@ func normalizeFoldedAccessLogIPQuery(input FoldedAccessLogIPQuery) (FoldedAccess
 	}
 	normalizedSortBy := strings.TrimSpace(input.SortBy)
 	switch normalizedSortBy {
-	case "last_seen_at", "remote_addr":
+	case "last_seen_at", accessLogFieldRemoteAddr:
 	default:
-		normalizedSortBy = "request_count"
+		normalizedSortBy = accessLogFieldRequestCount
 	}
 	return FoldedAccessLogIPQuery{
 		NodeID:          strings.TrimSpace(input.NodeID),
@@ -591,7 +591,7 @@ func normalizeAccessLogPageSize(pageSize int) int {
 
 func normalizeAccessLogSortBy(sortBy string) string {
 	switch strings.TrimSpace(sortBy) {
-	case "status_code", "remote_addr", "host", "path":
+	case "status_code", accessLogFieldRemoteAddr, "host", "path":
 		return strings.TrimSpace(sortBy)
 	default:
 		return defaultAccessLogSortBy
@@ -607,8 +607,8 @@ func normalizeAccessLogSortOrder(sortOrder string) string {
 
 func normalizeFoldSortBy(sortBy string) string {
 	switch strings.TrimSpace(sortBy) {
-	case "request_count":
-		return "request_count"
+	case accessLogFieldRequestCount:
+		return accessLogFieldRequestCount
 	default:
 		return "bucket_started_at"
 	}
@@ -616,7 +616,7 @@ func normalizeFoldSortBy(sortBy string) string {
 
 func normalizeIPSummarySortBy(sortBy string) string {
 	switch strings.TrimSpace(sortBy) {
-	case "recent_requests", "last_seen_at", "remote_addr":
+	case "recent_requests", "last_seen_at", accessLogFieldRemoteAddr:
 		return strings.TrimSpace(sortBy)
 	default:
 		return "total_requests"

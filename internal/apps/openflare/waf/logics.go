@@ -8,10 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"net/url"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -38,6 +36,9 @@ const (
 	defaultWAFIPGroupAutoLookbackMinutes = 60
 	minWAFIPGroupSyncIntervalMinutes     = 5
 	maxWAFIPGroupSyncIntervalMinutes     = 43200
+
+	minPoWSessionTTLSeconds   = 60
+	minPoWChallengeTTLSeconds = 30
 )
 
 // RuleGroupInput is the create/update payload for WAF rule groups.
@@ -986,82 +987,34 @@ func defaultPoWConfig() PoWConfig {
 }
 
 func normalizePoWConfig(enabled bool, raw string) (PoWConfig, error) {
-	if !enabled {
-		return defaultPoWConfig(), nil
+	cfg, err := parsePoWConfigRaw(enabled, raw)
+	if err != nil {
+		return cfg, err
 	}
-
-	cfg := defaultPoWConfig()
-	text := strings.TrimSpace(raw)
-	if text != "" && text != "{}" {
-		if err := json.Unmarshal([]byte(text), &cfg); err != nil {
-			return cfg, errors.New("pow_config 格式无效")
-		}
+	if err := validatePoWCoreSettings(cfg); err != nil {
+		return cfg, err
 	}
-
-	if cfg.Difficulty < 1 || cfg.Difficulty > 16 {
-		return cfg, errors.New("pow_config.difficulty 必须在 1-16 之间")
+	if err := validatePoWCIDRs(cfg.Whitelist.IPCidrs, "白名单"); err != nil {
+		return cfg, err
 	}
-	if !powAlgorithmValues[cfg.Algorithm] {
-		return cfg, errors.New("pow_config.algorithm 必须为 fast 或 slow")
+	if err := validatePoWCIDRs(cfg.Blacklist.IPCidrs, "黑名单"); err != nil {
+		return cfg, err
 	}
-	if cfg.SessionTTL < 60 {
-		return cfg, errors.New("pow_config.session_ttl 不能小于 60 秒")
+	if err := validatePoWPathRegexes(cfg.Whitelist.PathRegexes, "白名单"); err != nil {
+		return cfg, err
 	}
-	if cfg.ChallengeTTL < 30 {
-		return cfg, errors.New("pow_config.challenge_ttl 不能小于 30 秒")
+	if err := validatePoWPathRegexes(cfg.Blacklist.PathRegexes, "黑名单"); err != nil {
+		return cfg, err
 	}
-
-	for _, cidr := range cfg.Whitelist.IPCidrs {
-		if _, _, err := net.ParseCIDR(cidr); err != nil {
-			return cfg, fmt.Errorf("pow_config 白名单 IP CIDR 格式无效: %s", cidr)
-		}
+	if err := validatePoWIPs(cfg.Whitelist.IPs, "白名单"); err != nil {
+		return cfg, err
 	}
-	for _, cidr := range cfg.Blacklist.IPCidrs {
-		if _, _, err := net.ParseCIDR(cidr); err != nil {
-			return cfg, fmt.Errorf("pow_config 黑名单 IP CIDR 格式无效: %s", cidr)
-		}
+	if err := validatePoWIPs(cfg.Blacklist.IPs, "黑名单"); err != nil {
+		return cfg, err
 	}
-
-	for _, re := range cfg.Whitelist.PathRegexes {
-		if _, err := regexp.Compile(re); err != nil {
-			return cfg, fmt.Errorf("pow_config 白名单路径正则格式无效: %s", re)
-		}
+	if err := validatePoWListMutualExclusion(cfg); err != nil {
+		return cfg, err
 	}
-	for _, re := range cfg.Blacklist.PathRegexes {
-		if _, err := regexp.Compile(re); err != nil {
-			return cfg, fmt.Errorf("pow_config 黑名单路径正则格式无效: %s", re)
-		}
-	}
-
-	for _, ip := range cfg.Whitelist.IPs {
-		if net.ParseIP(ip) == nil {
-			return cfg, fmt.Errorf("pow_config 白名单 IP 格式无效: %s", ip)
-		}
-	}
-	for _, ip := range cfg.Blacklist.IPs {
-		if net.ParseIP(ip) == nil {
-			return cfg, fmt.Errorf("pow_config 黑名单 IP 格式无效: %s", ip)
-		}
-	}
-
-	type dimension struct {
-		name string
-		wl   []string
-		bl   []string
-	}
-	dimensions := []dimension{
-		{"IP", cfg.Whitelist.IPs, cfg.Blacklist.IPs},
-		{"IP CIDR", cfg.Whitelist.IPCidrs, cfg.Blacklist.IPCidrs},
-		{"路径", cfg.Whitelist.Paths, cfg.Blacklist.Paths},
-		{"路径正则", cfg.Whitelist.PathRegexes, cfg.Blacklist.PathRegexes},
-		{"User-Agent", cfg.Whitelist.UserAgents, cfg.Blacklist.UserAgents},
-	}
-	for _, dim := range dimensions {
-		if len(dim.wl) > 0 && len(dim.bl) > 0 {
-			return cfg, fmt.Errorf("pow_config %s 不能同时配置白名单和黑名单", dim.name)
-		}
-	}
-
 	return cfg, nil
 }
 
@@ -1111,11 +1064,11 @@ func parseIPGroupAutoConfig(raw json.RawMessage) (ipGroupAutoConfig, error) {
 	if config.LookbackMinutes <= 0 {
 		config.LookbackMinutes = defaultWAFIPGroupAutoLookbackMinutes
 	}
-	if config.LookbackMinutes < 5 {
-		config.LookbackMinutes = 5
+	if config.LookbackMinutes < minWAFIPGroupSyncIntervalMinutes {
+		config.LookbackMinutes = minWAFIPGroupSyncIntervalMinutes
 	}
-	if config.LookbackMinutes > 43200 {
-		config.LookbackMinutes = 43200
+	if config.LookbackMinutes > maxWAFIPGroupSyncIntervalMinutes {
+		config.LookbackMinutes = maxWAFIPGroupSyncIntervalMinutes
 	}
 	if config.TTL == 0 {
 		config.TTL = -1

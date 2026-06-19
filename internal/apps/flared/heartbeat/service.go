@@ -1,3 +1,4 @@
+// Package heartbeat runs the periodic flared heartbeat loop against the control plane.
 package heartbeat
 
 import (
@@ -13,6 +14,7 @@ import (
 	service "github.com/Rain-kl/Wavelet/pkg/protocol"
 )
 
+// Service sends periodic heartbeat payloads and applies tunnel settings from responses.
 type Service struct {
 	client      *httpclient.Client
 	frpcManager *frpc.Manager
@@ -20,6 +22,7 @@ type Service struct {
 	updater     *updater.Service
 }
 
+// New creates a heartbeat service with the given client, frpc manager, and config.
 func New(client *httpclient.Client, manager *frpc.Manager, cfg *config.Config) *Service {
 	return &Service{
 		client:      client,
@@ -29,6 +32,7 @@ func New(client *httpclient.Client, manager *frpc.Manager, cfg *config.Config) *
 	}
 }
 
+// Run starts the heartbeat loop until ctx is canceled.
 func (s *Service) Run(ctx context.Context) {
 	edgeheartbeat.RunLoop(ctx, s.config.HeartbeatInterval.Duration(), s.doHeartbeat)
 }
@@ -38,8 +42,8 @@ func (s *Service) doHeartbeat(ctx context.Context) {
 
 	payload := service.FlaredHeartbeatPayload{
 		ClientVersion:   config.Version,
-		FrpVersion:      s.frpcManager.GetVersion(),
-		IP:              nodeip.Detect(),
+		FrpVersion:      s.frpcManager.GetVersion(ctx),
+		IP:              nodeip.DetectWithContext(ctx),
 		TunnelStatus:    "running",
 		ConnectedRelays: s.frpcManager.GetConnectedRelays(),
 		CurrentVersion:  s.frpcManager.GetCurrentConfigVersion(),

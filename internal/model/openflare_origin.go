@@ -44,7 +44,7 @@ type OriginProxyRoute struct {
 
 // TableName 表名。
 func (OriginProxyRoute) TableName() string {
-	return "of_proxy_routes"
+	return tableOfProxyRoutes
 }
 
 // HasProxyRoutesTable 判断代理规则表是否已迁移。

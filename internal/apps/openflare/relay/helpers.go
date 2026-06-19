@@ -10,12 +10,17 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/model"
 )
 
+const (
+	relayStatusUnhealthy = "unhealthy"
+	releaseChannelStable = "stable"
+)
+
 func normalizeRelayStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "healthy":
 		return "healthy"
-	case "unhealthy":
-		return "unhealthy"
+	case relayStatusUnhealthy:
+		return relayStatusUnhealthy
 	default:
 		return "unknown"
 	}
@@ -25,7 +30,7 @@ func normalizeReleaseChannel(channel string) string {
 	if strings.ToLower(strings.TrimSpace(channel)) == "preview" {
 		return "preview"
 	}
-	return "stable"
+	return releaseChannelStable
 }
 
 func resolveReportedNodeIP(reportedIP string, remoteAddr string) string {
@@ -98,7 +103,7 @@ func BuildSettings(node *model.OpenFlareNode, updateNow bool, updateChannel, upd
 		autoUpdate = node.AutoUpdateEnabled
 	}
 	if strings.TrimSpace(updateChannel) == "" {
-		updateChannel = "stable"
+		updateChannel = releaseChannelStable
 	}
 	return &Settings{
 		HeartbeatInterval:       model.AgentHeartbeatInterval,

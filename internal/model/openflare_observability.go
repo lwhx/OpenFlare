@@ -285,56 +285,39 @@ func isMissingTableError(err error) bool {
 		strings.Contains(msg, "does not exist")
 }
 
-// ListOpenFlareMetricSnapshotsSince returns metric snapshots since the given time.
-func ListOpenFlareMetricSnapshotsSince(ctx context.Context, nodeID string, since time.Time, limit int) ([]*OpenFlareMetricSnapshot, error) {
+func listOpenFlareSince[T any](ctx context.Context, nodeID string, since time.Time, limit int, orderBy string, sinceColumn string) ([]*T, error) {
 	conn := db.DB(ctx)
 	if conn == nil {
 		return nil, errors.New(errDatabaseNotInitialized)
 	}
-	query := conn.Model(&OpenFlareMetricSnapshot{}).Order("captured_at desc, id desc")
+	query := conn.Model(new(T)).Order(orderBy)
 	if nodeID != "" {
 		query = query.Where("node_id = ?", nodeID)
 	}
 	if !since.IsZero() {
-		query = query.Where("captured_at >= ?", since)
+		query = query.Where(sinceColumn+" >= ?", since)
 	}
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	var rows []*OpenFlareMetricSnapshot
+	var rows []*T
 	if err := query.Find(&rows).Error; err != nil {
 		if isMissingTableError(err) {
-			return []*OpenFlareMetricSnapshot{}, nil
+			return []*T{}, nil
 		}
 		return nil, err
 	}
 	return rows, nil
 }
 
+// ListOpenFlareMetricSnapshotsSince returns metric snapshots since the given time.
+func ListOpenFlareMetricSnapshotsSince(ctx context.Context, nodeID string, since time.Time, limit int) ([]*OpenFlareMetricSnapshot, error) {
+	return listOpenFlareSince[OpenFlareMetricSnapshot](ctx, nodeID, since, limit, "captured_at desc, id desc", "captured_at")
+}
+
 // ListOpenFlareRequestReportsSince returns request reports since the given time.
 func ListOpenFlareRequestReportsSince(ctx context.Context, nodeID string, since time.Time, limit int) ([]*OpenFlareRequestReport, error) {
-	conn := db.DB(ctx)
-	if conn == nil {
-		return nil, errors.New(errDatabaseNotInitialized)
-	}
-	query := conn.Model(&OpenFlareRequestReport{}).Order("window_ended_at desc, id desc")
-	if nodeID != "" {
-		query = query.Where("node_id = ?", nodeID)
-	}
-	if !since.IsZero() {
-		query = query.Where("window_ended_at >= ?", since)
-	}
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-	var rows []*OpenFlareRequestReport
-	if err := query.Find(&rows).Error; err != nil {
-		if isMissingTableError(err) {
-			return []*OpenFlareRequestReport{}, nil
-		}
-		return nil, err
-	}
-	return rows, nil
+	return listOpenFlareSince[OpenFlareRequestReport](ctx, nodeID, since, limit, "window_ended_at desc, id desc", "window_ended_at")
 }
 
 // ListOpenFlareActiveHealthEvents returns active health events across all nodes.
@@ -474,78 +457,15 @@ func GetOpenFlareNodeSystemProfile(ctx context.Context, nodeID string) (*OpenFla
 
 // ListOpenFlareNodeObservationOpenresty returns openresty observations.
 func ListOpenFlareNodeObservationOpenresty(ctx context.Context, nodeID string, since time.Time, limit int) ([]*OpenFlareNodeObservationOpenresty, error) {
-	conn := db.DB(ctx)
-	if conn == nil {
-		return nil, errors.New(errDatabaseNotInitialized)
-	}
-	query := conn.Model(&OpenFlareNodeObservationOpenresty{}).Order("captured_at desc, id desc")
-	if nodeID != "" {
-		query = query.Where("node_id = ?", nodeID)
-	}
-	if !since.IsZero() {
-		query = query.Where("captured_at >= ?", since)
-	}
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-	var rows []*OpenFlareNodeObservationOpenresty
-	if err := query.Find(&rows).Error; err != nil {
-		if isMissingTableError(err) {
-			return []*OpenFlareNodeObservationOpenresty{}, nil
-		}
-		return nil, err
-	}
-	return rows, nil
+	return listOpenFlareSince[OpenFlareNodeObservationOpenresty](ctx, nodeID, since, limit, "captured_at desc, id desc", "captured_at")
 }
 
 // ListOpenFlareNodeObservationFrpc returns frpc observations.
 func ListOpenFlareNodeObservationFrpc(ctx context.Context, nodeID string, since time.Time, limit int) ([]*OpenFlareNodeObservationFrpc, error) {
-	conn := db.DB(ctx)
-	if conn == nil {
-		return nil, errors.New(errDatabaseNotInitialized)
-	}
-	query := conn.Model(&OpenFlareNodeObservationFrpc{}).Order("captured_at desc, id desc")
-	if nodeID != "" {
-		query = query.Where("node_id = ?", nodeID)
-	}
-	if !since.IsZero() {
-		query = query.Where("captured_at >= ?", since)
-	}
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-	var rows []*OpenFlareNodeObservationFrpc
-	if err := query.Find(&rows).Error; err != nil {
-		if isMissingTableError(err) {
-			return []*OpenFlareNodeObservationFrpc{}, nil
-		}
-		return nil, err
-	}
-	return rows, nil
+	return listOpenFlareSince[OpenFlareNodeObservationFrpc](ctx, nodeID, since, limit, "captured_at desc, id desc", "captured_at")
 }
 
 // ListOpenFlareNodeObservationFrps returns frps observations.
 func ListOpenFlareNodeObservationFrps(ctx context.Context, nodeID string, since time.Time, limit int) ([]*OpenFlareNodeObservationFrps, error) {
-	conn := db.DB(ctx)
-	if conn == nil {
-		return nil, errors.New(errDatabaseNotInitialized)
-	}
-	query := conn.Model(&OpenFlareNodeObservationFrps{}).Order("captured_at desc, id desc")
-	if nodeID != "" {
-		query = query.Where("node_id = ?", nodeID)
-	}
-	if !since.IsZero() {
-		query = query.Where("captured_at >= ?", since)
-	}
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-	var rows []*OpenFlareNodeObservationFrps
-	if err := query.Find(&rows).Error; err != nil {
-		if isMissingTableError(err) {
-			return []*OpenFlareNodeObservationFrps{}, nil
-		}
-		return nil, err
-	}
-	return rows, nil
+	return listOpenFlareSince[OpenFlareNodeObservationFrps](ctx, nodeID, since, limit, "captured_at desc, id desc", "captured_at")
 }
