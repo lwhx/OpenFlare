@@ -5,7 +5,6 @@ import {Loader2} from "lucide-react"
 import {Badge} from "@/components/ui/badge"
 import {Button} from "@/components/ui/button"
 import {CodeBlock} from "@/components/ui/code-block"
-import {ScrollArea} from "@/components/ui/scroll-area"
 import {Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle,} from "@/components/ui/sheet"
 import type {ConfigPreviewResult} from "@/lib/services/openflare"
 
@@ -32,7 +31,7 @@ export function PreviewSheet({
 }: PreviewSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-2xl w-full p-0 flex flex-col gap-0">
+      <SheetContent className="sm:max-w-2xl w-full p-0 flex h-svh flex-col gap-0">
         <SheetHeader className="px-5 py-4 border-b">
           <SheetTitle>发布预览</SheetTitle>
           <SheetDescription>
@@ -40,7 +39,7 @@ export function PreviewSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-5 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
@@ -96,7 +95,7 @@ export function PreviewSheet({
               ) : null}
             </div>
           ) : null}
-        </ScrollArea>
+        </div>
 
         <SheetFooter className="px-5 py-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={publishing}>

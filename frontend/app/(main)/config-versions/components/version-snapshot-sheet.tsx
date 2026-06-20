@@ -7,7 +7,6 @@ import {toast} from "sonner"
 import {Badge} from "@/components/ui/badge"
 import {Button} from "@/components/ui/button"
 import {CodeBlock} from "@/components/ui/code-block"
-import {ScrollArea} from "@/components/ui/scroll-area"
 import {Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle,} from "@/components/ui/sheet"
 import {type ConfigVersionDetail, ConfigVersionService, type ConfigVersionSummary,} from "@/lib/services/openflare"
 import {formatDateTime} from "@/lib/utils"
@@ -57,7 +56,7 @@ export function VersionSnapshotSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-2xl w-full p-0 flex flex-col gap-0">
+      <SheetContent className="sm:max-w-2xl w-full p-0 flex h-svh flex-col gap-0">
         <SheetHeader className="px-5 py-4 border-b">
           <SheetTitle>
             {version ? `版本 ${version.version}` : "版本快照"}
@@ -65,7 +64,7 @@ export function VersionSnapshotSheet({
           <SheetDescription>查看历史配置版本的完整快照内容。</SheetDescription>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-5 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
@@ -111,7 +110,7 @@ export function VersionSnapshotSheet({
               </div>
             </div>
           ) : null}
-        </ScrollArea>
+        </div>
 
         <SheetFooter className="px-5 py-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

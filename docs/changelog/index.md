@@ -22,6 +22,8 @@ sidebar: false
 
 - 修复登录 Cap 人机验证：前端 `cap-solver` 与 Cap 路由测试对齐 `b3a55d4` 之后的统一 API 信封 `{ error_msg, data }`，避免 `challenge` 解构失败。
 
+- 修复配置版本快照/发布预览侧栏无法滚动：内容区改为 `flex-1 min-h-0 overflow-y-auto`，与项目内其他可滚动 Sheet 布局一致。
+
 - 修复 Agent CI/Docker 构建：将 `GeoLite2-Country.mmdb` 提交至仓库作为兜底，构建前优先尝试 `scripts/fetch-agent-geoip-mmdb.sh` 拉取最新库，远程失败时回退使用已提交文件。
 
 ## [v2.3.4] - 2026-06-17
