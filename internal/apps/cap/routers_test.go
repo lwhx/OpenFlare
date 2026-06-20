@@ -20,6 +20,21 @@ import (
 	pkgcap "github.com/Rain-kl/Wavelet/pkg/cap"
 )
 
+func decodeAPIResponse[T any](t *testing.T, body []byte) T {
+	t.Helper()
+	var envelope struct {
+		ErrorMsg string `json:"error_msg"`
+		Data     T      `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		t.Fatalf("failed to unmarshal API envelope: %v", err)
+	}
+	if envelope.ErrorMsg != "" {
+		t.Fatalf("unexpected API error_msg: %s", envelope.ErrorMsg)
+	}
+	return envelope.Data
+}
+
 func TestCapEndpointsAndMiddleware(t *testing.T) {
 	sqliteDB, _, cleanup := testhelper.SetupTestEnvironment(t)
 	defer cleanup()
@@ -55,10 +70,7 @@ func TestCapEndpointsAndMiddleware(t *testing.T) {
 		t.Fatalf("expected 200 OK, got %d. Body: %s", w.Code, w.Body.String())
 	}
 
-	var challengeResp pkgcap.ChallengeResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &challengeResp); err != nil {
-		t.Fatalf("failed to unmarshal challenge response: %v", err)
-	}
+	challengeResp := decodeAPIResponse[pkgcap.ChallengeResponse](t, w.Body.Bytes())
 
 	if challengeResp.Token == "" {
 		t.Fatalf("expected token in challenge response")
@@ -108,10 +120,7 @@ func TestCapEndpointsAndMiddleware(t *testing.T) {
 		t.Fatalf("expected 200 OK for redeem, got %d. Body: %s", w.Code, w.Body.String())
 	}
 
-	var redeemResp RedeemResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &redeemResp); err != nil {
-		t.Fatalf("failed to unmarshal redeem response: %v", err)
-	}
+	redeemResp := decodeAPIResponse[RedeemResponse](t, w.Body.Bytes())
 
 	if !redeemResp.Success || redeemResp.Token == "" {
 		t.Fatalf("redeem failed or returned empty token: %+v", redeemResp)

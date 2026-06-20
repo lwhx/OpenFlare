@@ -74,16 +74,19 @@ sequenceDiagram
 #### 1. 获取难题 (GET/POST /api/cap/challenge)
 * **请求方式**：`POST`
 * **接口权限**：公开
-* **响应负载**：
+* **响应负载**（统一 API 信封，`data` 为业务载荷）：
   ```json
   {
-    "challenge": {
-      "c": 50,
-      "s": 32,
-      "d": 4
-    },
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjIjo1MCwicyI6MzIsImQiOjQsImV4cCI6MTcxNzY2MDgwMCwiaWF0IjoxNzE3NjYwMjAwLCJuIjoiMGExYjJjM2Q0ZTVmNiJ9.signature",
-    "expires": 1717660800000
+    "error_msg": "",
+    "data": {
+      "challenge": {
+        "c": 50,
+        "s": 32,
+        "d": 4
+      },
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "expires": 1717660800000
+    }
   }
   ```
 
