@@ -68,19 +68,24 @@ func (s *Service) doSync(ctx context.Context) {
 
 	// 不在 sync 层做版本早退，由 frpcManager.UpdateConfig 负责判断。
 	// 原因：重启后进程全部消失，即使版本/checksum 未变，仍需重新拉起 frpc 进程。
-	err = s.frpcManager.UpdateConfig(ctx, configResp)
-
-	result := "success"
-	message := "apply success"
+	configChanged, err := s.frpcManager.UpdateConfig(ctx, configResp)
 	if err != nil {
-		result = "failed"
-		message = err.Error()
 		slog.Error("failed to apply tunnel config", "error", err)
-	} else {
-		slog.Info("tunnel config applied successfully", "version", configResp.Version)
+		s.reportApplyLog(ctx, configResp, "failed", err.Error())
+		return
 	}
+	if configChanged {
+		slog.Info("tunnel config applied successfully", "version", configResp.Version)
+		s.reportApplyLog(ctx, configResp, "success", "apply success")
+		return
+	}
+	slog.Debug("tunnel config unchanged, skipping apply log report", "version", configResp.Version)
+}
 
-	// Report apply log
+func (s *Service) reportApplyLog(ctx context.Context, configResp *service.FlaredTunnelConfigResponse, result string, message string) {
+	if configResp == nil {
+		return
+	}
 	logPayload := service.ApplyLogPayload{
 		Version:  configResp.Version,
 		Result:   result,

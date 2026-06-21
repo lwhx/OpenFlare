@@ -6,6 +6,7 @@ package model
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Rain-kl/Wavelet/internal/db"
@@ -81,6 +82,39 @@ func CountOpenFlareApplyLogs(ctx context.Context, nodeID string) (int64, error) 
 		return 0, err
 	}
 	return total, nil
+}
+
+// GetLatestOpenFlareApplyLogByNodeID returns the most recent apply log for a node.
+func GetLatestOpenFlareApplyLogByNodeID(ctx context.Context, nodeID string) (*OpenFlareApplyLog, error) {
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return nil, errors.New("node_id is required")
+	}
+
+	conn := db.DB(ctx)
+	if conn == nil {
+		return nil, errors.New(errDatabaseNotInitialized)
+	}
+
+	var log OpenFlareApplyLog
+	err := conn.Where("node_id = ?", nodeID).Order("id desc").First(&log).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &log, nil
+}
+
+// IsRepeatSuccessApplyLog reports whether the payload repeats an already-recorded success entry.
+func IsRepeatSuccessApplyLog(latest *OpenFlareApplyLog, version, checksum, result string) bool {
+	if latest == nil || result != "success" {
+		return false
+	}
+	return latest.Result == "success" &&
+		strings.TrimSpace(latest.Version) == strings.TrimSpace(version) &&
+		strings.TrimSpace(latest.Checksum) == strings.TrimSpace(checksum)
 }
 
 // GetLatestOpenFlareApplyLogsByNodeIDs returns the latest apply log per node id.

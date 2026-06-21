@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"sync"
 
 	openrestyrender "github.com/Rain-kl/Wavelet/pkg/render/openresty"
 
@@ -49,6 +50,7 @@ type Service struct {
 	nginxManager NginxManager
 	stateStore   *state.Store
 	pagesDir     string
+	syncMu       sync.Mutex
 }
 
 // SetPagesDir sets the local directory used for pages deployment packages.
@@ -76,6 +78,9 @@ func (s *Service) SyncOnStartup(ctx context.Context, target *protocol.ActiveConf
 }
 
 func (s *Service) sync(ctx context.Context, startup bool, target *protocol.ActiveConfigMeta) error {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+
 	mode := syncMode(startup)
 	snapshot, currentChecksum, err := s.loadSyncState()
 	if err != nil {
@@ -94,6 +99,9 @@ func (s *Service) sync(ctx context.Context, startup bool, target *protocol.Activ
 
 // ForceSyncOnce clears any blocked target state then unconditionally fetches and applies the active config.
 func (s *Service) ForceSyncOnce(ctx context.Context, target *protocol.ActiveConfigMeta) error {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+
 	snapshot, err := s.stateStore.Load()
 	if err != nil {
 		return err
@@ -161,11 +169,23 @@ func (s *Service) applyRenderedConfig(ctx context.Context, mode string, snapshot
 	mainConfigChecksum := checksumString(rendered.mainConfig)
 	routeConfigChecksum := checksumString(rendered.routeConfig)
 	slog.Info("applying new openresty config", "mode", mode, "from_version", snapshot.CurrentVersion, "to_version", config.Version, "old_checksum", currentChecksum, "new_checksum", config.Checksum)
+	alreadySynced := snapshotMatchesTarget(snapshot, config.Version, config.Checksum)
 	outcome, message := normalizeApplyOutcome(s.nginxManager.Apply(ctx, rendered.mainConfig, rendered.routeConfig, rendered.supportFiles))
 	applyResult := updateSnapshotFromApplyOutcome(mode, snapshot, config, outcome, message)
 
 	if err := s.stateStore.Save(snapshot); err != nil {
 		return err
+	}
+	if !shouldReportApplyLog(alreadySynced, applyResult.reportResult) {
+		slog.Debug("skipping duplicate apply log report", "version", config.Version, "checksum", config.Checksum, "result", applyResult.reportResult)
+		if applyResult.reportResult == ApplyResultFailed {
+			return outcomeError(config.Version, applyResult.message)
+		}
+		if err := s.syncReferencedWAFIPGroups(ctx, rendered.supportFiles); err != nil {
+			slog.Error("sync referenced waf ip groups failed", "version", config.Version, "error", err)
+			return err
+		}
+		return nil
 	}
 	if err := s.client.ReportApplyLog(ctx, protocol.ApplyLogPayload{
 		NodeID:              snapshot.NodeID,

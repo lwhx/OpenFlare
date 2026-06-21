@@ -22,6 +22,10 @@ sidebar: false
 
 ### 修复
 
+- 修复应用日志异常膨胀：Agent 配置同步加锁避免并发重复上报，成功且版本/checksum 未变时跳过重复 apply 日志；Server 入库前对相同成功记录去重；Flared 配置未变更时不再上报 apply 日志。
+
+- 修复应用日志页「清空」无效果：原按钮仅重置筛选；新增「清空日志」入口并对接 `/api/v1/d/apply-logs/cleanup`，支持确认后删除全部记录。
+
 - 配置版本列表按 `created_at` 倒序展示，最新发布版本固定显示在列表顶部。
 
 - 修复 WAF 规则组保存/绑定网站时报 `of_waf_rule_group_bindings_pkey` 冲突：PostgreSQL 在迁移导入显式 ID 后同步绑定表序列，并在写入前自动校正序列。

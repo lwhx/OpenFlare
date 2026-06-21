@@ -95,12 +95,13 @@ func (m *Manager) GetCurrentConfigChecksum() string {
 }
 
 // UpdateConfig reconciles running frpc processes with the latest tunnel configuration.
-func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTunnelConfigResponse) error {
+// The returned bool indicates whether the active config version or checksum changed.
+func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTunnelConfigResponse) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if newConfig == nil {
-		return nil
+		return false, nil
 	}
 
 	versionChanged := newConfig.Version != m.currentVersion || newConfig.Checksum != m.currentChecksum
@@ -111,7 +112,7 @@ func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTun
 	}
 
 	if err := os.MkdirAll(m.cfg.DataDir, dataDirPerm); err != nil {
-		return fmt.Errorf("create data dir failed: %w", err)
+		return false, fmt.Errorf("create data dir failed: %w", err)
 	}
 
 	activeRelays := make(map[string]struct{})
@@ -155,9 +156,9 @@ func (m *Manager) UpdateConfig(ctx context.Context, newConfig *service.FlaredTun
 	if versionChanged {
 		m.currentVersion = newConfig.Version
 		m.currentChecksum = newConfig.Checksum
-		return m.saveState()
+		return true, m.saveState()
 	}
-	return nil
+	return false, nil
 }
 
 func (m *Manager) restartProcess(ctx context.Context, relayID string, configPath string) {

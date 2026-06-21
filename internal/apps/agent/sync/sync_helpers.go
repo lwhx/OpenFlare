@@ -203,3 +203,18 @@ func updateSnapshotFromApplyOutcome(mode string, snapshot *state.Snapshot, confi
 	}
 	return result
 }
+
+func snapshotMatchesTarget(snapshot *state.Snapshot, version string, checksum string) bool {
+	if snapshot == nil {
+		return false
+	}
+	return strings.TrimSpace(snapshot.CurrentVersion) == strings.TrimSpace(version) &&
+		strings.TrimSpace(snapshot.CurrentChecksum) == strings.TrimSpace(checksum)
+}
+
+func shouldReportApplyLog(alreadySynced bool, result string) bool {
+	if result != ApplyResultSuccess {
+		return true
+	}
+	return !alreadySynced
+}

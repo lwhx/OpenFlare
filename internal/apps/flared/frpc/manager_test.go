@@ -119,7 +119,7 @@ func TestStartProcessSuccess(t *testing.T) {
 		Proxies: nil,
 	}
 
-	err := m.UpdateConfig(context.Background(), newConfig)
+	_, err := m.UpdateConfig(context.Background(), newConfig)
 	if err != nil {
 		t.Fatalf("failed to UpdateConfig: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestStartProcessFailureAndBackoff(t *testing.T) {
 		Proxies: nil,
 	}
 
-	_ = m.UpdateConfig(context.Background(), newConfig)
+	_, _ = m.UpdateConfig(context.Background(), newConfig)
 
 	assertStatusEventually(t, m, "relay-1", "error", 4*time.Second)
 
@@ -208,7 +208,7 @@ func TestUnexpectedExit0CPUProtection(t *testing.T) {
 		Proxies: nil,
 	}
 
-	_ = m.UpdateConfig(context.Background(), newConfig)
+	_, _ = m.UpdateConfig(context.Background(), newConfig)
 
 	assertStatusEventually(t, m, "relay-1", "stopped", 4*time.Second)
 
@@ -249,7 +249,7 @@ func TestBackoffReset(t *testing.T) {
 		Proxies: nil,
 	}
 
-	_ = m.UpdateConfig(context.Background(), newConfig)
+	_, _ = m.UpdateConfig(context.Background(), newConfig)
 
 	// Wait to crash
 	assertStatusEventually(t, m, "relay-1", "error", 4*time.Second)
@@ -323,7 +323,7 @@ func TestUpdateConfigKillsOrphanProcessBeforeRestart(t *testing.T) {
 		},
 	}
 
-	if err := m.UpdateConfig(context.Background(), newConfig); err != nil {
+	if _, err := m.UpdateConfig(context.Background(), newConfig); err != nil {
 		t.Fatalf("failed to UpdateConfig: %v", err)
 	}
 
@@ -361,7 +361,7 @@ func TestStopCancelsRunningProcesses(t *testing.T) {
 		},
 	}
 
-	if err := m.UpdateConfig(context.Background(), newConfig); err != nil {
+	if _, err := m.UpdateConfig(context.Background(), newConfig); err != nil {
 		t.Fatalf("failed to UpdateConfig: %v", err)
 	}
 

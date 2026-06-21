@@ -479,6 +479,44 @@ func TestSyncOnceReportsNoopWhenVersionChangesButChecksumMatches(t *testing.T) {
 	}
 }
 
+func TestSyncOnStartupSkipsDuplicateSuccessReportWhenStateAlreadySynced(t *testing.T) {
+	client := &fakeClient{
+		config: protocol.ActiveConfigResponse{
+			Version:          "20260309-003",
+			Checksum:         "checksum-3",
+			SourceConfigJSON: testSourceConfigJSON("auto", 80),
+			CreatedAt:        time.Now().Format(time.RFC3339),
+		},
+	}
+	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	nodeID, err := stateStore.EnsureNodeID()
+	if err != nil {
+		t.Fatalf("EnsureNodeID failed: %v", err)
+	}
+	if err = stateStore.Save(&state.Snapshot{
+		NodeID:          nodeID,
+		CurrentVersion:  "20260309-003",
+		CurrentChecksum: "checksum-3",
+	}); err != nil {
+		t.Fatalf("failed to seed state: %v", err)
+	}
+
+	manager := &fakeManager{currentChecksum: "checksum-3"}
+	service := New(client, manager, stateStore)
+	if err = service.SyncOnStartup(context.Background(), &protocol.ActiveConfigMeta{
+		Version:  "20260309-003",
+		Checksum: "checksum-3",
+	}); err != nil {
+		t.Fatalf("SyncOnStartup failed: %v", err)
+	}
+	if len(client.reports) != 0 {
+		t.Fatalf("expected startup sync to skip duplicate success report, got %+v", client.reports)
+	}
+	if len(manager.applyMainContents) != 1 {
+		t.Fatal("expected startup sync to still refresh local config once")
+	}
+}
+
 func TestSyncOnceDoesNotRepeatNoopReportWhenStateAlreadyMatches(t *testing.T) {
 	client := &fakeClient{}
 	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))

@@ -181,6 +181,17 @@ func ReportApplyLog(ctx context.Context, payload ApplyLogPayload) (*model.OpenFl
 		return nil, errors.New(errInvalidApplyResult)
 	}
 
+	latest, err := model.GetLatestOpenFlareApplyLogByNodeID(ctx, payload.NodeID)
+	if err != nil {
+		return nil, err
+	}
+	if model.IsRepeatSuccessApplyLog(latest, payload.Version, payload.Checksum, payload.Result) {
+		if err := updateNodeFromApplyLog(ctx, payload, now); err != nil {
+			return nil, err
+		}
+		return latest, nil
+	}
+
 	log := &model.OpenFlareApplyLog{
 		NodeID:              payload.NodeID,
 		Version:             payload.Version,
@@ -198,28 +209,42 @@ func ReportApplyLog(ctx context.Context, payload ApplyLogPayload) (*model.OpenFl
 		return nil, errors.New("database not initialized")
 	}
 
-	err := conn.Transaction(func(tx *gorm.DB) error {
-		record := &model.OpenFlareNode{}
-		if err := tx.Where("node_id = ?", payload.NodeID).First(record).Error; err != nil {
-			return err
-		}
-		record.Status = nodeStatusOnline
-		record.LastSeenAt = &now
-		if payload.Result == applyResultOK {
-			record.CurrentVersion = payload.Version
-			record.LastError = ""
-		} else {
-			record.LastError = payload.Message
-		}
+	err = conn.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(log).Error; err != nil {
 			return err
 		}
-		return tx.Model(record).Select("status", "last_seen_at", "current_version", "last_error").Updates(record).Error
+		return updateNodeFromApplyLogTx(tx, payload, now)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return log, nil
+}
+
+func updateNodeFromApplyLog(ctx context.Context, payload ApplyLogPayload, now time.Time) error {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return errors.New("database not initialized")
+	}
+	return conn.Transaction(func(tx *gorm.DB) error {
+		return updateNodeFromApplyLogTx(tx, payload, now)
+	})
+}
+
+func updateNodeFromApplyLogTx(tx *gorm.DB, payload ApplyLogPayload, now time.Time) error {
+	record := &model.OpenFlareNode{}
+	if err := tx.Where("node_id = ?", payload.NodeID).First(record).Error; err != nil {
+		return err
+	}
+	record.Status = nodeStatusOnline
+	record.LastSeenAt = &now
+	if payload.Result == applyResultOK {
+		record.CurrentVersion = payload.Version
+		record.LastError = ""
+	} else {
+		record.LastError = payload.Message
+	}
+	return tx.Model(record).Select("status", "last_seen_at", "current_version", "last_error").Updates(record).Error
 }
 
 // ValidateDiscoveryToken delegates to the node package discovery token helper.

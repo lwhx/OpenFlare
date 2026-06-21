@@ -170,6 +170,17 @@ func ReportApplyLog(ctx context.Context, payload ApplyLogPayload) (*model.OpenFl
 		return nil, errors.New("result 仅支持 success、warning 或 failed")
 	}
 
+	latest, err := model.GetLatestOpenFlareApplyLogByNodeID(ctx, payload.NodeID)
+	if err != nil {
+		return nil, err
+	}
+	if model.IsRepeatSuccessApplyLog(latest, payload.Version, payload.Checksum, payload.Result) {
+		if err := updateFlaredNodeFromApplyLog(ctx, payload, now); err != nil {
+			return nil, err
+		}
+		return latest, nil
+	}
+
 	log := &model.OpenFlareApplyLog{
 		NodeID:              payload.NodeID,
 		Version:             payload.Version,
@@ -182,29 +193,43 @@ func ReportApplyLog(ctx context.Context, payload ApplyLogPayload) (*model.OpenFl
 		CreatedAt:           now,
 	}
 
-	err := db.DB(ctx).Transaction(func(tx *gorm.DB) error {
-		var node model.OpenFlareNode
-		if err := tx.Where("node_id = ?", payload.NodeID).First(&node).Error; err != nil {
-			return err
-		}
-		node.Status = nodeStatusOnline
-		lastSeen := now
-		node.LastSeenAt = &lastSeen
-		if payload.Result == applyResultOK {
-			node.CurrentVersion = payload.Version
-			node.LastError = ""
-		} else {
-			node.LastError = payload.Message
-		}
+	err = db.DB(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(log).Error; err != nil {
 			return err
 		}
-		return tx.Model(&node).Select("status", "last_seen_at", "current_version", "last_error").Updates(&node).Error
+		return updateFlaredNodeFromApplyLogTx(tx, payload, now)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return log, nil
+}
+
+func updateFlaredNodeFromApplyLog(ctx context.Context, payload ApplyLogPayload, now time.Time) error {
+	conn := db.DB(ctx)
+	if conn == nil {
+		return errors.New("database not initialized")
+	}
+	return conn.Transaction(func(tx *gorm.DB) error {
+		return updateFlaredNodeFromApplyLogTx(tx, payload, now)
+	})
+}
+
+func updateFlaredNodeFromApplyLogTx(tx *gorm.DB, payload ApplyLogPayload, now time.Time) error {
+	var node model.OpenFlareNode
+	if err := tx.Where("node_id = ?", payload.NodeID).First(&node).Error; err != nil {
+		return err
+	}
+	node.Status = nodeStatusOnline
+	lastSeen := now
+	node.LastSeenAt = &lastSeen
+	if payload.Result == applyResultOK {
+		node.CurrentVersion = payload.Version
+		node.LastError = ""
+	} else {
+		node.LastError = payload.Message
+	}
+	return tx.Model(&node).Select("status", "last_seen_at", "current_version", "last_error").Updates(&node).Error
 }
 
 func getActiveConfigVersion(ctx context.Context) (*configVersionRow, error) {

@@ -3,11 +3,22 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 import Link from "next/link"
 import {useSearchParams} from "next/navigation"
-import {ClipboardList, Eye, RefreshCw, Search} from "lucide-react"
+import {ClipboardList, Eye, RefreshCw, Search, Trash2} from "lucide-react"
+import {toast} from "sonner"
 
 import {EmptyStateWithBorder} from "@/components/layout/empty"
 import {ErrorInline} from "@/components/layout/error"
 import {LoadingStateWithBorder} from "@/components/layout/loading"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {Badge} from "@/components/ui/badge"
 import {Button} from "@/components/ui/button"
 import {Input} from "@/components/ui/input"
@@ -78,6 +89,8 @@ export function ApplyLogsPageClient() {
 
   const [selectedLog, setSelectedLog] = useState<ApplyLogItem | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [cleanupOpen, setCleanupOpen] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
 
   const summary = useMemo(() => {
     const nodeIds = new Set(rows.map((item) => item.node_id))
@@ -126,10 +139,29 @@ export function ApplyLogsPageClient() {
     setNodeFilter(nodeFilterInput.trim())
   }
 
-  const handleReset = () => {
+  const handleResetFilters = () => {
     setNodeFilterInput("")
     setNodeFilter("")
     setPageNo(1)
+  }
+
+  const handleCleanupLogs = async () => {
+    setCleaning(true)
+    try {
+      const result = await ApplyLogService.cleanup({ delete_all: true })
+      toast.success("应用日志已清空", {
+        description: `共删除 ${result.deleted_count} 条记录`,
+      })
+      setCleanupOpen(false)
+      setPageNo(1)
+      await fetchLogs()
+    } catch (err) {
+      toast.error("清空应用日志失败", {
+        description: err instanceof Error ? err.message : "未知错误",
+      })
+    } finally {
+      setCleaning(false)
+    }
   }
 
   return (
@@ -149,6 +181,15 @@ export function ApplyLogsPageClient() {
           <Button variant="outline" size="sm" onClick={() => void fetchLogs()} disabled={loading}>
             <RefreshCw className={`size-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
             刷新
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCleanupOpen(true)}
+            disabled={loading || cleaning || total === 0}
+          >
+            <Trash2 className="size-3.5 mr-1" />
+            清空日志
           </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/nodes">返回节点</Link>
@@ -213,8 +254,8 @@ export function ApplyLogsPageClient() {
           <Button size="sm" onClick={handleSearch}>
             筛选
           </Button>
-          <Button variant="outline" size="sm" onClick={handleReset}>
-            清空
+          <Button variant="outline" size="sm" onClick={handleResetFilters}>
+            重置筛选
           </Button>
         </div>
       </div>
@@ -319,6 +360,30 @@ export function ApplyLogsPageClient() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
       />
+
+      <AlertDialog open={cleanupOpen} onOpenChange={setCleanupOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认清空应用日志？</AlertDialogTitle>
+            <AlertDialogDescription>
+              该操作将删除全部 {total} 条应用日志记录，且不可撤销。清空后节点仍会照常上报新的应用结果。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cleaning}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={cleaning}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleCleanupLogs()
+              }}
+            >
+              {cleaning ? "清空中..." : "确认清空"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
