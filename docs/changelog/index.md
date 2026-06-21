@@ -22,6 +22,8 @@ sidebar: false
 
 ### 修复
 
+- 修复 Pages 上传或节点同步时报 `pages file size out of bounds`：允许 ZIP 包内的 0 字节文件，并兼容未声明解压大小的 ZIP 条目。
+
 - 修复节点详情 OpenResty 连接数与吞吐显示为「—」：节点可观测 API 将 OpenResty 观测数据合并进 `metric_snapshots`；指标文案改为「请求/分钟」（近 60 秒窗口），连接数为 0 时正常显示 0。
 
 - 修复仪表盘「24 小时请求趋势」摘要误显示当前小时请求量/错误量：改为汇总近 24 小时总量。

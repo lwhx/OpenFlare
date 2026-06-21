@@ -142,6 +142,28 @@ func TestCreateProjectRejectsUnsafeFallbackPath(t *testing.T) {
 	assert.Contains(t, err.Error(), "回退路径")
 }
 
+func TestUploadDeploymentAcceptsZeroByteFiles(t *testing.T) {
+	cleanup := setupPagesTestDB(t)
+	defer cleanup()
+	_, disableStorage := setupPagesStorageMock(t)
+	defer disableStorage()
+	ctx := context.Background()
+
+	project, err := CreateProject(ctx, Input{
+		Name:    "Zero Byte Site",
+		Slug:    "zero-byte-site",
+		Enabled: true,
+	})
+	require.NoError(t, err)
+
+	deployment, err := UploadDeployment(ctx, project.ID, testPagesMultipartFile(t, "site.zip", testPagesZip(t, map[string]string{
+		"index.html": "ok",
+		".gitkeep":   "",
+	})), "root")
+	require.NoError(t, err)
+	assert.Equal(t, 2, deployment.FileCount)
+}
+
 func TestUploadDeploymentStoresPackageInUploadFramework(t *testing.T) {
 	cleanup := setupPagesTestDB(t)
 	defer cleanup()

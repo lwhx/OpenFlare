@@ -205,11 +205,19 @@ func extractPagesPackage(packageBytes []byte, releaseDir string, deployment page
 	return os.Rename(tmpDir, releaseDir)
 }
 
-func pagesZipEntryCopyLimit(size uint64) (int64, error) {
-	if size == 0 || size > pagesMaxExtractedFileBytes || size > uint64(math.MaxInt64) {
+func copyPagesZipEntryContent(dst io.Writer, src io.Reader, declaredSize uint64) (int64, error) {
+	if declaredSize > pagesMaxExtractedFileBytes || declaredSize > uint64(math.MaxInt64) {
 		return 0, errors.New("pages file size out of bounds")
 	}
-	return int64(size), nil //nolint:gosec // size is bounded to math.MaxInt64 above
+	if declaredSize > 0 {
+		return io.CopyN(dst, src, int64(declaredSize)) //nolint:gosec // declaredSize is bounded to math.MaxInt64 above
+	}
+	limited := io.LimitReader(src, pagesMaxExtractedFileBytes+1)
+	written, err := io.Copy(dst, limited)
+	if written > pagesMaxExtractedFileBytes {
+		return written, errors.New("pages file size out of bounds")
+	}
+	return written, err
 }
 
 func extractPagesFile(item *zip.File, targetPath string) error {
@@ -226,12 +234,11 @@ func extractPagesFile(item *zip.File, targetPath string) error {
 		return err
 	}
 	defer func() { _ = target.Close() }()
-	limit, err := pagesZipEntryCopyLimit(item.UncompressedSize64)
+	_, err = copyPagesZipEntryContent(target, source, item.UncompressedSize64)
 	if err != nil {
 		return fmt.Errorf("%s: %w", item.Name, err)
 	}
-	_, err = io.CopyN(target, source, limit)
-	return err
+	return nil
 }
 
 func switchPagesCurrentDir(baseDir string, deploymentID uint, releaseDir string) error {

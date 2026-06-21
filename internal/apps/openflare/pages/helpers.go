@@ -29,13 +29,13 @@ const (
 	pagesLegacyArtifactCandidateCapacity = 8
 	pagesLegacyArtifactRootCapacity      = 4
 	pagesMaxDeploymentFiles              = 1000
-	pagesMaxDeploymentBytes   = 100 * 1024 * 1024
-	defaultPagesEntryFile     = "index.html"
-	defaultPagesFallbackPath  = "/index.html"
-	pagesDeploymentUploadType = "openflare_pages_deployment"
-	mimeTypeApplicationZip    = "application/zip"
-	pagesMaxPathLength        = 512
-	bytesPerKiB               = 1024
+	pagesMaxDeploymentBytes              = 100 * 1024 * 1024
+	defaultPagesEntryFile                = "index.html"
+	defaultPagesFallbackPath             = "/index.html"
+	pagesDeploymentUploadType            = "openflare_pages_deployment"
+	mimeTypeApplicationZip               = "application/zip"
+	pagesMaxPathLength                   = 512
+	bytesPerKiB                          = 1024
 )
 
 var pagesSlugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,126}[a-z0-9]$|^[a-z0-9]$`)
@@ -397,20 +397,20 @@ func inspectPagesZip(zipPath string, rootDir string, entryFile string) (*deploym
 		if manifest.FileCount > pagesMaxDeploymentFiles {
 			return nil, fmt.Errorf("pages 部署文件数不能超过 %d", pagesMaxDeploymentFiles)
 		}
-		manifest.TotalSize += int64(item.UncompressedSize64)
+		checksum, fileSize, err := checksumZipFile(item)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", normalizedPath, err)
+		}
+		manifest.TotalSize += fileSize
 		if manifest.TotalSize > pagesMaxDeploymentBytes {
 			return nil, fmt.Errorf("pages 部署展开后不能超过 %d MiB", pagesMaxDeploymentBytes/bytesPerKiB/bytesPerKiB)
-		}
-		checksum, err := checksumZipFile(item)
-		if err != nil {
-			return nil, err
 		}
 		if normalizedPath == targetEntryPath {
 			entrySeen = true
 		}
 		manifest.Files = append(manifest.Files, model.PagesDeploymentFile{
 			Path:     normalizedPath,
-			Size:     int64(item.UncompressedSize64),
+			Size:     fileSize,
 			Checksum: checksum,
 		})
 	}
@@ -444,26 +444,31 @@ func normalizePagesZipPath(raw string) (string, bool, error) {
 	return cleaned, false, nil
 }
 
-func pagesZipEntryCopyLimit(size uint64) (int64, error) {
-	if size == 0 || size > pagesMaxDeploymentBytes || size > uint64(math.MaxInt64) {
+func copyPagesZipEntryContent(dst io.Writer, src io.Reader, declaredSize uint64) (int64, error) {
+	if declaredSize > pagesMaxDeploymentBytes || declaredSize > uint64(math.MaxInt64) {
 		return 0, errors.New("pages file size out of bounds")
 	}
-	return int64(size), nil //nolint:gosec // size is bounded to math.MaxInt64 above
+	if declaredSize > 0 {
+		return io.CopyN(dst, src, int64(declaredSize)) //nolint:gosec // declaredSize is bounded to math.MaxInt64 above
+	}
+	limited := io.LimitReader(src, pagesMaxDeploymentBytes+1)
+	written, err := io.Copy(dst, limited)
+	if written > pagesMaxDeploymentBytes {
+		return written, errors.New("pages file size out of bounds")
+	}
+	return written, err
 }
 
-func checksumZipFile(item *zip.File) (string, error) {
+func checksumZipFile(item *zip.File) (string, int64, error) {
 	file, err := item.Open()
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer func() { _ = file.Close() }()
 	hash := sha256.New()
-	limit, err := pagesZipEntryCopyLimit(item.UncompressedSize64)
+	written, err := copyPagesZipEntryContent(hash, file, item.UncompressedSize64)
 	if err != nil {
-		return "", err
+		return "", written, err
 	}
-	if _, err = io.CopyN(hash, file, limit); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	return hex.EncodeToString(hash.Sum(nil)), written, nil
 }

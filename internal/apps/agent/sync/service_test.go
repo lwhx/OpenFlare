@@ -237,6 +237,49 @@ func TestSyncOnceDownloadsPagesDeploymentBeforeApply(t *testing.T) {
 	}
 }
 
+func TestSyncOnceExtractsPagesPackageWithZeroByteFiles(t *testing.T) {
+	packageBytes := testPagesPackage(t, map[string]string{
+		"index.html": "hello",
+		".gitkeep":   "",
+	})
+	checksum := testBytesChecksum(packageBytes)
+	client := &fakeClient{
+		config: protocol.ActiveConfigResponse{
+			Version:          "20260309-103",
+			Checksum:         "pages-config-checksum",
+			SourceConfigJSON: testPagesSourceConfigJSON(9, checksum),
+			CreatedAt:        time.Now().Format(time.RFC3339),
+		},
+		pagesPackages: map[uint][]byte{9: packageBytes},
+	}
+	stateStore := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	nodeID, err := stateStore.EnsureNodeID()
+	if err != nil {
+		t.Fatalf("EnsureNodeID failed: %v", err)
+	}
+	snapshot, _ := stateStore.Load()
+	snapshot.NodeID = nodeID
+	if err = stateStore.Save(snapshot); err != nil {
+		t.Fatalf("save state failed: %v", err)
+	}
+	manager := &fakeManager{currentChecksum: "old-checksum"}
+	service := New(client, manager, stateStore)
+	pagesDir := t.TempDir()
+	service.SetPagesDir(pagesDir)
+
+	if err = service.SyncOnce(context.Background(), &protocol.ActiveConfigMeta{Version: "20260309-103", Checksum: "pages-config-checksum"}); err != nil {
+		t.Fatalf("SyncOnce failed: %v", err)
+	}
+	gitkeepPath := filepath.Join(pagesDir, "deployments", "9", "current", ".gitkeep")
+	info, err := os.Stat(gitkeepPath)
+	if err != nil {
+		t.Fatalf("expected zero-byte Pages file to be extracted: %v", err)
+	}
+	if info.Size() != 0 {
+		t.Fatalf("expected zero-byte Pages file, got %d bytes", info.Size())
+	}
+}
+
 func TestSyncOnceRejectsPagesZipSlipBeforeApply(t *testing.T) {
 	packageBytes := testPagesPackage(t, map[string]string{"../escape.html": "bad", "index.html": "ok"})
 	checksum := testBytesChecksum(packageBytes)
