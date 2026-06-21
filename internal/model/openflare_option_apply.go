@@ -19,17 +19,11 @@ var enabledOptionAppliers = map[string]func(bool){
 }
 
 var stringOptionAppliers = map[string]func(string){
-	"SMTPServer":                  func(v string) { SMTPServer = v },
-	"SMTPAccount":                 func(v string) { SMTPAccount = v },
-	"SMTPToken":                   func(v string) { SMTPToken = v },
 	"ServerAddress":               func(v string) { ServerAddress = v },
 	"GitHubClientId":              func(v string) { GitHubClientID = v },
-	"GitHubClientSecret":          func(v string) { GitHubClientSecret = v },
 	"Footer":                      func(v string) { Footer = v },
 	"HomePageLink":                func(v string) { HomePageLink = v },
 	"SystemName":                  func(v string) { SystemName = v },
-	"WeChatServerAddress":         func(v string) { WeChatServerAddress = v },
-	"WeChatServerToken":           func(v string) { WeChatServerToken = v },
 	"WeChatAccountQRCodeImageURL": func(v string) { WeChatAccountQRCodeImageURL = v },
 	"AgentDiscoveryToken":         func(v string) { AgentDiscoveryToken = v },
 	"GeoIPProvider":               func(v string) { GeoIPProvider = v },
