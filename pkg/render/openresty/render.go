@@ -360,7 +360,7 @@ func renderPagesAPIProxyLocationBlock(deployment *PagesDeployment) string {
 }
 
 func renderHTTPPagesServer(serverNames string, siteName string, deployment *PagesDeployment, limitConfig routeLimitConfig, powEnabled bool, basicAuthEnabled bool, basicAuthUsername string, basicAuthPassword string) string {
-	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s%s    root %s;\n    index %s;%s\n\n    location / {\n%s%s    }\n%s}\n\n", serverNames, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), quoteNginxStringLiteral(pagesDeploymentRoot(deployment)), quoteNginxStringLiteral(pagesEntryFile(deployment)), renderPagesAPIProxyLocationBlock(deployment), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderPagesLocationBlock(deployment, limitConfig), renderPowStaticLocationBlock(powEnabled))
+	return fmt.Sprintf("server {\n    listen 80;\n    server_name %s;\n%s%s    root %s;\n    index %s;%s%s\n\n    location / {\n%s%s    }\n%s}\n\n", serverNames, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), quoteNginxStringLiteral(pagesDeploymentRoot(deployment)), quoteNginxStringLiteral(pagesEntryFile(deployment)), renderPagesAPIProxyLocationBlock(deployment), renderPagesRootLocationBlock(deployment, limitConfig, basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderPagesLocationBlock(deployment, limitConfig), renderPowStaticLocationBlock(powEnabled))
 }
 
 func renderHTTPRedirectServer(serverNames string) string {
@@ -388,7 +388,25 @@ func renderHTTPSPagesServer(serverNames string, siteName string, certificateID u
 		h3Listen = "    listen 443 quic;\n"
 		h3Header = "    add_header Alt-Svc 'h3=\":443\"; ma=86400';\n"
 	}
-	return fmt.Sprintf("server {\n    listen 443 ssl;\n%s    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s%s%s    root %s;\n    index %s;%s\n\n    location / {\n%s%s    }\n%s}\n\n", h3Listen, serverNames, certPath, keyPath, h3Header, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), quoteNginxStringLiteral(pagesDeploymentRoot(deployment)), quoteNginxStringLiteral(pagesEntryFile(deployment)), renderPagesAPIProxyLocationBlock(deployment), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderPagesLocationBlock(deployment, limitConfig), renderPowStaticLocationBlock(powEnabled))
+	return fmt.Sprintf("server {\n    listen 443 ssl;\n%s    http2 on;\n    server_name %s;\n    ssl_certificate %s;\n    ssl_certificate_key %s;\n%s%s%s    root %s;\n    index %s;%s%s\n\n    location / {\n%s%s    }\n%s}\n\n", h3Listen, serverNames, certPath, keyPath, h3Header, renderAccessBlock(siteName, powEnabled), renderPowLocationBlocks(powEnabled), quoteNginxStringLiteral(pagesDeploymentRoot(deployment)), quoteNginxStringLiteral(pagesEntryFile(deployment)), renderPagesAPIProxyLocationBlock(deployment), renderPagesRootLocationBlock(deployment, limitConfig, basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword), renderPagesLocationBlock(deployment, limitConfig), renderPowStaticLocationBlock(powEnabled))
+}
+
+func renderPagesRootLocationBlock(deployment *PagesDeployment, limitConfig routeLimitConfig, basicAuthEnabled bool, basicAuthUsername string, basicAuthPassword string) string {
+	tryFile := pagesRootTryFile(deployment)
+	var builder strings.Builder
+	builder.WriteString("\n    location = / {\n")
+	builder.WriteString(renderBasicAuthBlock(basicAuthEnabled, basicAuthUsername, basicAuthPassword))
+	builder.WriteString(renderRouteLimitBlock(limitConfig))
+	fmt.Fprintf(&builder, "        try_files %s =404;\n", tryFile)
+	builder.WriteString("    }\n")
+	return builder.String()
+}
+
+func pagesRootTryFile(deployment *PagesDeployment) string {
+	if deployment != nil && deployment.SPAFallbackEnabled {
+		return pagesFallbackPath(deployment)
+	}
+	return "/" + pagesEntryFile(deployment)
 }
 
 func renderPagesLocationBlock(deployment *PagesDeployment, limitConfig routeLimitConfig) string {

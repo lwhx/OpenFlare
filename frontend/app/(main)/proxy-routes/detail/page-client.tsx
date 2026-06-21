@@ -29,7 +29,6 @@ export function ProxyRouteDetailPageClient() {
   const [route, setRoute] = useState<ProxyRouteItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [sectionSaving, setSectionSaving] = useState(false);
 
   const handleSectionChange = useCallback(
     (section: ProxyRouteConfigSection) => {
@@ -113,7 +112,6 @@ export function ProxyRouteDetailPageClient() {
   const sectionProps = {
     route,
     onRouteUpdate: handleRouteUpdate,
-    onSavingChange: setSectionSaving,
   };
 
   return (
@@ -150,7 +148,7 @@ export function ProxyRouteDetailPageClient() {
           <CacheSection {...sectionProps} />
         </TabsContent>
         <TabsContent value="waf" className="focus-visible:outline-none">
-          <WafSection route={route} onSavingChange={setSectionSaving} />
+          <WafSection route={route} />
         </TabsContent>
         <TabsContent value="auth" className="focus-visible:outline-none">
           <AuthSection {...sectionProps} />

@@ -222,3 +222,130 @@ func TestRenderPagesAPIProxyLocationBlock(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderPagesRootLocationBlock(t *testing.T) {
+	tests := []struct {
+		name       string
+		deployment *PagesDeployment
+		expected   []string
+		unexpected []string
+	}{
+		{
+			name: "spa fallback disabled serves entry file at root",
+			deployment: &PagesDeployment{
+				SPAFallbackEnabled: false,
+				EntryFile:          "index.html",
+			},
+			expected: []string{
+				"location = / {",
+				"try_files /index.html =404;",
+			},
+		},
+		{
+			name: "spa fallback disabled with custom entry file",
+			deployment: &PagesDeployment{
+				SPAFallbackEnabled: false,
+				EntryFile:          "app.html",
+			},
+			expected: []string{
+				"location = / {",
+				"try_files /app.html =404;",
+			},
+		},
+		{
+			name: "spa fallback enabled serves fallback file at root",
+			deployment: &PagesDeployment{
+				SPAFallbackEnabled: true,
+				SPAFallbackPath:    "/index.html",
+			},
+			expected: []string{
+				"location = / {",
+				"try_files /index.html =404;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := renderPagesRootLocationBlock(tt.deployment, routeLimitConfig{}, false, "", "")
+			if len(tt.expected) == 1 && tt.expected[0] == "" {
+				if got != "" {
+					t.Fatalf("expected empty output, got: %q", got)
+				}
+				return
+			}
+			for _, exp := range tt.expected {
+				if !strings.Contains(got, exp) {
+					t.Errorf("expected output to contain %q, but got:\n%s", exp, got)
+				}
+			}
+			for _, unexp := range tt.unexpected {
+				if strings.Contains(got, unexp) {
+					t.Errorf("expected output NOT to contain %q, but got:\n%s", unexp, got)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderRouteConfigPagesWithoutSPAFallbackServesRoot(t *testing.T) {
+	doc := Document{
+		Routes: []Route{
+			{
+				ID:           1,
+				Domain:       "speedtest.example.com",
+				UpstreamType: "pages",
+				EnableHTTPS:  false,
+				PagesDeployment: &PagesDeployment{
+					LocalRoot:          "/data/var/lib/openflare/pages/deployments/1/current",
+					EntryFile:          "index.html",
+					SPAFallbackEnabled: false,
+				},
+			},
+		},
+	}
+
+	routeConfig, err := RenderRouteConfig(doc, nil)
+	if err != nil {
+		t.Fatalf("RenderRouteConfig() error = %v", err)
+	}
+	if !strings.Contains(routeConfig, "location = / {") {
+		t.Fatalf("expected root location block, got:\n%s", routeConfig)
+	}
+	if !strings.Contains(routeConfig, "try_files /index.html =404;") {
+		t.Fatalf("expected root try_files for entry file, got:\n%s", routeConfig)
+	}
+	if !strings.Contains(routeConfig, "try_files $uri $uri/ =404;") {
+		t.Fatalf("expected static file try_files in location /, got:\n%s", routeConfig)
+	}
+}
+
+func TestRenderRouteConfigPagesWithSPAFallbackServesRoot(t *testing.T) {
+	doc := Document{
+		Routes: []Route{
+			{
+				ID:           1,
+				Domain:       "speedtest.example.com",
+				UpstreamType: "pages",
+				EnableHTTPS:  false,
+				PagesDeployment: &PagesDeployment{
+					LocalRoot:          "/data/var/lib/openflare/pages/deployments/1/current",
+					EntryFile:          "index.html",
+					SPAFallbackEnabled: true,
+					SPAFallbackPath:    "/index.html",
+				},
+			},
+		},
+	}
+
+	routeConfig, err := RenderRouteConfig(doc, nil)
+	if err != nil {
+		t.Fatalf("RenderRouteConfig() error = %v", err)
+	}
+	if !strings.Contains(routeConfig, "location = / {") {
+		t.Fatalf("expected root location block for spa fallback, got:\n%s", routeConfig)
+	}
+	if !strings.Contains(routeConfig, "try_files $uri $uri/ /index.html;") {
+		t.Fatalf("expected spa fallback try_files in location /, got:\n%s", routeConfig)
+	}
+}

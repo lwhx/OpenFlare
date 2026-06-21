@@ -22,6 +22,8 @@ sidebar: false
 
 ### 修复
 
+- 修复 Pages 站点根路径 `/` 访问异常：OpenResty 渲染增加 `location = /` 精确匹配；未启用 SPA Fallback 时直接提供入口文件（`index` 指令在 `try_files ... =404` 场景下不生效）；启用 SPA Fallback 时避免 `try_files $uri $uri/ /index.html` 因 `$uri/` 命中站点根目录触发内部重定向循环而返回 500。
+
 - 修复代理路由详情认证配置 Tab：移除 PoW 配置（PoW 仅在 WAF 规则组中设置）；保留 Basic Auth 保存能力；移除页头重复的「保存当前分区」按钮。
 
 - 修复 Pages 路由发布失败并报 `pages module is not available`：配置快照发布流程补齐 Pages 项目激活部署解析与 `pages_deployment` 写入。
