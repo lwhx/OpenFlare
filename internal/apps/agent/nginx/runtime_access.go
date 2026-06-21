@@ -1,17 +1,15 @@
 package nginx
 
 import (
-	openrestyrender "github.com/Rain-kl/Wavelet/pkg/render/openresty"
-
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/runtimeuser"
 )
 
 // OpenFlareRuntimeUser is the shared OS account for the agent process and
 // OpenResty worker processes.
-const OpenFlareRuntimeUser = openrestyrender.OpenFlareRuntimeUser
+const OpenFlareRuntimeUser = runtimeuser.Name
 
 // OpenRestyWorkerUser is an alias kept for internal call sites.
-const OpenRestyWorkerUser = OpenFlareRuntimeUser
+const OpenRestyWorkerUser = runtimeuser.Name
 
 // EnsureWorldTraversablePath makes targetDir and its ancestors world-traversable.
 func EnsureWorldTraversablePath(targetDir string) error {

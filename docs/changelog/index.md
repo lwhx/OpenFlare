@@ -22,6 +22,8 @@ sidebar: false
 
 ### 修复
 
+- 修复 Agent 以 `openflare` 非 root 运行时 OpenResty `-t`/reload 失败：nginx `pid` 与 `client_body_temp`/`proxy_temp` 等临时目录改写入 `data_dir/var/run` 与 `data_dir/var/cache/nginx`（`__OPENFLARE_PID_PATH__` / `__OPENFLARE_NGINX_CACHE_DIR__` 占位符），不再使用 OpenResty 安装目录下不可写路径。
+
 - 修复 OpenResty 响应泄露版本号：默认主配置模板与 safe fallback 模板补充 `server_tokens off;`，隐藏 `Server` 头与错误页中的 nginx/OpenResty 版本信息。
 
 - 修复 Agent 与 OpenResty worker 权限不一致导致 Pages/WAF 等静态资源 Permission denied：引入共享运行时用户 `openflare`（Agent 进程、OpenResty worker、文件属主统一）；Docker 入口脚本在启动前修正 volume 属主并降权；本地 systemd 服务以 `openflare` 运行并授予 `CAP_NET_BIND_SERVICE`；`data_dir` 与 `pages_dir` 等路径在同步/Apply 时统一 `chown` 与 `0755/0644` 规范化。
