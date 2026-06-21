@@ -16,6 +16,7 @@ import (
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/httpclient"
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/logging"
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/nginx"
+	"github.com/Rain-kl/Wavelet/internal/apps/agent/runtimeuser"
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/state"
 	syncservice "github.com/Rain-kl/Wavelet/internal/apps/agent/sync"
 	"github.com/Rain-kl/Wavelet/internal/apps/agent/updater"
@@ -31,6 +32,14 @@ func main() {
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		slog.Error("load agent config failed", "error", err)
+		os.Exit(1)
+	}
+	if err = runtimeuser.EnsureProcessUser(); err != nil {
+		slog.Error("ensure runtime user failed", "error", err)
+		os.Exit(1)
+	}
+	if err = runtimeuser.EnsurePathOwnership(cfg.DataDir, runtimeuser.DefaultDirPerm, runtimeuser.DefaultFilePerm); err != nil {
+		slog.Error("ensure data dir ownership failed", "error", err, "data_dir", cfg.DataDir)
 		os.Exit(1)
 	}
 	cfg.ExtVersion = nginx.DetectVersion(

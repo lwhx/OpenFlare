@@ -478,8 +478,21 @@ if [[ -d "$INSTALL_DIR" ]]; then
   rm -rf "$INSTALL_DIR"
 fi
 
+ensure_runtime_user() {
+  if [[ "$OS" != "linux" ]]; then
+    return
+  fi
+  if id openflare >/dev/null 2>&1; then
+    return
+  fi
+  if command -v useradd >/dev/null 2>&1; then
+    useradd --system --home-dir "${INSTALL_DIR}/data" --shell /usr/sbin/nologin openflare
+  fi
+}
+
 echo "Installing to ${INSTALL_DIR}..."
 mkdir -p "${INSTALL_DIR}/data"
+ensure_runtime_user
 
 mv -f "$TMP_BINARY" "${INSTALL_DIR}/openflare-agent"
 trap - EXIT
@@ -511,6 +524,10 @@ else
 CFGEOF
 fi
 
+if id openflare >/dev/null 2>&1; then
+  chown -R openflare:openflare "${INSTALL_DIR}"
+fi
+
 # Create systemd service
 if [[ "$CREATE_SERVICE" == "true" && "$OS" == "linux" && -d /etc/systemd/system && "$SYSTEMCTL_AVAILABLE" == "true" ]]; then
   echo "Creating systemd service..."
@@ -521,6 +538,11 @@ After=network.target
 
 [Service]
 Type=simple
+User=openflare
+Group=openflare
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
 ExecStart=${INSTALL_DIR}/openflare-agent -config ${CONFIG_FILE}
 WorkingDirectory=${INSTALL_DIR}
 Restart=always

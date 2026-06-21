@@ -141,6 +141,10 @@ func (m *fakeManager) SyncWAFIPGroups(groups []protocol.WAFIPGroup) error {
 	return nil
 }
 
+func (m *fakeManager) EnsureWorkerReadAccess() error {
+	return nil
+}
+
 func TestSyncOnceSuccess(t *testing.T) {
 	client := &fakeClient{
 		config: protocol.ActiveConfigResponse{
@@ -251,6 +255,54 @@ func TestSyncOnceDownloadsPagesDeploymentBeforeApply(t *testing.T) {
 	}
 	if len(manager.applyRouteContents) != 1 || !strings.Contains(manager.applyRouteContents[0], "__OPENFLARE_PAGES_DIR__/deployments/7/current") {
 		t.Fatalf("expected Pages placeholder in rendered route config, got %#v", manager.applyRouteContents)
+	}
+}
+
+func TestSyncPagesDeploymentEnsuresWorkerReadAccess(t *testing.T) {
+	tempDir := t.TempDir()
+	dataDir := filepath.Join(tempDir, "data")
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	pagesDir := filepath.Join(dataDir, "var", "lib", "openflare", "pages")
+
+	packageBytes := testPagesPackage(t, map[string]string{"index.html": "hello"})
+	checksum := testBytesChecksum(packageBytes)
+	config := protocol.ActiveConfigResponse{
+		Version:          "20260309-106",
+		Checksum:         "pages-config-checksum",
+		SourceConfigJSON: testPagesSourceConfigJSON(7, checksum),
+		CreatedAt:        time.Now().Format(time.RFC3339),
+	}
+	client := &fakeClient{
+		config:        config,
+		pagesPackages: map[uint][]byte{7: packageBytes},
+	}
+	stateStore := state.NewStore(filepath.Join(tempDir, "state.json"))
+	snapshot, _ := stateStore.Load()
+
+	runtimeManager := &nginx.Manager{PagesDir: pagesDir}
+	service := New(client, runtimeManager, stateStore)
+	service.SetPagesDir(pagesDir)
+
+	if err := service.syncPagesDeployments(context.Background(), snapshot, &config); err != nil {
+		t.Fatalf("syncPagesDeployments failed: %v", err)
+	}
+
+	dataInfo, err := os.Stat(dataDir)
+	if err != nil {
+		t.Fatalf("Stat dataDir failed: %v", err)
+	}
+	if dataInfo.Mode().Perm()&0o005 == 0 {
+		t.Fatalf("expected dataDir to be world-traversable, got %o", dataInfo.Mode().Perm())
+	}
+	indexPath := filepath.Join(pagesDir, "deployments", "7", "current", "index.html")
+	indexInfo, err := os.Stat(indexPath)
+	if err != nil {
+		t.Fatalf("expected Pages file to be extracted: %v", err)
+	}
+	if indexInfo.Mode().Perm() != 0o644 {
+		t.Fatalf("expected index.html mode 0644, got %o", indexInfo.Mode().Perm())
 	}
 }
 

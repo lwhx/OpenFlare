@@ -979,8 +979,8 @@ func TestEnsureWorldTraversableChainFixesRestrictedParentDirs(t *testing.T) {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
-	if err := ensureWorldTraversablePath(runtimeDir); err != nil {
-		t.Fatalf("ensureWorldTraversablePath failed: %v", err)
+	if err := EnsureWorldTraversablePath(runtimeDir); err != nil {
+		t.Fatalf("EnsureWorldTraversablePath failed: %v", err)
 	}
 
 	info, err := os.Stat(filepath.Join(dataDir, "etc"))

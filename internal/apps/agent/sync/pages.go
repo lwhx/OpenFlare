@@ -24,6 +24,7 @@ import (
 const (
 	pagesMaxExtractedFileBytes = 100 * 1024 * 1024
 	pagesDirPerm               = 0o755
+	pagesFilePerm              = 0o644
 	pagesManifestFilePerm      = 0o644
 )
 
@@ -135,6 +136,11 @@ func (s *Service) syncPagesDeployments(ctx context.Context, snapshot *state.Snap
 	for _, deployment := range deployments {
 		if err := s.ensurePagesDeployment(ctx, snapshot, deployment); err != nil {
 			return err
+		}
+	}
+	if s.nginxManager != nil {
+		if err := s.nginxManager.EnsureWorkerReadAccess(); err != nil {
+			return fmt.Errorf("ensure openresty worker read access: %w", err)
 		}
 	}
 	return nil
@@ -333,7 +339,7 @@ func extractPagesFile(item *zip.File, targetPath string) error {
 		return err
 	}
 	defer func() { _ = source.Close() }()
-	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, item.FileInfo().Mode().Perm()) //nolint:gosec // targetPath is under managed PagesDir from validated zip entry
+	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, pagesFilePerm) //nolint:gosec // targetPath is under managed PagesDir from validated zip entry
 	if err != nil {
 		return err
 	}
@@ -416,10 +422,6 @@ func copyPagesDir(sourceDir string, targetDir string) error {
 		if entry.IsDir() {
 			return os.MkdirAll(targetPath, pagesDirPerm)
 		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
 		input, err := os.Open(sourcePath) //nolint:gosec // sourcePath is under managed PagesDir walk root
 		if err != nil {
 			return err
@@ -428,7 +430,7 @@ func copyPagesDir(sourceDir string, targetDir string) error {
 		if err := os.MkdirAll(filepath.Dir(targetPath), pagesDirPerm); err != nil {
 			return err
 		}
-		output, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm()) //nolint:gosec // targetPath is under managed PagesDir walk root
+		output, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, pagesFilePerm) //nolint:gosec // targetPath is under managed PagesDir walk root
 		if err != nil {
 			return err
 		}

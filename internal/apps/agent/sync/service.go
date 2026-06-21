@@ -43,6 +43,7 @@ type NginxManager interface {
 	CurrentChecksum() (string, error)
 	WAFIPGroupChecksums() (map[string]string, error)
 	SyncWAFIPGroups(groups []protocol.WAFIPGroup) error
+	EnsureWorkerReadAccess() error
 }
 
 // Service orchestrates configuration synchronisation between the server and the local OpenResty instance.
