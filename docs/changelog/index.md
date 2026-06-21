@@ -32,6 +32,8 @@ sidebar: false
 
 - 修复 WAF PoW 已启用但挑战页不弹出：`pow_enabled=true` 且 `pow_config` 为空时补齐默认配置写入 `waf_config.json`，OpenResty 按全局+已绑定规则组解析 PoW 注入，Lua 对空配置使用运行时默认值。
 
+- 修复 Agent 使用 volume 映射时 PoW/WAF 运行时配置无法加载：OpenResty worker（`nobody`）对 `0700` 父目录无法遍历导致 `waf_config.json` 虽为 `0644` 仍不可读；Apply 后强制修正 `data_dir` 至运行时目录链为 `0755`，PoW Lua 在不可读时输出 WARN。
+
 - 收敛子代理站点标识双轨逻辑：新增 `routeidentity` 统一包，`proxy_route`、`config_version`、`uptimekuma`、`flared` 与 OpenResty 渲染共用 `ResolveSiteName` / `DecodeDomains`；移除废弃 `RenderPoWConfig`；PoW Lua 与 WAF 一致仅依赖 `$openflare_waf_site`。
 
 - 修复全球态势板在仅有 `geo_name`（如 mmdb 的 Germany）而无经纬度时误用美国 fallback 坐标的问题；按国家名/ISO 匹配地图质心。

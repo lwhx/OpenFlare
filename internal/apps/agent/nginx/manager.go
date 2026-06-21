@@ -275,6 +275,68 @@ func (m *Manager) writeTargetFiles(mainConfig string, routeConfig string, suppor
 	if err := os.WriteFile(m.RouteConfigPath, []byte(renderedRouteConfig), nginxConfigFilePerm); err != nil {
 		return err
 	}
+	return m.ensureOpenRestyWorkerReadAccess()
+}
+
+// ensureOpenRestyWorkerReadAccess makes runtime config and Lua paths traversable by the
+// unprivileged OpenResty worker user (typically nobody). Volume mounts may create parent
+// directories as 0700 root-owned; MkdirAll does not fix existing modes.
+func (m *Manager) ensureOpenRestyWorkerReadAccess() error {
+	targets := []string{
+		m.RuntimeConfigDir,
+		m.LuaDir,
+		filepath.Dir(m.MainConfigPath),
+		filepath.Dir(m.RouteConfigPath),
+	}
+	if m.AccessLogPath != "" {
+		targets = append(targets, filepath.Dir(m.AccessLogPath))
+	}
+	for _, target := range targets {
+		if err := ensureWorldTraversablePath(target); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(m.RuntimeConfigDir) == "" {
+		return nil
+	}
+	entries, err := os.ReadDir(m.RuntimeConfigDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		path := filepath.Join(m.RuntimeConfigDir, entry.Name())
+		if chmodErr := os.Chmod(path, nginxConfigFilePerm); chmodErr != nil && !os.IsNotExist(chmodErr) {
+			return chmodErr
+		}
+	}
+	return nil
+}
+
+func ensureWorldTraversablePath(targetDir string) error {
+	const maxDepth = 12
+	current := filepath.Clean(strings.TrimSpace(targetDir))
+	if current == "" || current == "." {
+		return nil
+	}
+	for depth := 0; depth < maxDepth; depth++ {
+		if err := os.Chmod(current, nginxDirPerm); err != nil {
+			if os.IsNotExist(err) || os.IsPermission(err) {
+				break
+			}
+			return fmt.Errorf("chmod %s: %w", current, err)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		current = parent
+	}
 	return nil
 }
 

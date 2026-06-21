@@ -966,3 +966,28 @@ func TestObservabilityListenAddress(t *testing.T) {
 		t.Fatalf("unexpected path observability listen address: %s", got)
 	}
 }
+
+func TestEnsureWorldTraversableChainFixesRestrictedParentDirs(t *testing.T) {
+	tempDir := t.TempDir()
+	dataDir := filepath.Join(tempDir, "data")
+	runtimeDir := filepath.Join(dataDir, "etc", "openflare")
+	if err := os.MkdirAll(runtimeDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	configPath := filepath.Join(runtimeDir, "waf_config.json")
+	if err := os.WriteFile(configPath, []byte(`{}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	if err := ensureWorldTraversablePath(runtimeDir); err != nil {
+		t.Fatalf("ensureWorldTraversablePath failed: %v", err)
+	}
+
+	info, err := os.Stat(filepath.Join(dataDir, "etc"))
+	if err != nil {
+		t.Fatalf("Stat failed: %v", err)
+	}
+	if info.Mode().Perm()&0o005 == 0 {
+		t.Fatalf("expected etc directory to be world-traversable, got %o", info.Mode().Perm())
+	}
+}

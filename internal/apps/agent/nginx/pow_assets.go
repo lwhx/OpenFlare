@@ -103,9 +103,14 @@ local function load_pow_config()
 
             pow_config_dict:set("_domain_keys", table.concat(domain_keys, "\n"), 0)
             pow_config_dict:set("_config_hash", current_hash, 0)
-            return
+            return true
         end
     end
+
+    if pow_config_dict:add("_pow_unreadable_config_logged", true, 60) then
+        ngx.log(ngx.WARN, "openflare pow config is not readable by worker; check directory permissions under ", "__OPENFLARE_RUNTIME_CONFIG_DIR__")
+    end
+    return false
 end
 
 load_pow_config()
