@@ -3,7 +3,6 @@ set -eu
 
 RUNTIME_USER="openflare"
 AGENT_BIN="/usr/local/bin/openflare-agent"
-OPENRESTY_BIN="/usr/local/openresty/nginx/sbin/nginx"
 
 fix_runtime_ownership() {
   for target in /data /etc/openflare; do
