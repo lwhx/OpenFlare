@@ -50,13 +50,9 @@ type statusView struct {
 	Version                 string                 `json:"version"`
 	StartTime               int64                  `json:"start_time"`
 	EmailVerification       bool                   `json:"email_verification"`
-	GitHubOAuth             bool                   `json:"github_oauth"`
-	GitHubClientID          string                 `json:"github_client_id"`
 	SystemName              string                 `json:"system_name"`
 	HomePageLink            string                 `json:"home_page_link"`
 	FooterHTML              string                 `json:"footer_html"`
-	WeChatQRCode            string                 `json:"wechat_qrcode"`
-	WeChatLogin             bool                   `json:"wechat_login"`
 	ServerAddress           string                 `json:"server_address"`
 	PasswordRegisterEnabled bool                   `json:"password_register_enabled"`
 	CapLoginEnabled         bool                   `json:"cap_login_enabled"`
@@ -168,13 +164,9 @@ func getStatus(ctx context.Context, baseAPIPath string) (*statusView, error) {
 		Version:                 buildinfo.Version,
 		StartTime:               model.StartTime,
 		EmailVerification:       model.EmailVerificationEnabled,
-		GitHubOAuth:             model.GitHubOAuthEnabled,
-		GitHubClientID:          model.GitHubClientID,
 		SystemName:              model.SystemName,
 		HomePageLink:            model.HomePageLink,
 		FooterHTML:              model.Footer,
-		WeChatQRCode:            model.WeChatAccountQRCodeImageURL,
-		WeChatLogin:             model.WeChatAuthEnabled,
 		ServerAddress:           model.ServerAddress,
 		PasswordRegisterEnabled: model.PasswordRegisterEnabled,
 		CapLoginEnabled:         model.CapLoginEnabled,

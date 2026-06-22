@@ -40,16 +40,6 @@ func buildOptionValidationState(options []model.OpenFlareOption) map[string]stri
 }
 
 func validateOptionWithState(option model.OpenFlareOption, state map[string]string) error {
-	switch option.Key {
-	case "GitHubOAuthEnabled":
-		if option.Value == optionValueTrue && strings.TrimSpace(state["GitHubClientId"]) == "" {
-			return fmt.Errorf("无法启用 GitHub OAuth，请先填入 GitHub Client ID 以及 GitHub Client Secret！")
-		}
-	case "WeChatAuthEnabled":
-		if option.Value == optionValueTrue && strings.TrimSpace(state["WeChatServerAddress"]) == "" {
-			return fmt.Errorf("无法启用微信登录，请先填入微信登录相关配置信息！")
-		}
-	}
 
 	if err := validateOpenRestyOption(option.Key, option.Value); err != nil {
 		return err

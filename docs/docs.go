@@ -309,7 +309,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "format": "int64",
                         "description": "认证源 ID 或名称",
                         "name": "id",
                         "in": "path",
@@ -387,7 +386,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "format": "int64",
                         "description": "认证源 ID 或名称",
                         "name": "id",
                         "in": "path",
@@ -455,7 +453,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "format": "int64",
                         "description": "认证源 ID 或名称",
                         "name": "id",
                         "in": "path",
@@ -1366,7 +1363,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "format": "int64",
                         "description": "通道ID",
                         "name": "id",
                         "in": "path",
@@ -1420,7 +1416,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "format": "int64",
                         "description": "通道ID",
                         "name": "id",
                         "in": "path",
@@ -3373,7 +3368,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "format": "int64",
                         "description": "上传用户 ID",
                         "name": "user_id",
                         "in": "query"
@@ -4352,7 +4346,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/protocol.PagesDeploymentHashResponse"
+                                            "$ref": "#/definitions/github_com_Rain-kl_Wavelet_pkg_protocol.PagesDeploymentHashResponse"
                                         }
                                     }
                                 }
@@ -4523,38 +4517,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/response.Any"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/custom/hello": {
-            "get": {
-                "description": "A sample business API for customization",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "custom"
-                ],
-                "summary": "Sample Hello API",
-                "responses": {
-                    "200": {
-                        "description": "成功",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Any"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
                         }
                     }
                 }
@@ -11226,7 +11188,6 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "format": "int64",
                         "description": "外部帐号绑定记录 ID",
                         "name": "id",
                         "in": "path",
@@ -13858,22 +13819,19 @@ const docTemplate = `{
                 "source_countries": {
                     "type": "object",
                     "additionalProperties": {
-                        "type": "integer",
-                        "format": "int64"
+                        "type": "integer"
                     }
                 },
                 "status_codes": {
                     "type": "object",
                     "additionalProperties": {
-                        "type": "integer",
-                        "format": "int64"
+                        "type": "integer"
                     }
                 },
                 "top_domains": {
                     "type": "object",
                     "additionalProperties": {
-                        "type": "integer",
-                        "format": "int64"
+                        "type": "integer"
                     }
                 },
                 "unique_visitor_count": {
@@ -13884,6 +13842,17 @@ const docTemplate = `{
                 },
                 "window_started_at_unix": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_Rain-kl_Wavelet_pkg_protocol.PagesDeploymentHashResponse": {
+            "type": "object",
+            "properties": {
+                "deployment_id": {
+                    "type": "integer"
+                },
+                "hash": {
+                    "type": "string"
                 }
             }
         },
@@ -15167,11 +15136,6 @@ const docTemplate = `{
                 "UploadStatusPending": "待使用",
                 "UploadStatusUsed": "已使用"
             },
-            "x-enum-descriptions": [
-                "待使用",
-                "已使用",
-                "已删除"
-            ],
             "x-enum-varnames": [
                 "UploadStatusPending",
                 "UploadStatusUsed",
@@ -16256,12 +16220,6 @@ const docTemplate = `{
                 "footer_html": {
                     "type": "string"
                 },
-                "github_client_id": {
-                    "type": "string"
-                },
-                "github_oauth": {
-                    "type": "boolean"
-                },
                 "home_page_link": {
                     "type": "string"
                 },
@@ -16278,12 +16236,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
-                    "type": "string"
-                },
-                "wechat_login": {
-                    "type": "boolean"
-                },
-                "wechat_qrcode": {
                     "type": "string"
                 }
             }
@@ -16688,17 +16640,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "relay_node_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "protocol.PagesDeploymentHashResponse": {
-            "type": "object",
-            "properties": {
-                "deployment_id": {
-                    "type": "integer"
-                },
-                "hash": {
                     "type": "string"
                 }
             }

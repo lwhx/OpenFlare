@@ -11,27 +11,23 @@ var enabledOptionAppliers = map[string]func(bool){
 	"PasswordLoginEnabled":         func(v bool) { PasswordLoginEnabled = v },
 	"CapLoginEnabled":              func(v bool) { CapLoginEnabled = v },
 	"EmailVerificationEnabled":     func(v bool) { EmailVerificationEnabled = v },
-	"GitHubOAuthEnabled":           func(v bool) { GitHubOAuthEnabled = v },
-	"WeChatAuthEnabled":            func(v bool) { WeChatAuthEnabled = v },
 	"AgentWebsocketUpgradeEnabled": func(v bool) { AgentWebsocketUpgradeEnabled = v },
 	"UptimeKumaEnabled":            func(v bool) { UptimeKumaEnabled = v },
 	"DatabaseAutoCleanupEnabled":   func(v bool) { DatabaseAutoCleanupEnabled = v },
 }
 
 var stringOptionAppliers = map[string]func(string){
-	"ServerAddress":               func(v string) { ServerAddress = v },
-	"GitHubClientId":              func(v string) { GitHubClientID = v },
-	"Footer":                      func(v string) { Footer = v },
-	"HomePageLink":                func(v string) { HomePageLink = v },
-	"SystemName":                  func(v string) { SystemName = v },
-	"WeChatAccountQRCodeImageURL": func(v string) { WeChatAccountQRCodeImageURL = v },
-	"AgentDiscoveryToken":         func(v string) { AgentDiscoveryToken = v },
-	"GeoIPProvider":               func(v string) { GeoIPProvider = v },
-	"UptimeKumaUrl":               func(v string) { UptimeKumaURL = v },
-	"UptimeKumaUsername":          func(v string) { UptimeKumaUsername = v },
-	optionKeyUptimeKumaPassword:   func(v string) { UptimeKumaPassword = v },
-	"UptimeKumaMonitorScope":      func(v string) { UptimeKumaMonitorScope = v },
-	"UptimeKumaSelectedSites":     func(v string) { UptimeKumaSelectedSites = v },
+	"ServerAddress":             func(v string) { ServerAddress = v },
+	"Footer":                    func(v string) { Footer = v },
+	"HomePageLink":              func(v string) { HomePageLink = v },
+	"SystemName":                func(v string) { SystemName = v },
+	"AgentDiscoveryToken":       func(v string) { AgentDiscoveryToken = v },
+	"GeoIPProvider":             func(v string) { GeoIPProvider = v },
+	"UptimeKumaUrl":             func(v string) { UptimeKumaURL = v },
+	"UptimeKumaUsername":        func(v string) { UptimeKumaUsername = v },
+	optionKeyUptimeKumaPassword: func(v string) { UptimeKumaPassword = v },
+	"UptimeKumaMonitorScope":    func(v string) { UptimeKumaMonitorScope = v },
+	"UptimeKumaSelectedSites":   func(v string) { UptimeKumaSelectedSites = v },
 }
 
 func applyEnabledOptionMirror(key, value string) {

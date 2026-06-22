@@ -42,10 +42,6 @@ var (
 	CapLoginEnabled                       = true
 	PasswordRegisterEnabled               = false
 	EmailVerificationEnabled              = false
-	GitHubOAuthEnabled                    = false
-	WeChatAuthEnabled                     = false
-	GitHubClientID                        = ""
-	WeChatAccountQRCodeImageURL           = ""
 	SMTPPort                              = 587
 	AgentDiscoveryToken                   = ""
 	AgentHeartbeatInterval                = 10000
@@ -159,8 +155,6 @@ func DefaultOpenFlareOptions() map[string]string {
 		"CapLoginEnabled":                       strconv.FormatBool(CapLoginEnabled),
 		"PasswordRegisterEnabled":               strconv.FormatBool(PasswordRegisterEnabled),
 		"EmailVerificationEnabled":              strconv.FormatBool(EmailVerificationEnabled),
-		"GitHubOAuthEnabled":                    strconv.FormatBool(GitHubOAuthEnabled),
-		"WeChatAuthEnabled":                     strconv.FormatBool(WeChatAuthEnabled),
 		"SMTPServer":                            "",
 		"SMTPPort":                              strconv.Itoa(SMTPPort),
 		"SMTPAccount":                           "",
@@ -171,11 +165,6 @@ func DefaultOpenFlareOptions() map[string]string {
 		"HomePageLink":                          HomePageLink,
 		"SystemName":                            SystemName,
 		"ServerAddress":                         "",
-		"GitHubClientId":                        "",
-		"GitHubClientSecret":                    "",
-		"WeChatServerAddress":                   "",
-		"WeChatServerToken":                     "",
-		"WeChatAccountQRCodeImageURL":           "",
 		"AgentDiscoveryToken":                   "",
 		"AgentHeartbeatInterval":                strconv.Itoa(AgentHeartbeatInterval),
 		"AgentWebsocketUpgradeEnabled":          strconv.FormatBool(AgentWebsocketUpgradeEnabled),

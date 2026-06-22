@@ -100,8 +100,7 @@ func TestMigrateUpgradesLegacyDatabaseAndPreservesData(t *testing.T) {
 		`INSERT INTO users (id, username, password, display_name, role, status, email)
 		 VALUES (2, 'jack', 'hashed_pass_456', 'Normal User jack', 10, 1, 'jack@example.com');`,
 		// Legacy config options
-		`INSERT INTO options (key, value) VALUES ('GitHubClientId', 'Ov23lixMKW');`,
-		`INSERT INTO options (key, value) VALUES ('GitHubClientSecret', 'secret_abc_123');`,
+		`INSERT INTO options (key, value) VALUES ('SystemName', 'CustomOpenFlare');`,
 		// Legacy origin
 		`INSERT INTO origins (id, name, address, remark, created_at, updated_at)
 		 VALUES (10, 'my_origin', '127.0.0.1:8080', 'original origin', '2026-06-01 12:00:00', '2026-06-01 12:00:00');`,
@@ -183,20 +182,12 @@ func TestMigrateUpgradesLegacyDatabaseAndPreservesData(t *testing.T) {
 	}
 
 	// Verify options migrated to of_options
-	var githubClientIDVal string
-	if err := sqliteDB.Table("of_options").Where("key = ?", "GitHubClientId").Select("value").Scan(&githubClientIDVal).Error; err != nil {
-		t.Fatalf("query GitHubClientId failed: %v", err)
+	var systemNameVal string
+	if err := sqliteDB.Table("of_options").Where("key = ?", "SystemName").Select("value").Scan(&systemNameVal).Error; err != nil {
+		t.Fatalf("query SystemName failed: %v", err)
 	}
-	if githubClientIDVal != "Ov23lixMKW" {
-		t.Errorf("GitHubClientId value incorrect: got %s, want Ov23lixMKW", githubClientIDVal)
-	}
-
-	var githubClientSecretVal string
-	if err := sqliteDB.Table("of_options").Where("key = ?", "GitHubClientSecret").Select("value").Scan(&githubClientSecretVal).Error; err != nil {
-		t.Fatalf("query GitHubClientSecret failed: %v", err)
-	}
-	if githubClientSecretVal != "secret_abc_123" {
-		t.Errorf("GitHubClientSecret value incorrect: got %s, want secret_abc_123", githubClientSecretVal)
+	if systemNameVal != "CustomOpenFlare" {
+		t.Errorf("SystemName value incorrect: got %s, want CustomOpenFlare", systemNameVal)
 	}
 
 	// Verify origin migrated to of_origins

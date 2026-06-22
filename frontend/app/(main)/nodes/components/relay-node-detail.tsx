@@ -6,6 +6,7 @@ import {useMutation, useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
 import {
   Activity,
+  Copy,
   ExternalLink,
   FileText,
   Fingerprint,
@@ -38,11 +39,7 @@ import {NodeService} from '@/lib/services/openflare';
 import {AgentUpdateDialog} from './agent-update-dialog';
 import {InstallCommand} from './install-command';
 import {NodeDetailShell} from './node-detail-shell';
-import {
-  NodeErrorBanner,
-  NodeInfoRow,
-  NodeSectionCard,
-} from './node-detail-primitives';
+import {NodeErrorBanner, NodeInfoRow, NodeSectionCard,} from './node-detail-primitives';
 import {NodeEditorDialog} from './node-editor-dialog';
 import {NodeObservability} from './node-observability';
 import {NodeStatusBadge} from './node-status-badge';
@@ -278,15 +275,32 @@ export function RelayNodeDetail({ node }: { node: NodeItem }) {
           </div>
 
           {webUiUrl ? (
-            <a
-              href={webUiUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center text-sm font-medium text-primary hover:underline"
-            >
-              打开 FRPS WebUI
-              <ExternalLink className="size-3.5 ml-1.5" />
-            </a>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <a
+                href={webUiUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center font-medium text-primary hover:underline"
+              >
+                打开 FRPS WebUI
+                <ExternalLink className="size-3.5 ml-1.5" />
+              </a>
+              <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded border">
+                {webUiUrl}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  void navigator.clipboard.writeText(webUiUrl);
+                  toast.success('链接已复制到剪贴板');
+                }}
+                title="复制链接"
+              >
+                <Copy className="size-3.5" />
+              </Button>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">WebUI 已禁用或未配置绑定端口。</p>
           )}
