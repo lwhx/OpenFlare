@@ -21,6 +21,11 @@ sidebar: false
 - 新增可配置的 FRPS 内置 WebUI 开关和监听端口。在数据库 w_system_configs 中新增 `relay_frps_web_ui_enabled` 与 `relay_frps_web_ui_port`，支持通过后台系统设置页进行图形化管理与动态同步至 Relay 节点。
 - 将 TLS 证书续签逻辑接入 Asynq 异步任务框架。新增单证书续期任务 `of_ssl_single_renew`（`openflare:ssl_single_renew`），支持在管理后台查看每步的申请状态和详细日志，并提供失败重试能力。
 
+### 修复
+
+- 修复 openflared（Tunnel Client）WebSocket 连接在 Cloudflare 代理环境下频繁收到 EOF 断连的问题。根本原因：服务端 `read_pump` 仅在收到 WebSocket 协议层 Pong 帧时刷新读超时，而客户端（`golang.org/x/net/websocket`）以 JSON 应用层 `{"type":"pong"}` 响应 ping，服务端 90s 读超时到期后主动关闭连接，客户端收到 EOF 并进入无限重连循环。修复方式：在 `clientPongType` 分支中同步调用 `conn.SetReadDeadline` 刷新超时。
+- 修复 openflared frpc 子进程异常退出（`exit status 1`）时缺乏详细诊断信息的问题。现捕获 frpc stderr 并在进程退出时将其输出记录到结构化日志 `stderr` 字段，便于排查配置格式错误、Auth Token 鉴权失败、relay 端不可达等具体原因。
+
 ### 变更
 
 - 彻底移除废弃的 GitHub OAuth 和微信登录相关遗留设置项（包括 `GitHubOAuthEnabled`、`GitHubClientId`、`GitHubClientSecret`、`WeChatAuthEnabled` 等），从公开状态接口 `/api/v1/d/status` 移除这些字段的返回。
