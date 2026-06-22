@@ -8289,32 +8289,6 @@ paths:
       summary: 轮换引导令牌
       tags:
       - openflare-node
-  /api/v1/d/notice:
-    get:
-      description: 返回 OpenFlare 控制台公告文本，无需登录
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 系统公告
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.Any'
-            - properties:
-                data:
-                  type: string
-              type: object
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/response.Any'
-        "500":
-          description: 内部错误
-          schema:
-            $ref: '#/definitions/response.Any'
-      summary: 获取系统公告
-      tags:
-      - openflare-option
   /api/v1/d/option:
     get:
       description: 返回全部非敏感 OpenFlare 配置项，需要管理员权限

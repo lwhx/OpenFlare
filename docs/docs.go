@@ -7301,50 +7301,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/d/notice": {
-            "get": {
-                "description": "返回 OpenFlare 控制台公告文本，无需登录",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "openflare-option"
-                ],
-                "summary": "获取系统公告",
-                "responses": {
-                    "200": {
-                        "description": "系统公告",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Any"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    },
-                    "500": {
-                        "description": "内部错误",
-                        "schema": {
-                            "$ref": "#/definitions/response.Any"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/d/option": {
             "get": {
                 "security": [

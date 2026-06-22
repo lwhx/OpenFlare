@@ -32,23 +32,6 @@ func GetStatusHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK(view))
 }
 
-// GetNoticeHandler 获取系统公告。
-// @Summary 获取系统公告
-// @Description 返回 OpenFlare 控制台公告文本，无需登录
-// @Tags openflare-option
-// @Produce json
-// @Success 200 {object} response.Any{data=string} "系统公告"
-// @Failure 400 {object} response.Any "参数错误"
-// @Failure 500 {object} response.Any "内部错误"
-// @Router /api/v1/d/notice [get]
-func GetNoticeHandler(c *gin.Context) {
-	notice, err := getNotice(c.Request.Context())
-	if apiutil.AbortBadRequestOnError(c, err) {
-		return
-	}
-	c.JSON(http.StatusOK, response.OK(notice))
-}
-
 // ListOptionsHandler 列出全部配置项。
 // @Summary 列出 OpenFlare 配置项
 // @Description 返回全部非敏感 OpenFlare 配置项，需要管理员权限

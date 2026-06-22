@@ -143,13 +143,6 @@ func updateOptions(ctx context.Context, options []model.OpenFlareOption) error {
 	return nil
 }
 
-func getNotice(ctx context.Context) (string, error) {
-	if err := EnsureInitialized(ctx); err != nil {
-		return "", err
-	}
-	return model.OptionValue("Notice"), nil
-}
-
 func getStatus(ctx context.Context, baseAPIPath string) (*statusView, error) {
 	if err := EnsureInitialized(ctx); err != nil {
 		return nil, err

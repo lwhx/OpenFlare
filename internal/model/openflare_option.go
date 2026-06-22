@@ -159,7 +159,6 @@ func DefaultOpenFlareOptions() map[string]string {
 		"SMTPPort":                              strconv.Itoa(SMTPPort),
 		"SMTPAccount":                           "",
 		"SMTPToken":                             "",
-		"Notice":                                "",
 		"About":                                 "",
 		"Footer":                                Footer,
 		"HomePageLink":                          HomePageLink,

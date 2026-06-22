@@ -73,18 +73,6 @@ func TestUpdateOptionHotReloadsOptionMap(t *testing.T) {
 	assert.Equal(t, "HotReloaded", model.SystemName)
 }
 
-func TestGetNotice(t *testing.T) {
-	cleanup := setupOptionTestDB(t)
-	defer cleanup()
-	ctx := context.Background()
-
-	require.NoError(t, updateOption(ctx, model.OpenFlareOption{Key: "Notice", Value: "hello"}))
-
-	notice, err := getNotice(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "hello", notice)
-}
-
 func TestLookupGeoIPDisabledProvider(t *testing.T) {
 	cleanup := setupOptionTestDB(t)
 	defer cleanup()

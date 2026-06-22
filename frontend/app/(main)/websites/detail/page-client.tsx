@@ -38,7 +38,6 @@ import {
   buildCertificateLabel,
   getCertificateStatus,
   getErrorMessage,
-  getMatchTypeMeta,
   isRouteRelatedToManagedDomain,
 } from '../components/website-utils';
 
@@ -175,9 +174,7 @@ export function WebsiteDetailPageClient() {
     );
   }
 
-  const matchType = getMatchTypeMeta(website.domain);
   const certificateStatus = certificate ? getCertificateStatus(certificate) : null;
-  const enabledRoutesCount = relatedRoutes.filter((route) => route.enabled).length;
 
   return (
     <div className="py-6 px-1 space-y-6">
