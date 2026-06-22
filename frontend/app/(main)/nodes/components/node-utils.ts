@@ -107,6 +107,20 @@ const relayInstallerScriptUrl =
 const flaredInstallerScriptUrl =
   'https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-flared.sh';
 
+export function getImageTag(version?: string): string {
+  if (!version) {
+    return 'latest';
+  }
+  const v = version.toLowerCase();
+  if (v === 'dev' || v.includes('alpha') || v.includes('beta') || v.includes('rc')) {
+    return 'beta';
+  }
+  if (v.startsWith('v')) {
+    return version;
+  }
+  return 'latest';
+}
+
 export function buildRelayInstallCommand(serverUrl: string, discoveryToken: string) {
   return [
     `curl -fsSL ${relayInstallerScriptUrl} | bash -s -- \\`,
@@ -115,8 +129,9 @@ export function buildRelayInstallCommand(serverUrl: string, discoveryToken: stri
   ].join('\n');
 }
 
-export function buildRelayDockerInstallCommand(serverUrl: string, discoveryToken: string) {
-  const image = 'ghcr.io/rain-kl/openflare-relay:latest';
+export function buildRelayDockerInstallCommand(serverUrl: string, discoveryToken: string, version?: string) {
+  const tag = getImageTag(version);
+  const image = `ghcr.io/rain-kl/openflare-relay:${tag}`;
 
   return [
     `docker pull ${image}`,
@@ -136,8 +151,9 @@ export function buildTunnelInstallCommand(serverUrl: string, tunnelToken: string
   ].join('\n');
 }
 
-export function buildTunnelDockerInstallCommand(serverUrl: string, tunnelToken: string) {
-  const image = 'ghcr.io/rain-kl/openflared:latest';
+export function buildTunnelDockerInstallCommand(serverUrl: string, tunnelToken: string, version?: string) {
+  const tag = getImageTag(version);
+  const image = `ghcr.io/rain-kl/openflared:${tag}`;
 
   return [
     `docker pull ${image}`,
@@ -148,6 +164,7 @@ export function buildTunnelDockerInstallCommand(serverUrl: string, tunnelToken: 
     `  ${image}`,
   ].join('\n');
 }
+
 
 export function formatBytes(bytes?: number | null, decimals = 1) {
   if (bytes === undefined || bytes === null || !Number.isFinite(bytes)) {

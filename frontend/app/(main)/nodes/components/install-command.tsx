@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect, useMemo, useState} from 'react';
+import {useQuery} from '@tanstack/react-query';
 import {Copy} from 'lucide-react';
 import {toast} from 'sonner';
 
@@ -8,7 +9,7 @@ import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import {Input} from '@/components/ui/input';
 import {Label} from '@/components/ui/label';
-import type {NodeItem} from '@/lib/services/openflare';
+import {type NodeItem, StatusService} from '@/lib/services/openflare';
 
 import {
   buildRelayDockerInstallCommand,
@@ -56,6 +57,14 @@ export function InstallCommand({
   const [serverUrl, setServerUrl] = useState('');
   const meta = variantMeta[variant];
 
+  const statusQuery = useQuery({
+    queryKey: ['openflare', 'public-status'],
+    queryFn: () => StatusService.getPublicStatus(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const serverVersion = statusQuery.data?.version;
+
   useEffect(() => {
     if (typeof window !== 'undefined' && !serverUrl) {
       setServerUrl(window.location.origin);
@@ -77,9 +86,9 @@ export function InstallCommand({
       return '';
     }
     return variant === 'relay'
-      ? buildRelayDockerInstallCommand(normalizedServerUrl, node.access_token)
-      : buildTunnelDockerInstallCommand(normalizedServerUrl, node.access_token);
-  }, [normalizedServerUrl, node.access_token, variant]);
+      ? buildRelayDockerInstallCommand(normalizedServerUrl, node.access_token, serverVersion)
+      : buildTunnelDockerInstallCommand(normalizedServerUrl, node.access_token, serverVersion);
+  }, [normalizedServerUrl, node.access_token, variant, serverVersion]);
 
   const handleCopy = async (value: string, message: string) => {
     try {

@@ -30,6 +30,8 @@ sidebar: false
 
 ### 修复
 
+- 修复 Docker 部署模式下 Agent 无法自更新：修改 Docker 启动脚本 `agent-entrypoint.sh`，在降权前将二进制文件所在目录 `/usr/local/bin` 及二进制文件自身的属主赋予 `openflare`，解决容器内自更新写入时报 `permission denied` 的问题。
+
 - 修复 Agent 升级版本比对逻辑：使用统一的 `pkg/utils.CompareVersions` 对比版本，正确处理预览/预发布版本（如 `v3.0.0-beta` 升级到 `v3.0.0-beta.1`），避免升级按钮非预期禁用的问题。
 
 - 修复 Agent 以 `openflare` 非 root 运行时 OpenResty `-t`/reload 失败：nginx `pid` 与 `client_body_temp`/`proxy_temp` 等临时目录改写入 `data_dir/var/run` 与 `data_dir/var/cache/nginx`（`__OPENFLARE_PID_PATH__` / `__OPENFLARE_NGINX_CACHE_DIR__` 占位符），不再使用 OpenResty 安装目录下不可写路径。

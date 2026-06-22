@@ -11,6 +11,8 @@ fix_runtime_ownership() {
       chmod -R u+rwX,g+rX "$target" 2>/dev/null || true
     fi
   done
+  # Allow the runtime user to write to /usr/local/bin to support container self-updating
+  chown "${RUNTIME_USER}:${RUNTIME_USER}" /usr/local/bin "${AGENT_BIN}" 2>/dev/null || true
 }
 
 if [ "$(id -u)" -eq 0 ]; then
