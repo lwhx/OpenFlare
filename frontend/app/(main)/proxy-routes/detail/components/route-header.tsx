@@ -26,6 +26,9 @@ function hasConfigDiff(diff: ConfigDiffResult) {
     diff.added_domains.length > 0 ||
     diff.removed_domains.length > 0 ||
     diff.modified_domains.length > 0 ||
+    diff.added_sites.length > 0 ||
+    diff.removed_sites.length > 0 ||
+    diff.modified_sites.length > 0 ||
     diff.main_config_changed ||
     diff.waf_config_changed ||
     diff.changed_option_keys.length > 0 ||

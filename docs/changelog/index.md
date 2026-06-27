@@ -23,6 +23,7 @@ sidebar: false
 
 ### 修复
 
+- 修复修改 WAF 规则、IP 组或站点信息后，在配置版本预览与发布页面可能误判定“无配置差异”而无法直接发布的问题：在前端 `hasConfigDiff` 差异检测函数中补齐对 WAF 配置变更状态 `waf_config_changed`，以及 `added_sites`、`removed_sites`、`modified_sites` 变化的检查，避免其禁用“确认发布”按钮。
 - 修复由于重构移除系统配置 Redis L2 缓存层后，遗留的系统配置缓存测试用例仍检查 Redis 物理键值导致测试失败的问题：改写测试为验证 L1 RAM 缓存行为，并在失效操作（Invalidate）后引入适当延迟以消除本地 Redis 广播异步被消费带来的测试竞态问题。
 - 修复数据库历史迁移代码在重构中丢失了 `tableExistsSQL` 和 `tablesWithPrefixSQL` 辅助函数定义，导致 `internal/db/migrator` 包和 `internal/cmd` 包编译失败的问题：在 `migrator.go` 底部重新实现并补齐了这俩函数的跨数据库方言支持。
 - 修复 Agent 包 IP 探测测试中，由于包级别缓存变量 `cachedIP` 跨用例污染导致 `TestLoadFallsBackToLocalIPWhenOutboundLookupFails` 最终获取到上个测试的 cached IP 从而报错失败的问题：在 `nodeip` 包中增加并导出 `ResetCacheForTest` 函数以在测试 Setup/Teardown 中清除缓存状态。
