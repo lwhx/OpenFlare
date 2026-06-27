@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
@@ -25,6 +26,7 @@ func TestSystemConfigRAMCacheServesUntilInvalidated(t *testing.T) {
 	if err := repository.InvalidateAllSystemConfigCaches(ctx); err != nil {
 		t.Fatalf("InvalidateAllSystemConfigCaches() error = %v", err)
 	}
+	time.Sleep(50 * time.Millisecond) // Wait for async Redis broadcast to be processed
 
 	warm, err := repository.GetSystemConfigByKey(ctx, model.ConfigKeySiteName)
 	if err != nil {
@@ -54,6 +56,7 @@ func TestSystemConfigRAMCacheServesUntilInvalidated(t *testing.T) {
 	if err := repository.InvalidateSystemConfigCache(ctx, model.ConfigKeySiteName); err != nil {
 		t.Fatalf("InvalidateSystemConfigCache(site_name) error = %v", err)
 	}
+	time.Sleep(50 * time.Millisecond) // Wait for async Redis broadcast to be processed
 
 	refreshed, err := repository.GetSystemConfigByKey(ctx, model.ConfigKeySiteName)
 	if err != nil {
@@ -63,13 +66,8 @@ func TestSystemConfigRAMCacheServesUntilInvalidated(t *testing.T) {
 		t.Fatalf("GetSystemConfigByKey(site_name).Value = %q, want %q", refreshed.Value, "ram_probe_value")
 	}
 
-	exists, err := db.Redis.HExists(ctx, db.PrefixedKey(repository.SystemConfigRedisHashKey), model.ConfigKeySiteName).Result()
-	if err != nil {
-		t.Fatalf("HExists(site_name) error = %v", err)
-	}
-	if !exists {
-		t.Fatal("expected redis hash field to be repopulated after refresh")
-	}
+	// Since system configs are now purely cached in process-local RAM (L1) and not written to Redis (L2),
+	// we do not verify if the Redis hash field is repopulated.
 }
 
 func TestInvalidateSystemConfigCacheClearsRedisField(t *testing.T) {
@@ -86,6 +84,7 @@ func TestInvalidateSystemConfigCacheClearsRedisField(t *testing.T) {
 	if err := repository.InvalidateSystemConfigCache(ctx, model.ConfigKeySiteName); err != nil {
 		t.Fatalf("InvalidateSystemConfigCache(site_name) error = %v", err)
 	}
+	time.Sleep(50 * time.Millisecond) // Wait for async Redis broadcast to be processed
 
 	_, err = db.Redis.HGet(ctx, db.PrefixedKey(repository.SystemConfigRedisHashKey), model.ConfigKeySiteName).Result()
 	if !errors.Is(err, redis.Nil) {

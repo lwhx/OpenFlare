@@ -115,3 +115,17 @@ func clearSystemConfigCache() {
 		log.Printf("[%s] clear system config cache failed: %v\n", dbType(), err)
 	}
 }
+
+func tableExistsSQL(dialect string) string {
+	if dialect == dialectPostgres {
+		return "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name=$1"
+	}
+	return "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?"
+}
+
+func tablesWithPrefixSQL(dialect string) string {
+	if dialect == dialectPostgres {
+		return "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE $1"
+	}
+	return "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?"
+}

@@ -250,12 +250,14 @@ func TestLoadUsesEnvConfigWhenFileIsMissing(t *testing.T) {
 }
 
 func TestLoadDetectsOutboundIPWhenNodeIPMissing(t *testing.T) {
+	nodeip.ResetCacheForTest()
 	previousLookup := nodeip.LookupOutboundIP
 	nodeip.LookupOutboundIP = func(ctx context.Context, strategies ...geoip.OutboundIPStrategy) (net.IP, error) {
 		return net.ParseIP("8.8.8.8"), nil
 	}
 	defer func() {
 		nodeip.LookupOutboundIP = previousLookup
+		nodeip.ResetCacheForTest()
 	}()
 
 	dir := t.TempDir()
@@ -283,6 +285,7 @@ func TestLoadDetectsOutboundIPWhenNodeIPMissing(t *testing.T) {
 }
 
 func TestLoadFallsBackToLocalIPWhenOutboundLookupFails(t *testing.T) {
+	nodeip.ResetCacheForTest()
 	previousOutboundLookup := nodeip.LookupOutboundIP
 	previousLocalLookup := nodeip.LookupLocalIP
 	nodeip.LookupOutboundIP = func(ctx context.Context, strategies ...geoip.OutboundIPStrategy) (net.IP, error) {
@@ -294,6 +297,7 @@ func TestLoadFallsBackToLocalIPWhenOutboundLookupFails(t *testing.T) {
 	defer func() {
 		nodeip.LookupOutboundIP = previousOutboundLookup
 		nodeip.LookupLocalIP = previousLocalLookup
+		nodeip.ResetCacheForTest()
 	}()
 
 	dir := t.TempDir()

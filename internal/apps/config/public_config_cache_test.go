@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Rain-kl/Wavelet/internal/db"
 	"github.com/Rain-kl/Wavelet/internal/model"
 	"github.com/Rain-kl/Wavelet/internal/repository"
 	"github.com/Rain-kl/Wavelet/internal/testhelper"
@@ -46,13 +45,8 @@ func TestListVisibleSystemConfigsUsesRedisCache(t *testing.T) {
 		}
 	}
 
-	exists, err := db.Redis.Exists(ctx, db.PrefixedKey(repository.SystemConfigVisibleListRedisKey)).Result()
-	if err != nil {
-		t.Fatalf("Redis.Exists() error = %v", err)
-	}
-	if exists == 0 {
-		t.Fatal("expected visible config list cache key to exist")
-	}
+	// Since system configs are now purely cached in process-local RAM (L1) and not written to Redis (L2),
+	// we do not verify the existence of the legacy Redis key here.
 
 	if err := repository.InvalidateVisibleSystemConfigsCache(ctx); err != nil {
 		t.Fatalf("InvalidateVisibleSystemConfigsCache() error = %v", err)

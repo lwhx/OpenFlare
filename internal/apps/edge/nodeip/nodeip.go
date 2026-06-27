@@ -104,3 +104,11 @@ func DetectLocal() string {
 	}
 	return bestIP
 }
+
+// ResetCacheForTest clears the cached IP.
+func ResetCacheForTest() {
+	cacheMu.Lock()
+	cachedIP = ""
+	lastDetected = time.Time{}
+	cacheMu.Unlock()
+}
