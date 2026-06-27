@@ -72,6 +72,7 @@ function sidebarGuide(): DefaultTheme.SidebarItem[] {
       items: [
         { text: '概览', link: '' },
         { text: '快速开始', link: 'quick-start' },
+        { text: 'TLS 证书与自动续期', link: 'certificates' },
         { text: '新建反代配置', link: 'proxy-config' },
         { text: 'Pages 静态托管使用', link: 'pages-usage' },
         { text: '内网穿透与隧道使用', link: 'tunnel-usage' },
@@ -94,8 +95,7 @@ function sidebarReference(): DefaultTheme.SidebarItem[] {
       items: [
         { text: '概览', link: '' },
         { text: '配置项', link: 'configuration' },
-        { text: '命令与脚本', link: 'cli' },
-        { text: 'API 约定', link: 'api' }
+        { text: '命令与脚本', link: 'cli' }
       ]
     }
   ]

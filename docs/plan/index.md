@@ -11,15 +11,7 @@
 
 ## 正在进行的计划
 
-| 计划 | 说明 |
-| --- | --- |
-| [OpenFlare → Wavelet 后端迁移计划](./20260618-openflare-wavelet-backend-migration.md) | 将 `openflare-server` 后端迁移至 Wavelet 框架，保留 `/api/*` 路径，复用用户/认证等平台能力 |
-| [OpenFlare 后端迁移 — AI 接手](./handover-openflare-backend-migration.md) | 后端迁移当前进度、任务队列、定时任务、goose 版本与下一步行动（阶段 5 收尾） |
-| [OpenFlare → Wavelet 前端迁移计划](./20260618-openflare-wavelet-frontend-migration.md) | 将 `openflare-server/web` 业务 UI 按 Wavelet 设计风格重写，复用框架组件与 Admin 基建 |
-| [OpenFlare 前端迁移 — AI 委派](./handover-openflare-frontend-migration.md) | 前端迁移任务队列与验收状态 |
-| [前端路由验证](./verify-frontend-routes.md) · [Service 验证](./verify-frontend-services.md) · [UI 验证](./verify-frontend-ui.md) · [构建验证](./verify-frontend-build.md) | 多角度迁移验收报告 |
-| [文档结构更新 — AI 接手](./handover-docs-restructure-update.md) | 重构后多智能体分析结论与文档批量更新记录 |
-| [边缘运行时 Phase 3 任务拆解](./20260619-edge-phase3-tasks.md) | Batch 1 并行任务（duration / observability / heartbeat loop） |
+当前暂无正在进行的开发计划或 AI 接手计划。所有历史迁移与重构项目（如后端/前端向 Wavelet 平台的迁移、边缘运行时重构等）均已完成开发并上线，对应的临时计划文档已归档清理。
 
 ## 使用建议
 

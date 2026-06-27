@@ -64,7 +64,7 @@ curl -I http://127.0.0.1:3000
 2. 如果是源码运行，确认已经构建前端静态产物：
 
 ```bash
-cd openflare-server/web
+cd frontend
 pnpm build
 ```
 
@@ -73,7 +73,7 @@ pnpm build
 4. 如果通过前端开发服务器访问，确认后端代理地址：
 
 ```bash
-cd openflare-server/web
+cd frontend
 NEXT_DEV_BACKEND_URL=http://127.0.0.1:3000 pnpm dev
 ```
 
@@ -85,8 +85,8 @@ NEXT_DEV_BACKEND_URL=http://127.0.0.1:3000 pnpm dev
 
 1. 确认连接的是预期数据库，避免 `SQLITE_PATH` 或 `DSN` 指向了另一个环境。
 2. 查看 Server 日志中使用的是 `sqlite` 还是 `postgres`。
-3. 在浏览器开发者工具中确认管理端 API 请求携带 `OPENFLARE_TOKEN` 请求头。
-4. 清理浏览器本地存储中的旧 `openflare_token` 后重新登录。
+3. 在浏览器开发者工具中确认管理端 API 请求已正确携带 Session Cookie。
+4. 清理浏览器缓存及 Cookie 后重新登录。
 
 ### 应急重置管理员密码
 
@@ -220,7 +220,7 @@ curl -Iv https://your-domain
 执行：
 
 ```bash
-cd openflare-server/web
+cd frontend
 corepack enable
 pnpm install
 pnpm lint

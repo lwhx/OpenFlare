@@ -41,9 +41,9 @@ services:
       DB_ENABLED: "false" # 禁用 PostgreSQL，自动启用内置 SQLite 后备
       SQLITE_PATH: "/data/openflare.db"
       REDIS_ENABLED: "true"
-      REDIS_ADDRS: "redis:6379"
+      REDIS_ADDR: "redis:6379"
       CLICKHOUSE_ENABLED: "true"
-      CLICKHOUSE_HOSTS: "clickhouse:9000"
+      CLICKHOUSE_HOST: "clickhouse:9000"
     depends_on:
       redis:
         condition: service_healthy

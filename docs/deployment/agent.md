@@ -135,7 +135,10 @@ docker run -d --name openflare-agent --restart unless-stopped \
 > **非 Root 安全加固运行**
 > Agent 容器内部已完成安全加固，在启动后会统一以低权限非 root 用户 `openflare` 运行。
 > 容器已内置了 `cap_net_bind_service` 内核能力，使得低权限进程依然能够正常监听宿主机的 `80` 和 `443` 特权端口。
-> 同时，OpenResty 运行时所需的各种临时路径（包括 PID 路径、各类临时缓存目录如 `client_body_temp_path`、`proxy_temp_path` 等）都由 Agent 控制器动态渲染并自动重定向至挂载的 `/data` 数据目录，彻底避免在非 root 权限运行时写入默认系统路径而导致的权限拒绝错误（Permission Denied）。
+> 同时，OpenResty 运行时所需的各种临时路径（包括 PID 路径、各类临时缓存目录如 `client_body_temp_path`、`proxy_temp_path` 等）都由 Agent 控制器动态渲染并自动重定向至容器内的 `/data` 目录，彻底避免在非 root 权限运行时写入默认系统路径而导致的权限拒绝错误（Permission Denied）。
+> 具体物理缓存写入路径为：
+> * 临时缓存目录：`/data/var/cache/nginx`
+> * 代理缓存目录：`/data/var/cache/openflare_proxy`
 
 ## 启动与验证
 

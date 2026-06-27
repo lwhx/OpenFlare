@@ -56,7 +56,7 @@ sequenceDiagram
         Server->>Server: Middleware (CapAuth) 校验并消费 X-Cap-Token
         alt token 合法且未过期且未被消费
             Server->>Server: c.Next() -> 执行常规登录逻辑 (密码 Bcrypt 校验)
-            Server->>Browser: 返回登录成功 (JWT session)
+            Server->>Browser: 返回登录成功 (Session Cookie)
         else token 无效或已被消费
             Server->>Browser: 拦截并返回验证码错误 (401 Unauthorized)
         end

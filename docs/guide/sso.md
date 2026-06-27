@@ -45,7 +45,7 @@ https://openflare.example.com/oauth/company-oidc
 2. `Homepage URL` 填写 OpenFlare 访问地址。
 3. `Authorization callback URL` 填写 OpenFlare 显示的回调地址，例如 `https://openflare.example.com/oauth/github`。
 4. 复制 GitHub 提供的 Client ID 和 Client Secret。
-5. 登录 OpenFlare 管理端，进入“设置 -> 系统设置 -> 配置认证源”。
+5. 登录 OpenFlare 管理端，进入左侧导航 **「系统设置」** (Settings)，选择 **「安全设置」** 选项卡，在 **「认证源管理」** 栏目中进行配置。
 6. 新增认证源，类型选择 `GitHub`。
 7. 填写认证源名称、展示名称、Client ID、Client Secret。
 8. Scope 默认使用 `user:email`，通常无需修改。
@@ -60,7 +60,7 @@ https://openflare.example.com/oauth/company-oidc
 3. Redirect URI / Callback URL 填写 OpenFlare 显示的回调地址，例如 `https://openflare.example.com/oauth/company-oidc`。
 4. 复制 Client ID 和 Client Secret。
 5. 获取 Provider 的 Discovery URL，通常以 `/.well-known/openid-configuration` 结尾。
-6. 登录 OpenFlare 管理端，进入“设置 -> 系统设置 -> 配置认证源”。
+6. 登录 OpenFlare 管理端，进入左侧导航 **「系统设置」** (Settings)，选择 **「安全设置」** 选项卡，在 **「认证源管理」** 栏目中进行配置。
 7. 新增认证源，类型选择 `OIDC`。
 8. 填写认证源名称、展示名称、Client ID、Client Secret、OIDC Discovery URL。
 9. Scope 默认使用 `openid profile email`。如果 Provider 限制了 scope，请按 Provider 允许的值调整。

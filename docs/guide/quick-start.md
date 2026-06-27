@@ -152,8 +152,8 @@ Agent 可以用两类凭证接入：
 
 在管理端准备其中一种凭证后，进入下一步。
 
-- **`discovery_token`** 获取菜单路径：「系统设置」->「自动注册」
-- **`agent_token`** 获取菜单路径：「节点管理」->「新增节点」
+- **`discovery_token`** 获取菜单路径：「系统设置」 (Settings) -> 「OpenFlare」选项卡 -> 「自动注册」凭证
+- **`agent_token`** 获取菜单路径：在「节点管理」中创建节点后，点击进入节点详情页即可查看到对应的专属 Token。
 
 ---
 
@@ -170,7 +170,6 @@ docker pull ghcr.io/rain-kl/openflare-agent:latest
 docker rm -f openflare-agent 2>/dev/null || true
 docker run -d --name openflare-agent --restart unless-stopped \
   -p 80:80 -p 443:443/tcp -p 443:443/udp \
-  -v openflare-agent-data:/data \
   -e OPENFLARE_SERVER_URL=http://your-server:3000 \
   -e OPENFLARE_AGENT_TOKEN=YOUR_AGENT_TOKEN \
   ghcr.io/rain-kl/openflare-agent:latest

@@ -118,7 +118,7 @@ go run main.go all
 Docker 部署是 Agent 推荐的部署方式。Docker 部署时直接运行 Agent 镜像，该镜像基于 OpenResty 镜像制作，内置 Agent 控制器与 OpenResty 二进制。未显式配置 `node_ip` 时，Agent 会优先通过第三方 API 获取真实出口 IP，避免把 Docker 网桥地址登记为节点 IP。
 
 > [!NOTE]
-> Agent 镜像已完成非 Root 安全加固，统一以普通用户 `openflare` 权限运行，通过内核 capabilities 授权（`cap_net_bind_service`）监听 80/443 特权端口，并自动重定向临时文件和 PID 路径至挂载数据卷以防止写入冲突。
+> Agent 镜像已完成非 Root 安全加固，统一以普通用户 `openflare` 权限运行，通过内核 capabilities 授权（`cap_net_bind_service`）监听 80/443 特权端口，并自动重定向临时文件和 PID 路径至容器内 `/data` 目录以防止写入冲突。
 
 挂载配置文件：
 
@@ -127,7 +127,6 @@ docker pull ghcr.io/rain-kl/openflare-agent:latest
 docker rm -f openflare-agent 2>/dev/null || true
 docker run -d --name openflare-agent --restart unless-stopped \
   -p 80:80 -p 443:443/tcp -p 443:443/udp \
-  -v openflare-agent-data:/data \
   -v ./agent.json:/etc/openflare/agent.json:ro \
   ghcr.io/rain-kl/openflare-agent:latest
 ```

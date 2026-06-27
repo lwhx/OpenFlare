@@ -17,15 +17,4 @@ docker compose up
 
 ## Agent 升级
 
-Agent 可以随意升级，升级后会在下次心跳时自动拉取最新配置。升级方式：
-
-```
-docker pull ghcr.io/rain-kl/openflare-agent:beta
-docker rm -f openflare-agent 2>/dev/null || true
-docker run -d --name openflare-agent --restart unless-stopped \
-  -p 80:80 -p 443:443/tcp -p 443:443/udp \
-  -e OPENFLARE_SERVER_URL=<OPENFLARE_SERVER_URL> \
-  -e OPENFLARE_AGENT_TOKEN=<OPENFLARE_AGENT_TOKEN> \
-  ghcr.io/rain-kl/openflare-agent:beta
-  
-```
+Agent 是完全无状态的，升级时直接拉取最新镜像重建容器即可。具体部署命令与安装方式请参考 **[接入 Agent](./agent.md)**。

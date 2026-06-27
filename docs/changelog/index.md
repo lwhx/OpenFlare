@@ -11,115 +11,28 @@ sidebar: false
 ## 重大变更
 
 > [!IMPORTANT]
-> 2.3.2 开始使用 JWT_SECRET 环境变量替代 SESSION_SECRET 进行管理端 API 的 JWT 签名密钥管理。SESSION_SECRET 将会在之后的版本中逐步废弃，请务必尽快迁移到 JWT_SECRET。
+> 3.0.0 版本为 Wavelet 平台迁移与架构重构版本，涉及数据库表结构、环境变量以及前后端底层架构的重大变更。请务必在升级前备份数据库，并且更新到 V2.3.4。
+> 目前已知的兼容性问题：
+> - Pages 无法迁移, 升级前请先手动下载并备份 Pages 静态站点的 ZIP 包，升级后重新创建。
+> - 性能调优参数重置, 升级后请重新配置
 
+## [unreleased]
 
-## [Unreleased]
+## [v3.0.0] - 2026-06-27
 
-### 新增
+### 升级与迁移注意事项
 
-- 新增可配置的 FRPS 内置 WebUI 开关和监听端口。在数据库 w_system_configs 中新增 `relay_frps_web_ui_enabled` 与 `relay_frps_web_ui_port`，支持通过后台系统设置页进行图形化管理与动态同步至 Relay 节点。
-- 将 TLS 证书续签逻辑接入 Asynq 异步任务框架。新增单证书续期任务 `of_ssl_single_renew`（`openflare:ssl_single_renew`），支持在管理后台查看每步的申请状态和详细日志，并提供失败重试能力。
+> [!WARNING]
+> 本次重构涉及数据库表结构以及环境变量的重大变更，老版本务必从 v2.3.4 最新版本升级迁移，否则可能导致数据库结构不兼容或管理端 API 无法访问。
+> 升级前务必备份数据库
 
-### 修复
+### 重大重构说明
 
-- 修复修改 WAF 规则、IP 组或站点信息后，在配置版本预览与发布页面可能误判定“无配置差异”而无法直接发布的问题：在前端 `hasConfigDiff` 差异检测函数中补齐对 WAF 配置变更状态 `waf_config_changed`，以及 `added_sites`、`removed_sites`、`modified_sites` 变化的检查，避免其禁用“确认发布”按钮。
-- 修复由于重构移除系统配置 Redis L2 缓存层后，遗留的系统配置缓存测试用例仍检查 Redis 物理键值导致测试失败的问题：改写测试为验证 L1 RAM 缓存行为，并在失效操作（Invalidate）后引入适当延迟以消除本地 Redis 广播异步被消费带来的测试竞态问题。
-- 修复数据库历史迁移代码在重构中丢失了 `tableExistsSQL` 和 `tablesWithPrefixSQL` 辅助函数定义，导致 `internal/db/migrator` 包和 `internal/cmd` 包编译失败的问题：在 `migrator.go` 底部重新实现并补齐了这俩函数的跨数据库方言支持。
-- 修复 Agent 包 IP 探测测试中，由于包级别缓存变量 `cachedIP` 跨用例污染导致 `TestLoadFallsBackToLocalIPWhenOutboundLookupFails` 最终获取到上个测试的 cached IP 从而报错失败的问题：在 `nodeip` 包中增加并导出 `ResetCacheForTest` 函数以在测试 Setup/Teardown 中清除缓存状态。
+本项目近期完成了**前后端底层架构的重大迁移与重构**，将原有的独立控制端重构为基于 **Wavelet 统一开发框架** 的全新架构：
+- **后端重构**：全面接入 Wavelet 服务平台，收敛并复用了标准的用户管理、安全验证（PoW/邮件验证）、RAM L1 缓存以及 Redis 订阅发布同步机制。配置体系从原 `of_options` 物理表完全迁移合并至标准系统配置框架 `w_system_configs`（类型归为 `business` 业务级配置），废弃原进程级 `OptionMap` 热重载。
+- **前端重构**：管理后台前端使用 Next.js App Router、TypeScript 与 Tailwind CSS（基于 shadcn/ui 组件库与 Wavelet 设计风格）进行了完全重写，提供了更具呼吸感和一致性的用户界面，优化了配置版本预览与发布体验。
+- **架构解耦**：将原有“站点 (Site)”配置体系拆分为 **「网站管理 -> 域名列表」**（处理域名与证书绑定）与 **「规则管理」**（处理反向代理、静态托管、WAF 和缓存等路由匹配规则）两个维度，极大地提升了复杂拓扑配置的灵活性。内网穿透隧道也统一作为 `tunnel_client` 类型节点整合进了 **「节点管理」** 中。
 
-- 修复旧版本迁移升级后，发布版本报错“版本号生成冲突，请重试”的问题。根本原因是配置版本表 `of_config_versions` 的自增主键 `id` 序列与导入的旧数据冲突；现重构配置版本表，将自增 `id` 移除，改由版本号字符串（如 `20260626-003`）直接作为主键（通过迁移 `202606270001_make_version_primary_key` 完成），并同步修改 Agent 和 Flared 模块中的排序及查询条件，解决删除 `id` 列后心跳上报报 `column "id" does not exist` 的故障。
-- 修复代理路由详情页点击“发布配置”时，同时弹出配置差异对话框和确认发布对话框导致重叠的问题：点击发布时不再展示配置差异，直接进行确认发布。
-- 修复配置版本发布到 Agent 后 `openresty -t` 因 `proxy_cache_path` 使用 `/var/cache/openresty` 导致非 root 用户 `mkdir` 失败的问题：发布快照与渲染将 `/var/` 下路径规范为 `__OPENFLARE_PROXY_CACHE_PATH__`，Agent 应用时落地为 `data_dir/var/cache/openflare_proxy` 并兼容重写已发布配置中的旧路径。
-- 修复配置版本发布到 Agent 后 `openresty -t` 因证书私钥无法解析而失败的问题。根因是发布快照生成 `certs/{id}.key` 时直接写入库内加密的 `KeyPEM`（`enc:v1:`），未解密为 PEM；现与证书详情接口一致，发布前通过 `OpenKeyPEM` 解密后再下发。
-- 修复 `/api/v1/d/option` 批量更新 OpenResty 等业务配置不生效的问题。根本原因是 option 模块在读写时做了 PascalCase 与 snake_case 的机械转换（如 `OpenRestyEventsUse` → `open_resty_events_use`），与 `w_system_configs` 中实际 key（`openresty_events_use`）不一致，更新写入了错误的幽灵配置行。现改为 API 直接使用与数据库一致的 snake_case key，并同步更新前端性能调优与运维设置页。
-- 修复 PostgreSQL 数据库执行迁移时报 `duplicate key value violates unique constraint "goose_db_version_pkey"` 导致迁移中断的问题。根本原因：`goose_db_version.id` 自增序列落后于表内 `MAX(id)`（常见于从 dump 恢复或历史迁移以显式 id 复制版本记录后），goose 记录新版本号时自增 id 与既有行冲突。修复方式：在 `goose.Up` 前对 PostgreSQL 执行 `setval` 重新对齐 `goose_db_version` 的 id 序列。
-- 修复 openflared（Tunnel Client）WebSocket 连接在 Cloudflare 代理环境下频繁收到 EOF 断连的问题。根本原因：服务端 `read_pump` 仅在收到 WebSocket 协议层 Pong 帧时刷新读超时，而客户端（`golang.org/x/net/websocket`）以 JSON 应用层 `{"type":"pong"}` 响应 ping，服务端 90s 读超时到期后主动关闭连接，客户端收到 EOF 并进入无限重连循环。修复方式：在 `clientPongType` 分支中同步调用 `conn.SetReadDeadline` 刷新超时。
-- 修复 openflared frpc 子进程异常退出（`exit status 1`）时缺乏详细诊断信息的问题。现捕获 frpc stderr 并在进程退出时将其输出记录到结构化日志 `stderr` 字段，便于排查配置格式错误、Auth Token 鉴权失败、relay 端不可达等具体原因。
-- 修复 Relay 节点启动时在双栈网络环境可能上报 IPv6 地址，导致 Tunnel frpc 客户端无法连接 frps 的问题。强化 `pkg/geoip.HTTPOutboundIPStrategy` 在回退到双栈客户端后仍优先返回 IPv4 地址，确保 Relay 心跳上报的 IP 与 frpc 连接兼容。
-- 修复 WAF 黑白名单判定时，白名单作为严格准入控制导致黑名单逻辑失效的问题。现将白名单逻辑调整为信任放行（Bypass/Allow），命中的请求直接放行，未命中的请求继续进入黑名单等防护模块判定。
-- 修复 WAF IP 组手动编辑和配置版本发布后，未向 Agent 触发 WebSocket 实时广播导致配置变更不能即时生效的问题。
-
-### 变更
-
-- 将 OpenFlare 配置体系从独立的 `of_options` 表统一迁移至标准系统配置框架 `w_system_configs`（SystemConfig），全部归类为业务类型（`type=business`）。涵盖 Agent（心跳间隔、发现令牌、更新仓库等）、UptimeKuma 集成、GeoIP、数据库自动清理及全部 OpenResty 主配置项共 48 项。业务代码统一改为通过 `repository.GetSystemConfigByKey`/`GetBoolByKey`/`GetIntByKey` 读取，移除进程级内存快照 `OptionMap` 与启动时热重载机制，配置变更经 Redis 缓存失效实现动态生效。已存在的同义配置（如 `password_login_enabled`、`smtp_host`）不重复迁移，旧系统遗留的 `SystemName`、`Footer`、`HomePageLink`、`About` 等无用项一并清理；公开状态接口 `/api/v1/d/status` 相应移除 `system_name`、`home_page_link`、`footer_html` 字段。数据迁移完成后通过 goose 迁移 `202606220005` 删除遗留的 `of_options` 表。
-- 优化并统一 `agent`、`relay`、`flared` 的 IP 探测与上报逻辑，均复用公用 `nodeip` 包；在未指定 `node_ip` 时实现心跳 Tick 动态探测上报。
-- 优化 `pkg/geoip.GetOutboundIP` 出口 IP 探测策略，优先通过 `tcp4` 建立 HTTP 连接以获得 IPv4 公网地址，并在纯 IPv6/无 IPv4 路由环境下自动降级为双栈 `tcp` 握手。
-- 优化 `agent` 系统指纹缓存算法，计算指纹时排除 `UptimeSeconds` 和 `ReportedAtUnix` 动态字段，防止周期心跳时不断触发冗余完整的系统 Profile 数据上报。
-
-- 彻底移除废弃的 GitHub OAuth 和微信登录相关遗留设置项（包括 `GitHubOAuthEnabled`、`GitHubClientId`、`GitHubClientSecret`、`WeChatAuthEnabled` 等），从公开状态接口 `/api/v1/d/status` 移除这些字段的返回。
-
-- 前端路由调整：将 TLS 证书和 DNS 账号的路由地址移出 `/websites`（分别变更为顶级路由 `/certificates` 和 `/dns-accounts`），将 WAF IP 组的路由地址移出 `/waf`（变更为顶级路由 `/ip-groups`）。
-
-- 前端页面鉴权改为默认私域：除 `/login`、`/register`、`/callback` 外，未登录访问任意页面（含数据看板 `/`）均重定向至登录页。
-
-- 重构优化：收敛 `flared` 和 `relay` 客户端模块中重复声明的 `APIResponse` 结构体，统一通过类型别名复用 `pkg/protocol.APIResponse`。
-
-### 修复
-
-- 修复由于生成的 Docker 安装/部署命令硬编码拉取 `:latest` 镜像，导致使用 v3 新版协议的控制端与 v2 旧版协议的 Relay 节点无法通信的问题。前端改用动态获取当前控制端版本（serverVersion）并自动拉取与当前控制端匹配的 `:beta` 或具体版本镜像。
-
-- 修复点击「打开 FRPS WebUI」跳转到 `about:blank#blocked`：在 Relay 节点详情页的 WebUI 磁贴卡片中增加展示具体 URL 地址，并提供一键复制按钮。解决因 Chrome 浏览器限制从公网安全源（HTTPS）跨域直接访问本地/私有网络 HTTP 端口（Private Network Access 限制）而导致新页面打开被拦截的问题。
-
-- 修复 Docker 部署模式下 Agent 无法自更新：修改 Docker 启动脚本 `agent-entrypoint.sh`，在降权前将二进制文件所在目录 `/usr/local/bin` 及二进制文件自身的属主赋予 `openflare`，解决容器内自更新写入时报 `permission denied` 的问题。
-
-- 修复 Agent 升级版本比对逻辑：使用统一的 `pkg/utils.CompareVersions` 对比版本，正确处理预览/预发布版本（如 `v3.0.0-beta` 升级到 `v3.0.0-beta.1`），避免升级按钮非预期禁用的问题。
-
-- 修复 Agent 以 `openflare` 非 root 运行时 OpenResty `-t`/reload 失败：nginx `pid` 与 `client_body_temp`/`proxy_temp` 等临时目录改写入 `data_dir/var/run` 与 `data_dir/var/cache/nginx`（`__OPENFLARE_PID_PATH__` / `__OPENFLARE_NGINX_CACHE_DIR__` 占位符），不再使用 OpenResty 安装目录下不可写路径。
-
-- 修复 OpenResty 响应泄露版本号：默认主配置模板与 safe fallback 模板补充 `server_tokens off;`，隐藏 `Server` 头与错误页中的 nginx/OpenResty 版本信息。
-
-- 修复 Agent 与 OpenResty worker 权限不一致导致 Pages/WAF 等静态资源 Permission denied：引入共享运行时用户 `openflare`（Agent 进程、OpenResty worker、文件属主统一）；Docker 入口脚本在启动前修正 volume 属主并降权；本地 systemd 服务以 `openflare` 运行并授予 `CAP_NET_BIND_SERVICE`；`data_dir` 与 `pages_dir` 等路径在同步/Apply 时统一 `chown` 与 `0755/0644` 规范化。
-
-- 修复 Pages 站点根路径 `/` 访问异常：OpenResty 渲染增加 `location = /` 精确匹配；未启用 SPA Fallback 时直接提供入口文件（`index` 指令在 `try_files ... =404` 场景下不生效）；启用 SPA Fallback 时避免 `try_files $uri $uri/ /index.html` 因 `$uri/` 命中站点根目录触发内部重定向循环而返回 500。
-
-- 修复代理路由详情认证配置 Tab：移除 PoW 配置（PoW 仅在 WAF 规则组中设置）；保留 Basic Auth 保存能力；移除页头重复的「保存当前分区」按钮。
-
-- 修复 Pages 路由发布失败并报 `pages module is not available`：配置快照发布流程补齐 Pages 项目激活部署解析与 `pages_deployment` 写入。
-
-- 修复仪表盘与节点详情「24 小时网络趋势」误按速率展示：改为 OpenResty 入/出站小时流量与近 24 小时总量摘要，Y 轴与 tooltip 自动换算 B/KB/MB/GB。
-
-- 修复 Pages 上传或节点同步时报 `pages file size out of bounds`：允许 ZIP 包内的 0 字节文件，并兼容未声明解压大小的 ZIP 条目。
-
-- 修复 Agent 在 OpenResty 配置 checksum 已一致时跳过 Pages 部署包下载，导致 `deployments/{id}/releases` 为空、站点文件未落地：在 state 中缓存 Pages 部署引用；周期同步通过 `GET /api/v1/agent/pages/deployments/:id/hash` 对比 upload SHA-256，仅在哈希变化或本地 release 未就绪时下载 ZIP，避免重复拉取完整配置与部署包。
-
-- 收敛 Pages 部署包读取路径：`upload` 域新增 `GetActiveUpload` / `OpenStoredUpload` / `ActiveUploadHash` / `ResolveLocalFile` / `IngestFromLocalPath` 门面；遗留 `artifact_path` 回填与本地路径解析迁入 upload 域；`OpenDeploymentPackage` 改为返回 `DeploymentPackage`（`io.ReadCloser` + 元数据），不再向 Agent Handler 泄漏 `storage.Object`。
-
-- 修复节点详情 OpenResty 连接数与吞吐显示为「—」：节点可观测 API 将 OpenResty 观测数据合并进 `metric_snapshots`；指标文案改为「请求/分钟」（近 60 秒窗口），连接数为 0 时正常显示 0。
-
-- 修复仪表盘「24 小时请求趋势」摘要误显示当前小时请求量/错误量：改为汇总近 24 小时总量。
-
-- 修复 Pages 部署包上传报「请求超时，请稍后重试」：上传请求使用独立 10 分钟超时（覆盖默认 15 秒），并在大文件上传完成后提示服务端处理中。
-
-- 修复应用日志异常膨胀：Agent 配置同步加锁避免并发重复上报，成功且版本/checksum 未变时跳过重复 apply 日志；Server 入库前对相同成功记录去重；Flared 配置未变更时不再上报 apply 日志。
-
-- 修复应用日志页「清空」无效果：原按钮仅重置筛选；新增「清空日志」入口并对接 `/api/v1/d/apply-logs/cleanup`，支持确认后删除全部记录。
-
-- 配置版本列表按 `created_at` 倒序展示，最新发布版本固定显示在列表顶部。
-
-- 修复 WAF 规则组保存/绑定网站时报 `of_waf_rule_group_bindings_pkey` 冲突：PostgreSQL 在迁移导入显式 ID 后同步绑定表序列，并在写入前自动校正序列。
-
-- 修复 PostgreSQL 启动迁移失败：`of_waf_rule_group_bindings` 序列表为空时 `setval(0)` 越界，改为空表重置为 1、有数据时对齐 `MAX(id)`。
-
-- 修复 WAF 规则组 PoW 策略发布后边缘不生效：统一 WAF 绑定站点名与 OpenResty 路由 `site_name` 解析逻辑，并为所有已启用网站生成 `site_rule_groups` 条目（含仅依赖全局规则组的站点）。
-
-- 修复 WAF PoW 已启用但挑战页不弹出：`pow_enabled=true` 且 `pow_config` 为空时补齐默认配置写入 `waf_config.json`，OpenResty 按全局+已绑定规则组解析 PoW 注入，Lua 对空配置使用运行时默认值。
-
-- 修复 Agent 使用 volume 映射时 PoW/WAF 运行时配置无法加载：OpenResty worker（`nobody`）对 `0700` 父目录无法遍历导致 `waf_config.json` 虽为 `0644` 仍不可读；Apply 后强制修正 `data_dir` 至运行时目录链为 `0755`，PoW Lua 在不可读时输出 WARN。
-
-- 收敛子代理站点标识双轨逻辑：新增 `routeidentity` 统一包，`proxy_route`、`config_version`、`uptimekuma`、`flared` 与 OpenResty 渲染共用 `ResolveSiteName` / `DecodeDomains`；移除废弃 `RenderPoWConfig`；PoW Lua 与 WAF 一致仅依赖 `$openflare_waf_site`。
-
-- 修复全球态势板在仅有 `geo_name`（如 mmdb 的 Germany）而无经纬度时误用美国 fallback 坐标的问题；按国家名/ISO 匹配地图质心。
-
-- 修复 Agent 心跳上报公网 IP 后节点地理位置未自动更新：进程启动时按 `GeoIPProvider` 初始化 `pkg/geoip`，`mmdb` 模式从内置 GeoLite2 种子到 `data/`，并在 Relay 心跳同步地理位置。
-
-- 修复 Agent 启动时 Pages 部署包下载失败：Pages 部署包统一下载走 upload 文件存储框架，部署记录持久化 `upload_id`，legacy `artifact_path` 仅用于一次性回填 upload。
-
-- 修复登录 Cap 人机验证：前端 `cap-solver` 与 Cap 路由测试对齐 `b3a55d4` 之后的统一 API 信封 `{ error_msg, data }`，避免 `challenge` 解构失败。
-
-- 修复配置版本快照/发布预览侧栏无法滚动：内容区改为 `flex-1 min-h-0 overflow-y-auto`，与项目内其他可滚动 Sheet 布局一致。
-
-- 修复 Agent CI/Docker 构建：将 `GeoLite2-Country.mmdb` 提交至仓库作为兜底，构建前优先尝试 `scripts/fetch-agent-geoip-mmdb.sh` 拉取最新库，远程失败时回退使用已提交文件。
 
 ## [v2.3.4] - 2026-06-17
 

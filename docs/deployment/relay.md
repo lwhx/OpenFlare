@@ -50,14 +50,20 @@ docker rm -f openflare-relay 2>/dev/null || true
 
 docker run -d --name openflare-relay --restart unless-stopped \
   -p 7000:7000 \
+  -p 17500:17500 \
   -e OPENFLARE_SERVER_URL=http://your-server:3000 \
   -e OPENFLARE_AGENT_TOKEN=YOUR_AGENT_TOKEN \
-  -v openflare-relay-data:/var/lib/openflare-relay \
+  -v openflare-relay-data:/app/data \
   ghcr.io/rain-kl/openflare-relay:latest
 ```
 
 > [!TIP]
 > 这里的 `-p 7000:7000` 映射的是 `frpc` 客户端连接中继的端口。如果管理端配置了自定义的 `relay_bind_port`，请对应修改宿主机端口映射。
+
+> [!NOTE]
+> **开启内嵌 frps Web UI**:
+> 如果在 Server 控制端开启了中继流量监控面板（即数据库/系统设置中的 `relay_frps_web_ui_enabled` 设为 `true`），你需要将 Web 端口（默认是 `17500`，由系统设置中的 `relay_frps_web_ui_port` 控制）也通过 `-p 17500:17500` 映射到宿主机。
+> 登录 Web UI 时的用户名固定为 `admin`，密码为当前中继节点的 `agent_token`。
 
 ---
 
