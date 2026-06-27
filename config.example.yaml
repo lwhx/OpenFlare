@@ -5,7 +5,7 @@
 # ─── Application ────────────────────────────────────────────────────────────────
 app:
   app_name: "openflare"
-  env: "development"          # development | testing | production
+  env: "production"          # development | testing | production
   addr: ":3000"
   node_id: 1                  # Snowflake node ID (0-1023). Must be unique per instance.
   graceful_shutdown_timeout: 30

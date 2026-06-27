@@ -14,7 +14,7 @@ services:
       OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE:-true}
       OTEL_SAMPLING_RATE: ${OTEL_SAMPLING_RATE:-1.0}
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "3000:3000"
     volumes:
       - ./uploads:/app/uploads
       - ./data/sqlite:/app/data

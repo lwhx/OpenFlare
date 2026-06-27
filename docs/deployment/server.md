@@ -1,143 +1,379 @@
 # 启动 Server
 
-你会学到：如何从源码构建管理端前端、启动 OpenFlare Server、选择 SQLite 或 PostgreSQL，并访问 Swagger。
+你会学到：如何使用 Docker（分为快速启动、生产推荐、进阶版）部署，以及如何从源码本地部署 OpenFlare Server。
 
 OpenFlare Server 是 Gin + GORM 单体控制面，负责管理端 UI、管理 API、Agent API、配置渲染、版本发布、数据存储与聚合查询。
 
-## 前置条件
+> [!IMPORTANT]
+> **关于外部依赖**：
+> OpenFlare 系统内建了对后台异步任务（Asynq 框架）及海量节点日志分析与度量指标（观测面板）的支持。因此，**无论采用何种部署模式，系统都必须依赖 Redis（或 Valkey）与 ClickHouse 的运行**。各个部署方案的主要差异在于主关系型数据库的选择（SQLite vs PostgreSQL）以及是否启用链路追踪服务（Jaeger）。
+
+---
+
+## 方式一：Docker 部署 (推荐)
+
+使用 Docker 部署可以免去本地配置 Go 与 Node.js 前端构建环境的麻烦。根据你的服务器硬件配置及业务需求，你可以选择以下三种方案之一：
+
+### 1. 快速启动 (SQLite + Redis + ClickHouse)
+
+> **适用场景**：测试体验、轻量化单机部署。
+>
+> **特点**：主关系型数据库使用内建的 SQLite 文件
+
+创建 `docker-compose.yaml` 文件：
+
+```yaml
+version: '3.8'
+
+services:
+  openflare:
+    image: ghcr.io/rain-kl/openflare-server:latest
+    container_name: openflare-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./openflare-data:/data
+      - ./uploads:/app/uploads
+    environment:
+      TZ: Asia/Shanghai
+      APP_SESSION_SECRET: 'replace-with-a-long-random-string' # 生产环境请替换为长随机字符串
+      DB_ENABLED: "false" # 禁用 PostgreSQL，自动启用内置 SQLite 后备
+      SQLITE_PATH: "/data/openflare.db"
+      REDIS_ENABLED: "true"
+      REDIS_ADDRS: "redis:6379"
+      CLICKHOUSE_ENABLED: "true"
+      CLICKHOUSE_HOSTS: "clickhouse:9000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+
+  redis:
+    image: valkey/valkey:8.0-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: openflare
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: 123456
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data/clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+```
+
+运行启动命令：
+
+```bash
+docker compose up -d
+```
+
+---
+
+### 2. 生产推荐 (PostgreSQL + Redis + ClickHouse)
+
+> **适用场景**：生产环境、多节点集群管理、高并发高可用要求。
+>
+> **特点**：完全分层架构。启用专用的 PostgreSQL 服务作为主关系数据库，Redis 负责高并发分布式锁、会话缓存与异步队列，ClickHouse 承载海量日志异步 Flush 与观测指标。
+
+创建 `docker-compose.yaml` 文件：
+
+```yaml
+services:
+  openflare:
+    image: ghcr.io/rain-kl/openflare-server:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openflare
+      POSTGRES_USER: openflare
+      POSTGRES_PASSWORD: replace-with-strong-password
+    volumes:
+      - ./data/postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openflare -d openflare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: valkey/valkey:8.0-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: openflare
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: replace-with-clickhouse-password
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ./data/clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+```
+
+创建对应的 `.env` 文件来配置系统环境变量（可复制并修改根目录下的 `.env.example`）：
+
+```bash
+cp .env.example .env
+# 编辑 .env 文件，填入对应的数据库、Redis、ClickHouse 连接地址、密码与 APP_SESSION_SECRET
+
+docker compose up -d
+```
+
+---
+
+### 3. 进阶版 (含 Jaeger 链路追踪的完整编排)
+
+> **适用场景**：开发者调试、系统深度性能诊断、高级可观测性追溯。
+>
+> **特点**：在“生产推荐”全家桶的基础上，联动拉起 Jaeger 作为 OpenTelemetry (OTel) 链路追踪的后端，收集 Server 运行时各个 API 请求的 Span Trace 信息。
+
+创建 `docker-compose.yaml` 文件：
+
+```yaml
+version: '3.8'
+
+services:
+  openflare:
+    image: ghcr.io/rain-kl/openflare-server:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_SAMPLING_RATE: "1.0" # 本地调试建议设为 1.0 以采样所有 Trace
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openflare
+      POSTGRES_USER: openflare
+      POSTGRES_PASSWORD: replace-with-strong-password
+    volumes:
+      - ./data/postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openflare -d openflare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: valkey/valkey:8.0-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  jaeger:
+    image: jaegertracing/jaeger:2.19.0
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "16686:16686" # Web UI 端口
+      - "4317:4317"   # OTLP gRPC 接收端口
+      - "4318:4318"   # OTLP HTTP 接收端口
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: openflare
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: replace-with-clickhouse-password
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ./data/clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+```
+
+启动并验证：
+
+```bash
+cp .env.example .env
+# 编辑 .env 文件并确保设置好 APP_SESSION_SECRET 密码
+
+docker compose up -d
+```
+启动后可以通过访问 `http://localhost:16686` 打开 Jaeger 监控端查看系统 Span 链路。
+
+---
+
+## 方式二：本地部署 (源码/二进制启动)
+
+如果你不希望使用 Docker，也可以直接在本地或虚拟机上从源码构建和运行 Server。由于后台异步任务和可观测指标分析为系统核心防线，**本地部署时依然需要连接外部 Redis 与 ClickHouse 实例**。
+
+### 前置条件
 
 | 项目 | 要求 |
 | --- | --- |
 | Go | `1.25+` |
 | Node.js | `18+` |
 | pnpm | 推荐通过 `corepack enable` 使用项目声明的 pnpm |
-| 数据库 | SQLite 文件目录可写，或可访问的 PostgreSQL 实例 |
+| 外部服务 | 必须在本地或远端运行 Redis (Valkey) 和 ClickHouse 实例 |
 
-生产环境必须配置 `app.session_secret`（或 `APP_SESSION_SECRET`），并优先使用 PostgreSQL、Redis 与 ClickHouse。
+### 1. 构建管理端前端
 
-## 构建管理端前端
-
-Go Server 会嵌入 `frontend/out` 静态产物（构建后复制到 `internal/router/root/dist`）。源码启动前先构建前端：
+Go Server 运行时需要嵌入前端静态资源。编译 Go 二进制前需要先构建前端静态产物并输出到 Go 服务目录：
 
 ```bash
 cd frontend
 corepack enable
 pnpm install
 pnpm build:embed
+cd ..
 ```
 
-常用前端检查：
+> **常用前端代码检查命令**：
+> * `pnpm lint`
+> * `pnpm typecheck`
 
-```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-```
+### 2. 使用 SQLite 启动
 
-## 使用 SQLite 启动
-
-```bash
-cp config.example.yaml config.yaml
-# 编辑 config.yaml：设置 session_secret，并将 database.enabled 设为 false
-go run main.go all
-```
-
-默认监听 `3000` 端口，访问：
-
-```text
-http://localhost:3000
-```
-
-## 使用 PostgreSQL 启动
+关系数据库存储在本地 SQLite 文件，但依然需要提供 Redis 和 ClickHouse 连接配置：
 
 ```bash
 cp config.example.yaml config.yaml
-# 编辑 config.yaml：设置 session_secret、database.* 与 redis.*
+# 编辑 config.yaml：
+# 1. 设置 app.session_secret 为一个随机的长字符串
+# 2. 将 database.enabled 设为 false 以启用内置 SQLite
+# 3. 将 redis.addrs 与 clickhouse.hosts 修改为你的本地/局域网服务连接信息
+
+# 启动 Server（默认融合模式）
 go run main.go all
 ```
 
-生产环境推荐分进程部署：`go run main.go api`、`go run main.go worker`、`go run main.go scheduler`。
-
-## 使用 Docker 启动
-
-使用 Docker 部署可以免去本地配置 Go 与 Node.js 前端构建环境的麻烦。OpenFlare 官方提供了完整的 Dockerfile 与 Compose 配置，支持独立容器启动及多服务联动部署。
-
-### 1. 使用 Docker Run 极速启动（以 SQLite 为例）
-
-确保当前目录下已创建用于持久化数据库和日志的数据卷目录。运行以下命令启动 Server：
+### 3. 使用 PostgreSQL 启动
 
 ```bash
-# 创建本地挂载目录
-mkdir -p ./openflare-data
+cp config.example.yaml config.yaml
+# 编辑 config.yaml：
+# 1. 设置 app.session_secret 
+# 2. 将 database.enabled 设为 true，并完整设置 database.*、redis.*、clickhouse.* 字段连接参数
 
-# 启动容器
-docker run -d \
-  --name openflare-server \
-  -p 3000:3000 \
-  -v $(pwd)/openflare-data:/data \
-  -e APP_SESSION_SECRET='replace-with-a-long-random-string' \
-  -e DB_ENABLED=false \
-  -e SQLITE_PATH='/data/openflare.db' \
-  -e LOG_LEVEL='info' \
-  ghcr.io/rain-kl/openflare-server:latest
+# 启动 Server（默认融合模式）
+go run main.go all
 ```
-
-启动参数说明：
-* **`-p 3000:3000`**：映射宿主机 `3000` 端口到容器内 `3000` 端口。
-* **`-v $(pwd)/openflare-data:/data`**：挂载本地目录到容器的 `/data`，确保数据库文件在重启或重建容器时不丢失。
-* **`APP_SESSION_SECRET`**：Session Cookie 签名密钥，生产环境必须配置。
 
 ---
 
-### 2. 使用 Docker Compose 一键启动
-
-推荐在生产环境使用仓库根目录的 `docker-compose.yaml`，自动编排 PostgreSQL、Redis、ClickHouse 与 Jaeger：
-
-```bash
-cp .env.example .env
-docker compose up -d
-```
-
-## 命令行参数
-
-```bash
-go run main.go api       # 仅 API
-go run main.go worker    # 仅 Worker
-go run main.go scheduler # 仅 Scheduler
-go run main.go all       # 融合模式（默认）
-```
-
-监听地址与日志由 `config.yaml`（`app.addr`、`log.*`）或 `APP_ADDR`、`LOG_*` 环境变量控制。
-
 ## 首次登录
 
-默认账号：
+Server 默认监听 `3000` 端口，启动成功后可以使用浏览器访问：`http://localhost:3000`。
+
+默认管理员账户信息如下：
 
 | 用户名 | 密码 |
 | --- | --- |
 | `root` | `123456` |
 
-首次登录后请立即修改默认密码。
+> [!WARNING]
+> 为了你的系统安全，首次登录后请立即前往个人设置页面修改默认密码。
 
-## 配置要点
+---
 
-复制 `config.example.yaml` 为 `config.yaml`，或使用 `.env.example` 中的环境变量。关键默认值：
+## 常用运维指南
 
-| 项 | 值 |
-| --- | --- |
-| 监听地址 | `:3000` |
-| PostgreSQL 库名 | `openflare` |
-| SQLite 后备 | `openflare.db` |
-| `application_name` | `openflare-server` |
-| Redis 键前缀 | `openflare:` |
+### 1. 命令行子服务分进程启动
 
-也可使用 `docker compose up`（见根目录 `docker-compose.yaml`）拉起完整依赖栈。
-
-### 验证
+在大型生产部署中，你可以选择将 Server 按职责拆分为多个进程运行：
 
 ```bash
+go run main.go api       # 仅启动管理端与节点通信的 API 服务
+go run main.go worker    # 仅启动后台任务的 Worker 服务
+go run main.go scheduler # 仅启动定时任务的 Scheduler 服务
+go run main.go all       # 融合模式（在一进程内运行上述所有服务，默认）
+```
+
+### 2. 状态验证
+
+```bash
+# 验证编译是否通过
 go build ./...
+
+# 运行内部单元测试
 go test ./internal/apps/openflare/... -count=1
 
+# 检查服务健康状态
 curl http://127.0.0.1:3000/api/v1/d/status
 ```

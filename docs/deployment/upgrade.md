@@ -6,47 +6,26 @@
 
 ## Server 升级
 
-Root 用户可以在管理端顶栏检查并升级 Server 正式版。也可以通过上传 Server 二进制的方式执行确认升级。
-
-如需尝试 preview 版本，可手动检查对应发布。生产环境建议优先使用正式版。
-
-升级后确认：
+拉取最新镜像升级
 
 ```bash
-docker compose ps
-docker compose logs -n 100 openflare
+docker compose pull
+docker compose up
 ```
 
 如果是源码部署，重新启动 Server 后确认日志中没有数据库迁移或启动错误。
 
 ## Agent 升级
 
-节点 Agent 默认只跟随正式版自动更新。preview 升级需要手动触发。
+Agent 可以随意升级，升级后会在下次心跳时自动拉取最新配置。升级方式：
 
-安装脚本可重复执行，用于重装或升级 Agent：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Rain-kl/OpenFlare/main/scripts/install-agent.sh | bash -s -- \
-  --server-url http://your-server:3000 \
-  --agent-token YOUR_AGENT_TOKEN
 ```
-
-注意：当前安装脚本重装时会删除整个安装目录，包括旧 `agent.json`、本地状态、缓存数据和下载的二进制。执行前请确认手头仍有可用 Token。
-
-升级后确认：
-
-```bash
-systemctl status openflare-agent
-journalctl -u openflare-agent -n 100 --no-pager
+docker pull ghcr.io/rain-kl/openflare-agent:beta
+docker rm -f openflare-agent 2>/dev/null || true
+docker run -d --name openflare-agent --restart unless-stopped \
+  -p 80:80 -p 443:443/tcp -p 443:443/udp \
+  -e OPENFLARE_SERVER_URL=<OPENFLARE_SERVER_URL> \
+  -e OPENFLARE_AGENT_TOKEN=<OPENFLARE_AGENT_TOKEN> \
+  ghcr.io/rain-kl/openflare-agent:beta
+  
 ```
-
-## 数据维护
-
-管理端设置页可以维护观测数据自动清理策略：
-
-| 配置项 | 说明 |
-| --- | --- |
-| `DatabaseAutoCleanupEnabled` | 是否启用每日自动清理 |
-| `DatabaseAutoCleanupRetentionDays` | 自动清理保留天数，至少 1 天 |
-
-开启后，Server 会在每天凌晨 3 点清理访问日志、指标快照与请求报告。
