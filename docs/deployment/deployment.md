@@ -88,7 +88,7 @@ docker compose ps
 docker compose logs -f openflare
 ```
 
-首次访问 `http://localhost:3000`，默认账号为 `root` / `123456`。登录后请立即修改默认密码。
+首次访问 `http://localhost:3000`，默认账号为 `admin` / `12345678`。登录后请立即修改默认密码。
 
 ## 源码启动 Server
 

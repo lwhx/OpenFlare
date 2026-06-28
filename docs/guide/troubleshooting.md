@@ -79,7 +79,7 @@ NEXT_DEV_BACKEND_URL=http://127.0.0.1:3000 pnpm dev
 
 ## 默认账号无法登录
 
-默认账号是 `root` / `123456`。首次登录后如果已经修改密码，应使用修改后的密码。
+默认账号是 `admin` / `12345678`。首次登录后如果已经修改密码，应使用修改后的密码。
 
 排查步骤：
 
@@ -90,7 +90,7 @@ NEXT_DEV_BACKEND_URL=http://127.0.0.1:3000 pnpm dev
 
 ### 应急重置管理员密码
 
-如果忘记了 `root` 账户的密码，可以通过直接更新数据库中的密码哈希值将其重置为 `123456`（登录后请务必立即修改）：
+如果忘记了 `admin` 账户的密码，可以通过直接更新数据库中的密码哈希值将其重置为 `12345678`（登录后请务必立即修改）：
 
 #### 1. 若使用 SQLite 数据库
 停止 Server 运行，使用 sqlite3 客户端打开数据库文件：
@@ -99,16 +99,16 @@ sqlite3 /path/to/openflare.db
 ```
 执行以下 SQL 语句：
 ```sql
-UPDATE users SET password_hash = '$2a$10$wN9aE3zTz83rO7R1uKlhuehJtA3c604pX4Z12B/9.5c0X337t1L4m' WHERE username = 'root';
+UPDATE users SET password = '$2a$10$eXpE9i/6S3gPT94/G0mu0.B8ser66ARETFz5NWYSYcrQ4JmtSrMXu' WHERE username = 'admin';
 ```
 输入 `.exit` 退出并重新启动 Server。
 
 #### 2. 若使用 PostgreSQL 数据库
 通过您的数据库连接工具（如 psql、pgAdmin 或 DBeaver）连接到 PostgreSQL 实例，选择对应的 `openflare` 数据库，执行以下 SQL 语句：
 ```sql
-UPDATE users SET password_hash = '$2a$10$wN9aE3zTz83rO7R1uKlhuehJtA3c604pX4Z12B/9.5c0X337t1L4m' WHERE username = 'root';
+UPDATE users SET password = '$2a$10$eXpE9i/6S3gPT94/G0mu0.B8ser66ARETFz5NWYSYcrQ4JmtSrMXu' WHERE username = 'admin';
 ```
-执行成功后即可使用默认密码 `123456` 重新登录管理后台。
+执行成功后即可使用默认密码 `12345678` 重新登录管理后台。
 
 ## Agent 无法注册或一直离线
 
