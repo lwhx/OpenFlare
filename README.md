@@ -71,7 +71,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./uploads:/app/uploads
+      - openflare_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,7 +88,7 @@ services:
       POSTGRES_USER: ${DB_USERNAME:-openflare}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-replace-with-strong-password}
     volumes:
-      - ./data/postgres_data:/var/lib/postgresql/data
+      - openflare_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-openflare} -d ${DB_NAME:-openflare}"]
       interval: 10s
@@ -100,7 +100,7 @@ services:
     restart: unless-stopped
     command: ["valkey-server", "--appendonly", "yes"]
     volumes:
-      - ./data/valkey:/data
+      - openflare_redis_data:/data
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
@@ -118,13 +118,19 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
-      - ./data/clickhouse_data:/var/lib/clickhouse
+      - openflare_clickhouse_data:/var/lib/clickhouse
     healthcheck:
       test: ["CMD", "clickhouse-client", "--user", "${CLICKHOUSE_USERNAME:-default}", "--password", "${CLICKHOUSE_PASSWORD:-replace-with-clickhouse-password}", "--query", "SELECT 1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
+      
+volumes:
+    openflare_uploads:
+    openflare_postgres_data:
+    openflare_redis_data:
+    openflare_clickhouse_data:
 ```
 
 详细部署说明见 [部署文档](https://open-flare.pages.dev/deployment/deployment)。
