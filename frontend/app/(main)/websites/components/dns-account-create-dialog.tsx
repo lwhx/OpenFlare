@@ -20,6 +20,7 @@ import {Input} from '@/components/ui/input';
 import {Label} from '@/components/ui/label';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from '@/components/ui/select';
 import {DnsAccountService} from '@/lib/services/openflare';
+import type {DnsAccountMutationPayload} from '@/lib/services/openflare';
 
 import {getErrorMessage} from './website-utils';
 
@@ -52,7 +53,7 @@ export function DnsAccountCreateDialog({
   });
 
   const createMutation = useMutation({
-    mutationFn: DnsAccountService.create,
+    mutationFn: (payload: DnsAccountMutationPayload) => DnsAccountService.create(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({queryKey: dnsAccountsQueryKey});
       form.reset();

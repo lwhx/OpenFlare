@@ -20,6 +20,7 @@ sidebar: false
 
 ### 修复
 
+- 修复添加 DNS 账号时因直接传递 class static 方法作为 React Query 的 mutationFn 导致 JavaScript 丢失 `this` 上下文报错 `this.post is not a function` 的问题。
 - 修复侧边栏一级菜单项当前页面字体颜色被硬编码为 `#6366F1` 的问题，改用 CSS 主题变量 `text-sidebar-primary`，以保证在多主题系统下的色彩一致性。
 - 修复默认（Default）主题因遗漏声明 `destructive-foreground` 变量，导致删除按钮（如确认删除证书弹窗）在某些状态下渲染为黑底黑字而无法阅读的问题。
 
