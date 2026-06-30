@@ -68,8 +68,8 @@ export function AdminSettingsPageClient() {
 
   const activeTab = useMemo(() => {
     const rawTab = searchParams.get("tab")
-    const validTabs = ["security", "operation", "system", "other", "status", "info"]
-    return rawTab && validTabs.includes(rawTab) ? rawTab : "security"
+    const validTabs = ["openflare-ops", "security", "operation", "system", "other", "status", "info"]
+    return rawTab && validTabs.includes(rawTab) ? rawTab : "openflare-ops"
   }, [searchParams])
 
   const handleTabChange = (value: string) => {
