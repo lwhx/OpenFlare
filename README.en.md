@@ -56,7 +56,7 @@ Quick links:
 ```yaml
 services:
   openflare:
-    image: ghcr.io/rain-kl/openflare-server:latest
+    image: ghcr.io/rain-kl/openflare:latest
     restart: unless-stopped
     env_file: .env
     environment:

@@ -27,7 +27,7 @@ version: '3.8'
 
 services:
   openflare:
-    image: ghcr.io/rain-kl/openflare-server:latest
+    image: ghcr.io/rain-kl/openflare:latest
     container_name: openflare-server
     restart: unless-stopped
     ports:
@@ -100,7 +100,7 @@ docker compose up -d
 ```yaml
 services:
   openflare:
-    image: ghcr.io/rain-kl/openflare-server:latest
+    image: ghcr.io/rain-kl/openflare:latest
     restart: unless-stopped
     env_file: .env
     environment:
@@ -167,6 +167,7 @@ services:
 创建对应的 `.env` 文件来配置系统环境变量（可复制并修改根目录下的 `.env.example`）：
 
 ```bash
+curl -o .env.example https://raw.githubusercontent.com/Rain-kl/OpenFlare/refs/heads/main/.env.example
 cp .env.example .env
 # 编辑 .env 文件，填入对应的数据库、Redis、ClickHouse 连接地址、密码与 APP_SESSION_SECRET
 
@@ -188,7 +189,7 @@ version: '3.8'
 
 services:
   openflare:
-    image: ghcr.io/rain-kl/openflare-server:latest
+    image: ghcr.io/rain-kl/openflare:latest
     restart: unless-stopped
     env_file: .env
     environment:
@@ -270,6 +271,7 @@ services:
 启动并验证：
 
 ```bash
+curl -o .env.example https://raw.githubusercontent.com/Rain-kl/OpenFlare/refs/heads/main/.env.example
 cp .env.example .env
 # 编辑 .env 文件并确保设置好 APP_SESSION_SECRET 密码
 

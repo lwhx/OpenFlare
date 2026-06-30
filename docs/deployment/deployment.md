@@ -81,6 +81,7 @@ Agent：
 仓库根目录已提供完整 `docker-compose.yaml`（含 PostgreSQL、Redis、ClickHouse、Jaeger）。
 
 ```bash
+curl -o .env.example https://raw.githubusercontent.com/Rain-kl/OpenFlare/refs/heads/main/.env.example
 cp .env.example .env
 # 编辑 .env，至少修改 APP_SESSION_SECRET 与数据库密码
 docker compose up -d

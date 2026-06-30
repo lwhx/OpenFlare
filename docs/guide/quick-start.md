@@ -37,7 +37,7 @@ version: '3.8'
 
 services:
   openflare:
-    image: ghcr.io/rain-kl/openflare-server:latest
+    image: ghcr.io/rain-kl/openflare:latest
     container_name: openflare-server
     restart: unless-stopped
     ports:
