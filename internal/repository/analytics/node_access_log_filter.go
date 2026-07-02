@@ -102,6 +102,43 @@ func nodeAccessLogEpochExpr() string {
 	return "toInt64(toUnixTimestamp(logged_at))"
 }
 
+func nodeAccessLogHostIsIPLiteralExpr() string {
+	return `(
+		toIPv4OrNull(trim(if(position(trim(host), ':') > 0 AND NOT startsWith(trim(host), '['), splitByChar(':', trim(host))[1], replaceRegexpAll(trim(host), '\\[|\\]', '')))) IS NOT NULL
+		OR toIPv6OrNull(trim(if(position(trim(host), ':') > 0 AND NOT startsWith(trim(host), '['), splitByChar(':', trim(host))[1], replaceRegexpAll(trim(host), '\\[|\\]', '')))) IS NOT NULL
+	)`
+}
+
+func nodeAccessLogBucketOrderClause(sortBy string, sortOrder string) string {
+	direction := "DESC"
+	if normalizeNodeAccessLogSortOrder(sortOrder) == "asc" {
+		direction = "ASC"
+	}
+	switch strings.TrimSpace(sortBy) {
+	case "request_count":
+		return "request_count " + direction + ", bucket_epoch DESC"
+	default:
+		return "bucket_epoch " + direction
+	}
+}
+
+func nodeAccessLogIPSummaryOrderClause(sortBy string, sortOrder string) string {
+	direction := "DESC"
+	if normalizeNodeAccessLogSortOrder(sortOrder) == "asc" {
+		direction = "ASC"
+	}
+	column := "total_requests"
+	switch strings.TrimSpace(sortBy) {
+	case "recent_requests":
+		column = "recent_requests"
+	case "last_seen_at":
+		column = "last_seen_epoch"
+	case "remote_addr":
+		column = "trimmed_remote_addr"
+	}
+	return column + " " + direction + ", last_seen_epoch DESC, trimmed_remote_addr ASC"
+}
+
 func nodeAccessLogTableName() string {
 	return "of_node_access_logs"
 }

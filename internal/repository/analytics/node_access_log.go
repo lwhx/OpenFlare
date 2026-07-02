@@ -87,22 +87,15 @@ func CountNodeAccessLogs(ctx context.Context, filter NodeAccessLogFilter) (int64
 	clause, args := buildNodeAccessLogFilterClause(filter)
 	tableName := nodeAccessLogTableName()
 
-	var totalRecords uint64
-	countSQL := fmt.Sprintf("SELECT count() FROM %s WHERE %s", tableName, clause)
-	if err := conn.QueryRow(ctx, countSQL, args...).Scan(&totalRecords); err != nil {
+	countSQL := fmt.Sprintf(`
+SELECT
+	count() AS total_records,
+	uniqExactIf(trim(remote_addr), trim(remote_addr) != '') AS total_ips
+FROM %s
+WHERE %s`, tableName, clause)
+	var totalRecords, totalIPs uint64
+	if err := conn.QueryRow(ctx, countSQL, args...).Scan(&totalRecords, &totalIPs); err != nil {
 		return 0, 0, fmt.Errorf("count node access logs: %w", err)
-	}
-
-	ipSQL := fmt.Sprintf(`
-SELECT count() FROM (
-	SELECT trim(remote_addr) AS trimmed_remote_addr
-	FROM %s
-	WHERE %s AND trim(remote_addr) != ''
-	GROUP BY trimmed_remote_addr
-)`, tableName, clause)
-	var totalIPs uint64
-	if err := conn.QueryRow(ctx, ipSQL, args...).Scan(&totalIPs); err != nil {
-		return 0, 0, fmt.Errorf("count node access log ips: %w", err)
 	}
 	return safeInt64Count(totalRecords), safeInt64Count(totalIPs), nil
 }

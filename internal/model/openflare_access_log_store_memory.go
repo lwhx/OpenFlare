@@ -5,6 +5,8 @@ package model
 
 import (
 	"context"
+	"net"
+	"net/netip"
 	"sort"
 	"strings"
 	"sync"
@@ -99,12 +101,21 @@ func (s *memoryAccessLogStore) BucketAggregates(_ context.Context, filter OpenFl
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	rows := s.filterRecords(filter)
-	aggregates := make(map[int64]*openFlareAccessLogBucketAggregateRow)
+	type bucketAccumulator struct {
+		openFlareAccessLogBucketAggregateRow
+		uniqueIPs   map[string]struct{}
+		uniqueHosts map[string]struct{}
+	}
+	aggregates := make(map[int64]*bucketAccumulator)
 	for _, row := range rows {
 		bucketEpoch := memoryAccessLogBucketEpoch(row.LoggedAt, bucketSeconds)
 		item := aggregates[bucketEpoch]
 		if item == nil {
-			item = &openFlareAccessLogBucketAggregateRow{BucketEpoch: bucketEpoch}
+			item = &bucketAccumulator{
+				openFlareAccessLogBucketAggregateRow: openFlareAccessLogBucketAggregateRow{BucketEpoch: bucketEpoch},
+				uniqueIPs:                            make(map[string]struct{}),
+				uniqueHosts:                          make(map[string]struct{}),
+			}
 			aggregates[bucketEpoch] = item
 		}
 		item.RequestCount++
@@ -116,12 +127,59 @@ func (s *memoryAccessLogStore) BucketAggregates(_ context.Context, filter OpenFl
 		default:
 			item.ServerErrorCount++
 		}
+		if remoteAddr := strings.TrimSpace(row.RemoteAddr); remoteAddr != "" {
+			item.uniqueIPs[remoteAddr] = struct{}{}
+		}
+		if host := strings.TrimSpace(row.Host); host != "" {
+			item.uniqueHosts[host] = struct{}{}
+		}
 	}
 	result := make([]openFlareAccessLogBucketAggregateRow, 0, len(aggregates))
 	for _, item := range aggregates {
-		result = append(result, *item)
+		item.UniqueIPCount = int64(len(item.uniqueIPs))
+		item.UniqueHostCount = int64(len(item.uniqueHosts))
+		result = append(result, item.openFlareAccessLogBucketAggregateRow)
+	}
+	bucketRows := make([]*OpenFlareAccessLogBucketRow, len(result))
+	for index := range result {
+		bucketRows[index] = &OpenFlareAccessLogBucketRow{
+			BucketEpoch:      result[index].BucketEpoch,
+			RequestCount:     result[index].RequestCount,
+			UniqueIPCount:    result[index].UniqueIPCount,
+			UniqueHostCount:  result[index].UniqueHostCount,
+			SuccessCount:     result[index].SuccessCount,
+			ClientErrorCount: result[index].ClientErrorCount,
+			ServerErrorCount: result[index].ServerErrorCount,
+		}
+	}
+	sortOpenFlareAccessLogBucketRows(bucketRows, filter.SortBy, filter.SortOrder)
+	for index := range result {
+		result[index] = openFlareAccessLogBucketAggregateRow{
+			BucketEpoch:      bucketRows[index].BucketEpoch,
+			RequestCount:     bucketRows[index].RequestCount,
+			UniqueIPCount:    bucketRows[index].UniqueIPCount,
+			UniqueHostCount:  bucketRows[index].UniqueHostCount,
+			SuccessCount:     bucketRows[index].SuccessCount,
+			ClientErrorCount: bucketRows[index].ClientErrorCount,
+			ServerErrorCount: bucketRows[index].ServerErrorCount,
+		}
+	}
+	if filter.PageSize > 0 {
+		start, end := openFlareAccessLogPaginateBounds(len(result), filter.Page, filter.PageSize)
+		return result[start:end], nil
 	}
 	return result, nil
+}
+
+func (s *memoryAccessLogStore) CountBuckets(_ context.Context, filter OpenFlareAccessLogQuery, bucketSeconds int64) (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows := s.filterRecords(filter)
+	seen := make(map[int64]struct{})
+	for _, row := range rows {
+		seen[memoryAccessLogBucketEpoch(row.LoggedAt, bucketSeconds)] = struct{}{}
+	}
+	return int64(len(seen)), nil
 }
 
 func (s *memoryAccessLogStore) BucketDimensions(_ context.Context, filter OpenFlareAccessLogQuery, column string, bucketSeconds int64) ([]openFlareAccessLogBucketDimensionRow, error) {
@@ -222,9 +280,91 @@ func (s *memoryAccessLogStore) IPSummaries(_ context.Context, filter OpenFlareAc
 			item.LastSeenEpoch = epoch
 		}
 	}
-	result := make([]openFlareAccessLogIPSummaryRow, 0, len(aggregates))
+	summaryRows := make([]*OpenFlareAccessLogIPSummaryRow, 0, len(aggregates))
 	for _, item := range aggregates {
-		result = append(result, *item)
+		summaryRows = append(summaryRows, &OpenFlareAccessLogIPSummaryRow{
+			RemoteAddr:     item.RemoteAddr,
+			TotalRequests:  item.TotalRequests,
+			RecentRequests: item.RecentRequests,
+			LastSeenEpoch:  item.LastSeenEpoch,
+		})
+	}
+	sortOpenFlareAccessLogIPSummaryRows(summaryRows, filter.SortBy, filter.SortOrder)
+	if filter.PageSize > 0 {
+		start, end := openFlareAccessLogPaginateBounds(len(summaryRows), filter.Page, filter.PageSize)
+		summaryRows = summaryRows[start:end]
+	}
+	result := make([]openFlareAccessLogIPSummaryRow, len(summaryRows))
+	for index, item := range summaryRows {
+		result[index] = openFlareAccessLogIPSummaryRow{
+			RemoteAddr:     item.RemoteAddr,
+			TotalRequests:  item.TotalRequests,
+			RecentRequests: item.RecentRequests,
+			LastSeenEpoch:  item.LastSeenEpoch,
+		}
+	}
+	return result, nil
+}
+
+func (s *memoryAccessLogStore) CountIPSummaries(_ context.Context, filter OpenFlareAccessLogQuery) (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows := s.filterRecords(filter)
+	seen := make(map[string]struct{})
+	for _, row := range rows {
+		remoteAddr := strings.TrimSpace(row.RemoteAddr)
+		if remoteAddr == "" {
+			continue
+		}
+		seen[remoteAddr] = struct{}{}
+	}
+	return int64(len(seen)), nil
+}
+
+func (s *memoryAccessLogStore) WAFIPAggregates(_ context.Context, filter OpenFlareAccessLogQuery) ([]openFlareAccessLogWAFIPAggregateRow, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows := s.filterRecords(filter)
+	aggregates := make(map[string]*openFlareAccessLogWAFIPAggregateRow)
+	order := make([]string, 0)
+	for _, row := range rows {
+		remoteAddr := strings.TrimSpace(row.RemoteAddr)
+		if remoteAddr == "" {
+			continue
+		}
+		item := aggregates[remoteAddr]
+		if item == nil {
+			item = &openFlareAccessLogWAFIPAggregateRow{
+				RemoteAddr:   remoteAddr,
+				StatusCounts: make(map[int]int64),
+			}
+			aggregates[remoteAddr] = item
+			order = append(order, remoteAddr)
+		}
+		item.RequestCount++
+		item.StatusCounts[row.StatusCode]++
+		if row.StatusCode == 404 {
+			item.Status404Count++
+		}
+		if row.StatusCode >= 400 && row.StatusCode < 500 {
+			item.ClientErrorCount++
+		}
+		if row.StatusCode >= 500 {
+			item.ServerErrorCount++
+		}
+		if memoryAccessLogHostIsIPLiteral(row.Host) {
+			item.IPHostCount++
+		}
+		epoch := row.LoggedAt.UTC().Unix()
+		if epoch > item.LastSeenEpoch {
+			item.LastSeenEpoch = epoch
+		}
+	}
+	result := make([]openFlareAccessLogWAFIPAggregateRow, 0, len(order))
+	for _, remoteAddr := range order {
+		if item := aggregates[remoteAddr]; item != nil {
+			result = append(result, *item)
+		}
 	}
 	return result, nil
 }
@@ -322,6 +462,19 @@ func memoryAccessLogMatches(row *OpenFlareAccessLog, query OpenFlareAccessLogQue
 		return false
 	}
 	return true
+}
+
+func memoryAccessLogHostIsIPLiteral(value string) bool {
+	host := strings.TrimSpace(value)
+	if host == "" {
+		return false
+	}
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		host = parsedHost
+	}
+	host = strings.Trim(host, "[]")
+	_, err := netip.ParseAddr(host)
+	return err == nil
 }
 
 func memoryAccessLogBucketEpoch(loggedAt time.Time, bucketSeconds int64) int64 {

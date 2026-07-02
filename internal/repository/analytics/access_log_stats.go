@@ -99,6 +99,8 @@ func GetBrowserDistribution(ctx context.Context, startTime time.Time) ([]Browser
 		FROM %s
 		WHERE created_at >= ?
 		GROUP BY user_agent
+		ORDER BY count DESC
+		LIMIT 100
 	`, tableName)
 
 	type uaRow struct {

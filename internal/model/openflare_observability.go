@@ -277,6 +277,18 @@ type OpenFlareAccessLogIPTrendRow struct {
 	RequestCount int64 `json:"request_count"`
 }
 
+// OpenFlareAccessLogWAFIPAggregate is a per-IP aggregate row for WAF automatic rules.
+type OpenFlareAccessLogWAFIPAggregate struct {
+	RemoteAddr       string
+	RequestCount     int
+	Status404Count   int
+	ClientErrorCount int
+	ServerErrorCount int
+	IPHostCount      int
+	LastSeenEpoch    int64
+	StatusCounts     map[int]int
+}
+
 func isMissingTableError(err error) bool {
 	if err == nil {
 		return false

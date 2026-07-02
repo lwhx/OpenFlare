@@ -234,15 +234,15 @@ func evaluateParsedIPGroupAutoConfig(ctx context.Context, config ipGroupAutoConf
 		}
 		programs = append(programs, program)
 	}
-	logs, err := model.ListOpenFlareAccessLogsForWAFIPGroup(ctx, model.OpenFlareAccessLogQuery{
+	aggregates, err := model.ListOpenFlareAccessLogWAFIPAggregates(ctx, model.OpenFlareAccessLogQuery{
 		Since: now.Add(-time.Duration(config.LookbackMinutes) * time.Minute),
 		Until: now,
 	})
 	if err != nil {
 		return nil, err
 	}
-	accumulators := make(map[string]*ipGroupAutoAccumulator)
-	for _, item := range logs {
+	accumulators := make(map[string]*ipGroupAutoAccumulator, len(aggregates))
+	for _, item := range aggregates {
 		if item == nil {
 			continue
 		}
@@ -250,30 +250,23 @@ func evaluateParsedIPGroupAutoConfig(ctx context.Context, config ipGroupAutoConf
 		if !ok {
 			continue
 		}
-		acc := accumulators[ip]
-		if acc == nil {
-			acc = &ipGroupAutoAccumulator{
-				ip:           ip,
-				statusCounts: make(map[int]int),
-			}
-			accumulators[ip] = acc
+		lastSeen := time.Time{}
+		if item.LastSeenEpoch > 0 {
+			lastSeen = time.Unix(item.LastSeenEpoch, 0).UTC()
 		}
-		acc.requestCount++
-		acc.statusCounts[item.StatusCode]++
-		if item.StatusCode == http.StatusNotFound {
-			acc.status404Count++
+		statusCounts := make(map[int]int, len(item.StatusCounts))
+		for code, count := range item.StatusCounts {
+			statusCounts[code] = count
 		}
-		if item.StatusCode >= 400 && item.StatusCode < 500 {
-			acc.clientErrorCount++
-		}
-		if item.StatusCode >= http.StatusInternalServerError {
-			acc.serverErrorCount++
-		}
-		if hostIsIPLiteral(item.Host) {
-			acc.ipHostCount++
-		}
-		if item.LoggedAt.After(acc.lastSeen) {
-			acc.lastSeen = item.LoggedAt
+		accumulators[ip] = &ipGroupAutoAccumulator{
+			ip:               ip,
+			requestCount:     item.RequestCount,
+			status404Count:   item.Status404Count,
+			ipHostCount:      item.IPHostCount,
+			clientErrorCount: item.ClientErrorCount,
+			serverErrorCount: item.ServerErrorCount,
+			lastSeen:         lastSeen,
+			statusCounts:     statusCounts,
 		}
 	}
 	matched := make([]string, 0)

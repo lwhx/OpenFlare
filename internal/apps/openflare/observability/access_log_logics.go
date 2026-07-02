@@ -21,11 +21,15 @@ const (
 	defaultIPTrendBucketMinute = 30
 	maxIPTrendHours            = 168
 	nodeAccessLogRetentionDays = 90
+	defaultAccessLogQueryDays  = 7
 	accessLogFieldRemoteAddr   = "remote_addr"
 	accessLogFieldRequestCount = "request_count"
 )
 
-var nodeAccessLogRetentionWindow = nodeAccessLogRetentionDays * 24 * time.Hour
+var (
+	nodeAccessLogRetentionWindow = nodeAccessLogRetentionDays * 24 * time.Hour
+	defaultAccessLogQueryWindow  = defaultAccessLogQueryDays * 24 * time.Hour
+)
 
 // AccessLogQuery filters access log list queries.
 type AccessLogQuery struct {
@@ -346,7 +350,7 @@ func ListFoldedAccessLogIPs(ctx context.Context, input FoldedAccessLogIPQuery) (
 // ListAccessLogIPSummaries returns paginated IP summaries.
 func ListAccessLogIPSummaries(ctx context.Context, input AccessLogIPSummaryQuery) (*AccessLogIPSummaryList, error) {
 	normalized := normalizeAccessLogIPSummaryQuery(input)
-	since := time.Now().UTC().Add(-nodeAccessLogRetentionWindow)
+	since := defaultAccessLogSince()
 	recentSince := time.Now().UTC().Add(-3 * time.Hour)
 	query := model.OpenFlareAccessLogIPSummaryQuery{
 		NodeID:     strings.TrimSpace(normalized.NodeID),
@@ -453,12 +457,16 @@ func buildModelAccessLogQuery(input AccessLogQuery) model.OpenFlareAccessLogQuer
 		RemoteAddr: strings.TrimSpace(input.RemoteAddr),
 		Host:       strings.TrimSpace(input.Host),
 		Path:       strings.TrimSpace(input.Path),
-		Since:      time.Now().UTC().Add(-nodeAccessLogRetentionWindow),
+		Since:      defaultAccessLogSince(),
 		Page:       input.Page,
 		PageSize:   input.PageSize,
 		SortBy:     input.SortBy,
 		SortOrder:  input.SortOrder,
 	}
+}
+
+func defaultAccessLogSince() time.Time {
+	return time.Now().UTC().Add(-defaultAccessLogQueryWindow)
 }
 
 func listNodeNameMap(ctx context.Context, logs []*model.OpenFlareAccessLog) (map[string]string, error) {

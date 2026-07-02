@@ -19,9 +19,12 @@ type accessLogStore interface {
 	Count(ctx context.Context, query OpenFlareAccessLogQuery) (int64, int64, error)
 	RegionCounts(ctx context.Context, nodeID string, since time.Time, limit int) ([]*OpenFlareAccessLogRegionCount, error)
 	BucketAggregates(ctx context.Context, filter OpenFlareAccessLogQuery, bucketSeconds int64) ([]openFlareAccessLogBucketAggregateRow, error)
+	CountBuckets(ctx context.Context, filter OpenFlareAccessLogQuery, bucketSeconds int64) (int64, error)
 	BucketDimensions(ctx context.Context, filter OpenFlareAccessLogQuery, column string, bucketSeconds int64) ([]openFlareAccessLogBucketDimensionRow, error)
 	IPAggregates(ctx context.Context, filter OpenFlareAccessLogQuery, exactRemoteAddr bool) ([]openFlareAccessLogIPAggregateRow, error)
+	WAFIPAggregates(ctx context.Context, filter OpenFlareAccessLogQuery) ([]openFlareAccessLogWAFIPAggregateRow, error)
 	IPSummaries(ctx context.Context, filter OpenFlareAccessLogQuery, recentSince time.Time) ([]openFlareAccessLogIPSummaryRow, error)
+	CountIPSummaries(ctx context.Context, filter OpenFlareAccessLogQuery) (int64, error)
 	IPTrend(ctx context.Context, filter OpenFlareAccessLogQuery, bucketSeconds int64) ([]openFlareAccessLogIPTrendRow, error)
 	DeleteAll(ctx context.Context) (int64, error)
 	DeleteBefore(ctx context.Context, cutoff time.Time) (int64, error)
@@ -116,9 +119,15 @@ func (clickhouseAccessLogStore) BucketAggregates(ctx context.Context, filter Ope
 			SuccessCount:     row.SuccessCount,
 			ClientErrorCount: row.ClientErrorCount,
 			ServerErrorCount: row.ServerErrorCount,
+			UniqueIPCount:    row.UniqueIPCount,
+			UniqueHostCount:  row.UniqueHostCount,
 		}
 	}
 	return result, nil
+}
+
+func (clickhouseAccessLogStore) CountBuckets(ctx context.Context, filter OpenFlareAccessLogQuery, bucketSeconds int64) (int64, error) {
+	return analyticsrepo.CountBucketAggregatesNodeAccessLogs(ctx, toNodeAccessLogFilter(filter), bucketSeconds)
 }
 
 func (clickhouseAccessLogStore) BucketDimensions(ctx context.Context, filter OpenFlareAccessLogQuery, column string, bucketSeconds int64) ([]openFlareAccessLogBucketDimensionRow, error) {
@@ -167,6 +176,31 @@ func (clickhouseAccessLogStore) IPSummaries(ctx context.Context, filter OpenFlar
 			TotalRequests:  row.TotalRequests,
 			RecentRequests: row.RecentRequests,
 			LastSeenEpoch:  row.LastSeenEpoch,
+		}
+	}
+	return result, nil
+}
+
+func (clickhouseAccessLogStore) CountIPSummaries(ctx context.Context, filter OpenFlareAccessLogQuery) (int64, error) {
+	return analyticsrepo.CountIPSummaryNodeAccessLogs(ctx, toNodeAccessLogFilter(filter))
+}
+
+func (clickhouseAccessLogStore) WAFIPAggregates(ctx context.Context, filter OpenFlareAccessLogQuery) ([]openFlareAccessLogWAFIPAggregateRow, error) {
+	rows, err := analyticsrepo.IPAggregatesForWAFNodeAccessLogs(ctx, toNodeAccessLogFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]openFlareAccessLogWAFIPAggregateRow, len(rows))
+	for index, row := range rows {
+		result[index] = openFlareAccessLogWAFIPAggregateRow{
+			RemoteAddr:       row.RemoteAddr,
+			RequestCount:     row.RequestCount,
+			Status404Count:   row.Status404Count,
+			ClientErrorCount: row.ClientErrorCount,
+			ServerErrorCount: row.ServerErrorCount,
+			IPHostCount:      row.IPHostCount,
+			LastSeenEpoch:    row.LastSeenEpoch,
+			StatusCounts:     row.StatusCounts,
 		}
 	}
 	return result, nil

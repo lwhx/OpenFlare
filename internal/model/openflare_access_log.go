@@ -24,6 +24,8 @@ type openFlareAccessLogBucketAggregateRow struct {
 	SuccessCount     int64 `gorm:"column:success_count"`
 	ClientErrorCount int64 `gorm:"column:client_error_count"`
 	ServerErrorCount int64 `gorm:"column:server_error_count"`
+	UniqueIPCount    int64 `gorm:"column:unique_ip_count"`
+	UniqueHostCount  int64 `gorm:"column:unique_host_count"`
 }
 
 type openFlareAccessLogBucketDimensionRow struct {
@@ -52,9 +54,45 @@ type openFlareAccessLogIPTrendRow struct {
 	RequestCount int64 `gorm:"column:request_count"`
 }
 
-// ListOpenFlareAccessLogsForWAFIPGroup lists access logs in a time window for automatic IP group rules.
-func ListOpenFlareAccessLogsForWAFIPGroup(ctx context.Context, query OpenFlareAccessLogQuery) ([]*OpenFlareAccessLog, error) {
-	return ListOpenFlareAccessLogs(ctx, query)
+type openFlareAccessLogWAFIPAggregateRow struct {
+	RemoteAddr       string
+	RequestCount     int64
+	Status404Count   int64
+	ClientErrorCount int64
+	ServerErrorCount int64
+	IPHostCount      int64
+	LastSeenEpoch    int64
+	StatusCounts     map[int]int64
+}
+
+// ListOpenFlareAccessLogWAFIPAggregates returns per-IP aggregates for WAF automatic rules.
+func ListOpenFlareAccessLogWAFIPAggregates(ctx context.Context, query OpenFlareAccessLogQuery) ([]*OpenFlareAccessLogWAFIPAggregate, error) {
+	rows, err := currentAccessLogStore().WAFIPAggregates(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*OpenFlareAccessLogWAFIPAggregate, 0, len(rows))
+	for _, row := range rows {
+		remoteAddr := strings.TrimSpace(row.RemoteAddr)
+		if remoteAddr == "" {
+			continue
+		}
+		statusCounts := make(map[int]int, len(row.StatusCounts))
+		for code, count := range row.StatusCounts {
+			statusCounts[code] = int(count)
+		}
+		result = append(result, &OpenFlareAccessLogWAFIPAggregate{
+			RemoteAddr:       remoteAddr,
+			RequestCount:     int(row.RequestCount),
+			Status404Count:   int(row.Status404Count),
+			ClientErrorCount: int(row.ClientErrorCount),
+			ServerErrorCount: int(row.ServerErrorCount),
+			IPHostCount:      int(row.IPHostCount),
+			LastSeenEpoch:    row.LastSeenEpoch,
+			StatusCounts:     statusCounts,
+		})
+	}
+	return result, nil
 }
 
 // InsertOpenFlareAccessLogsBatch inserts access log rows into ClickHouse.
@@ -79,24 +117,17 @@ func ListOpenFlareAccessLogRegionCounts(ctx context.Context, nodeID string, sinc
 
 // ListOpenFlareAccessLogBuckets lists folded access log buckets.
 func ListOpenFlareAccessLogBuckets(ctx context.Context, query OpenFlareAccessLogBucketQuery) ([]*OpenFlareAccessLogBucketRow, error) {
-	rows, err := buildOpenFlareAccessLogBucketRows(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	start, end := openFlareAccessLogPaginateBounds(len(rows), query.Page, query.PageSize)
-	if start >= len(rows) {
-		return []*OpenFlareAccessLogBucketRow{}, nil
-	}
-	return rows[start:end], nil
+	return buildOpenFlareAccessLogBucketRows(ctx, query)
 }
 
 // CountOpenFlareAccessLogBuckets counts folded access log buckets.
 func CountOpenFlareAccessLogBuckets(ctx context.Context, query OpenFlareAccessLogBucketQuery) (int64, error) {
-	rows, err := buildOpenFlareAccessLogBucketRows(ctx, query)
-	if err != nil {
-		return 0, err
+	filter := openFlareAccessLogQueryFromBucket(query)
+	bucketSeconds := int64(query.FoldMinutes * secondsPerMinute)
+	if bucketSeconds <= 0 {
+		bucketSeconds = 180
 	}
-	return int64(len(rows)), nil
+	return currentAccessLogStore().CountBuckets(ctx, filter, bucketSeconds)
 }
 
 // ListOpenFlareAccessLogBucketIPs lists folded IP rows for a bucket window.
@@ -123,24 +154,13 @@ func CountOpenFlareAccessLogBucketIPs(ctx context.Context, query OpenFlareAccess
 
 // ListOpenFlareAccessLogIPSummaries lists IP summaries.
 func ListOpenFlareAccessLogIPSummaries(ctx context.Context, query OpenFlareAccessLogIPSummaryQuery, recentSince time.Time) ([]*OpenFlareAccessLogIPSummaryRow, error) {
-	rows, err := buildOpenFlareAccessLogIPSummaryRows(ctx, query, recentSince)
-	if err != nil {
-		return nil, err
-	}
-	start, end := openFlareAccessLogPaginateBounds(len(rows), query.Page, query.PageSize)
-	if start >= len(rows) {
-		return []*OpenFlareAccessLogIPSummaryRow{}, nil
-	}
-	return rows[start:end], nil
+	return buildOpenFlareAccessLogIPSummaryRows(ctx, query, recentSince)
 }
 
 // CountOpenFlareAccessLogIPSummaries counts IP summaries.
 func CountOpenFlareAccessLogIPSummaries(ctx context.Context, query OpenFlareAccessLogIPSummaryQuery) (int64, error) {
-	rows, err := buildOpenFlareAccessLogIPSummaryRows(ctx, query, time.Time{})
-	if err != nil {
-		return 0, err
-	}
-	return int64(len(rows)), nil
+	filter := openFlareAccessLogQueryFromIPSummary(query)
+	return currentAccessLogStore().CountIPSummaries(ctx, filter)
 }
 
 // ListOpenFlareAccessLogIPTrend lists IP trend points.
@@ -195,75 +215,22 @@ func buildOpenFlareAccessLogBucketRows(ctx context.Context, query OpenFlareAcces
 		bucketSeconds = 180
 	}
 
-	type bucketAccumulator struct {
-		requestCount     int64
-		uniqueIPs        map[string]struct{}
-		uniqueHosts      map[string]struct{}
-		successCount     int64
-		clientErrorCount int64
-		serverErrorCount int64
-	}
-	accumulators := make(map[int64]*bucketAccumulator)
-
 	partials, err := currentAccessLogStore().BucketAggregates(ctx, filter, bucketSeconds)
 	if err != nil {
 		return nil, err
 	}
+	rows := make([]*OpenFlareAccessLogBucketRow, 0, len(partials))
 	for _, partial := range partials {
-		accumulator := accumulators[partial.BucketEpoch]
-		if accumulator == nil {
-			accumulator = &bucketAccumulator{
-				uniqueIPs:   make(map[string]struct{}),
-				uniqueHosts: make(map[string]struct{}),
-			}
-			accumulators[partial.BucketEpoch] = accumulator
-		}
-		accumulator.requestCount += partial.RequestCount
-		accumulator.successCount += partial.SuccessCount
-		accumulator.clientErrorCount += partial.ClientErrorCount
-		accumulator.serverErrorCount += partial.ServerErrorCount
-	}
-
-	for _, column := range []string{columnRemoteAddr, columnHost} {
-		dimensions, err := currentAccessLogStore().BucketDimensions(ctx, filter, column, bucketSeconds)
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range dimensions {
-			accumulator := accumulators[item.BucketEpoch]
-			if accumulator == nil {
-				accumulator = &bucketAccumulator{
-					uniqueIPs:   make(map[string]struct{}),
-					uniqueHosts: make(map[string]struct{}),
-				}
-				accumulators[item.BucketEpoch] = accumulator
-			}
-			trimmed := strings.TrimSpace(item.Value)
-			if trimmed == "" {
-				continue
-			}
-			switch column {
-			case columnRemoteAddr:
-				accumulator.uniqueIPs[trimmed] = struct{}{}
-			case columnHost:
-				accumulator.uniqueHosts[trimmed] = struct{}{}
-			}
-		}
-	}
-
-	rows := make([]*OpenFlareAccessLogBucketRow, 0, len(accumulators))
-	for bucketEpoch, accumulator := range accumulators {
 		rows = append(rows, &OpenFlareAccessLogBucketRow{
-			BucketEpoch:      bucketEpoch,
-			RequestCount:     accumulator.requestCount,
-			UniqueIPCount:    int64(len(accumulator.uniqueIPs)),
-			UniqueHostCount:  int64(len(accumulator.uniqueHosts)),
-			SuccessCount:     accumulator.successCount,
-			ClientErrorCount: accumulator.clientErrorCount,
-			ServerErrorCount: accumulator.serverErrorCount,
+			BucketEpoch:      partial.BucketEpoch,
+			RequestCount:     partial.RequestCount,
+			UniqueIPCount:    partial.UniqueIPCount,
+			UniqueHostCount:  partial.UniqueHostCount,
+			SuccessCount:     partial.SuccessCount,
+			ClientErrorCount: partial.ClientErrorCount,
+			ServerErrorCount: partial.ServerErrorCount,
 		})
 	}
-	sortOpenFlareAccessLogBucketRows(rows, query.SortBy, query.SortOrder)
 	return rows, nil
 }
 
@@ -293,12 +260,7 @@ func buildOpenFlareAccessLogBucketIPRows(ctx context.Context, query OpenFlareAcc
 }
 
 func buildOpenFlareAccessLogIPSummaryRows(ctx context.Context, query OpenFlareAccessLogIPSummaryQuery, recentSince time.Time) ([]*OpenFlareAccessLogIPSummaryRow, error) {
-	filter := OpenFlareAccessLogQuery{
-		NodeID:     query.NodeID,
-		RemoteAddr: query.RemoteAddr,
-		Host:       query.Host,
-		Since:      query.Since,
-	}
+	filter := openFlareAccessLogQueryFromIPSummary(query)
 	partials, err := currentAccessLogStore().IPSummaries(ctx, filter, recentSince)
 	if err != nil {
 		return nil, err
@@ -316,7 +278,6 @@ func buildOpenFlareAccessLogIPSummaryRows(ctx context.Context, query OpenFlareAc
 			LastSeenEpoch:  partial.LastSeenEpoch,
 		})
 	}
-	sortOpenFlareAccessLogIPSummaryRows(rows, query.SortBy, query.SortOrder)
 	return rows, nil
 }
 
@@ -350,6 +311,23 @@ func openFlareAccessLogQueryFromBucket(query OpenFlareAccessLogBucketQuery) Open
 		Host:       query.Host,
 		Path:       query.Path,
 		Since:      query.Since,
+		Page:       query.Page,
+		PageSize:   query.PageSize,
+		SortBy:     query.SortBy,
+		SortOrder:  query.SortOrder,
+	}
+}
+
+func openFlareAccessLogQueryFromIPSummary(query OpenFlareAccessLogIPSummaryQuery) OpenFlareAccessLogQuery {
+	return OpenFlareAccessLogQuery{
+		NodeID:     query.NodeID,
+		RemoteAddr: query.RemoteAddr,
+		Host:       query.Host,
+		Since:      query.Since,
+		Page:       query.Page,
+		PageSize:   query.PageSize,
+		SortBy:     query.SortBy,
+		SortOrder:  query.SortOrder,
 	}
 }
 
