@@ -18,6 +18,7 @@ const (
 	nodeStatusPending = "pending"
 
 	dashboardDistributionLimit       = 8
+	dashboardOverviewSnapshotLimit   = 500
 	highCPUUsagePercentThreshold     = 80
 	highMemoryUsagePercentThreshold  = 85
 	highStorageUsagePercentThreshold = 85

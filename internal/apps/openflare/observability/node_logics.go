@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/Rain-kl/Wavelet/internal/model"
@@ -18,7 +19,18 @@ const (
 	defaultObservabilityLimit       = 120
 	maxObservabilityLimit           = 500
 	defaultTrafficDistributionLimit = 8
+	nodeObservabilityCacheTTL       = 15 * time.Second
 )
+
+var nodeObservabilityCache struct {
+	mu    sync.Mutex
+	views map[string]cachedNodeObservability
+}
+
+type cachedNodeObservability struct {
+	view      *NodeView
+	expiresAt time.Time
+}
 
 // NodeQuery filters node observability data.
 type NodeQuery struct {
@@ -87,6 +99,9 @@ func GetNodeObservability(ctx context.Context, id uint, query NodeQuery) (*NodeV
 	if err != nil {
 		return nil, err
 	}
+	if view, ok := getCachedNodeObservability(node.NodeID); ok {
+		return view, nil
+	}
 
 	limit := normalizeObservabilityLimit(query.Limit)
 	since := now.Add(-normalizeObservabilityWindow(query.Hours))
@@ -115,18 +130,6 @@ func GetNodeObservability(ctx context.Context, id uint, query NodeQuery) (*NodeV
 	if err != nil {
 		return nil, err
 	}
-	trendSnapshots, err := model.ListOpenFlareMetricSnapshotsSince(ctx, node.NodeID, now.Add(-24*time.Hour), 0)
-	if err != nil {
-		return nil, err
-	}
-	trendOpenresty, err := model.ListOpenFlareNodeObservationOpenresty(ctx, node.NodeID, now.Add(-24*time.Hour), 0)
-	if err != nil {
-		return nil, err
-	}
-	trendReports, err := model.ListOpenFlareRequestReportsSince(ctx, node.NodeID, now.Add(-24*time.Hour), 0)
-	if err != nil {
-		return nil, err
-	}
 	events, err := model.ListOpenFlareHealthEvents(ctx, node.NodeID, false, limit)
 	if err != nil {
 		return nil, err
@@ -144,10 +147,10 @@ func GetNodeObservability(ctx context.Context, id uint, query NodeQuery) (*NodeV
 			Health:        buildHealthSummary(latestMetricSnapshot(snapshots), latestTrafficReport(reports), events),
 		},
 		Trends: NodeTrends{
-			Traffic24h:  BuildTrafficTrendPoints(now, trendReports),
-			Capacity24h: BuildCapacityTrendPoints(now, trendSnapshots),
-			Network24h:  BuildNetworkTrendPoints(now, trendSnapshots, trendOpenresty),
-			DiskIO24h:   BuildDiskIOTrendPoints(now, trendSnapshots),
+			Traffic24h:  BuildTrafficTrendPoints(now, reports),
+			Capacity24h: BuildCapacityTrendPoints(now, snapshots),
+			Network24h:  BuildNetworkTrendPoints(now, snapshots, openrestyObs),
+			DiskIO24h:   BuildDiskIOTrendPoints(now, snapshots),
 		},
 	}
 	if node.NodeType == "tunnel_relay" {
@@ -161,7 +164,33 @@ func GetNodeObservability(ctx context.Context, id uint, query NodeQuery) (*NodeV
 		}
 		view.RelayDashboard = buildRelayDashboardSnapshot(node, latestFrps)
 	}
+	setCachedNodeObservability(node.NodeID, view)
 	return view, nil
+}
+
+func getCachedNodeObservability(nodeID string) (*NodeView, bool) {
+	nodeObservabilityCache.mu.Lock()
+	defer nodeObservabilityCache.mu.Unlock()
+	if nodeObservabilityCache.views == nil {
+		return nil, false
+	}
+	entry, ok := nodeObservabilityCache.views[nodeID]
+	if !ok || time.Now().After(entry.expiresAt) {
+		return nil, false
+	}
+	return entry.view, true
+}
+
+func setCachedNodeObservability(nodeID string, view *NodeView) {
+	nodeObservabilityCache.mu.Lock()
+	defer nodeObservabilityCache.mu.Unlock()
+	if nodeObservabilityCache.views == nil {
+		nodeObservabilityCache.views = make(map[string]cachedNodeObservability)
+	}
+	nodeObservabilityCache.views[nodeID] = cachedNodeObservability{
+		view:      view,
+		expiresAt: time.Now().Add(nodeObservabilityCacheTTL),
+	}
 }
 
 // CleanupHealthEvents removes all health events for a node.

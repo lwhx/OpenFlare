@@ -28,7 +28,7 @@ export default function OpenFlareDashboardPage() {
   const overviewQuery = useQuery({
     queryKey: dashboardQueryKey,
     queryFn: () => DashboardService.getOverview(),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
   });
 
   const overview = overviewQuery.data;

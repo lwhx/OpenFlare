@@ -289,7 +289,7 @@ export function NodeObservability({
   const observabilityQuery = useQuery({
     queryKey: ['openflare', 'node-observability', nodeId],
     queryFn: () => NodeService.getObservability(nodeId, { hours: 24, limit: 48 }),
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 
   const cleanupMutation = useMutation({

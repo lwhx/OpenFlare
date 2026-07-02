@@ -97,11 +97,16 @@ type trendsPayload struct {
 
 // GetOverview aggregates dashboard overview data from nodes and observability tables.
 func GetOverview(ctx context.Context) (*OverviewPayload, error) {
+	if payload, ok := getCachedOverview(); ok {
+		return payload, nil
+	}
 	view, err := buildOverviewView(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return compressOverview(view), nil
+	payload := compressOverview(view)
+	setCachedOverview(payload)
+	return payload, nil
 }
 
 func buildOverviewView(ctx context.Context) (*OverviewView, error) {
@@ -112,11 +117,11 @@ func buildOverviewView(ctx context.Context) (*OverviewView, error) {
 	if err != nil {
 		return nil, err
 	}
-	snapshots, err := model.ListOpenFlareMetricSnapshotsSince(ctx, "", since, 0)
+	snapshots, err := model.ListOpenFlareMetricSnapshotsSince(ctx, "", since, dashboardOverviewSnapshotLimit)
 	if err != nil {
 		return nil, err
 	}
-	reports, err := model.ListOpenFlareRequestReportsSince(ctx, "", since, 0)
+	reports, err := model.ListOpenFlareRequestReportsSince(ctx, "", since, dashboardOverviewSnapshotLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +133,7 @@ func buildOverviewView(ctx context.Context) (*OverviewView, error) {
 	if err != nil {
 		return nil, err
 	}
-	openrestySnapshots, err := model.ListOpenFlareNodeObservationOpenresty(ctx, "", since, 0)
+	openrestySnapshots, err := model.ListOpenFlareNodeObservationOpenresty(ctx, "", since, dashboardOverviewSnapshotLimit)
 	if err != nil {
 		return nil, err
 	}
