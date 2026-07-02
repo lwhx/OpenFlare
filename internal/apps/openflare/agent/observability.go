@@ -235,7 +235,7 @@ func buildNodeAccessLogRecords(nodeID string, direct []NodeAccessLog, buffered [
 	return records, nil
 }
 
-func persistNodeAccessLogs(ctx context.Context, nodeID string, records []*model.OpenFlareAccessLog, reportedAt time.Time) error {
+func persistNodeAccessLogs(ctx context.Context, _ string, records []*model.OpenFlareAccessLog, _ time.Time) error {
 	if len(records) == 0 {
 		return nil
 	}

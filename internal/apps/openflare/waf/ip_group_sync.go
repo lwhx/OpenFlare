@@ -329,11 +329,6 @@ func normalizeIPLiteral(value string) (string, bool) {
 	return addr.String(), true
 }
 
-func hostIsIPLiteral(value string) bool {
-	_, ok := normalizeIPLiteral(value)
-	return ok
-}
-
 func downloadIPGroupSubscription(ctx context.Context, rawURL string) ([]byte, error) {
 	if err := validateSubscriptionURL(rawURL); err != nil {
 		return nil, err

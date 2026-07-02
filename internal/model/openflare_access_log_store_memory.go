@@ -6,6 +6,7 @@ package model
 import (
 	"context"
 	"net"
+	"net/http"
 	"net/netip"
 	"sort"
 	"strings"
@@ -343,13 +344,13 @@ func (s *memoryAccessLogStore) WAFIPAggregates(_ context.Context, filter OpenFla
 		}
 		item.RequestCount++
 		item.StatusCounts[row.StatusCode]++
-		if row.StatusCode == 404 {
+		if row.StatusCode == http.StatusNotFound {
 			item.Status404Count++
 		}
 		if row.StatusCode >= 400 && row.StatusCode < 500 {
 			item.ClientErrorCount++
 		}
-		if row.StatusCode >= 500 {
+		if row.StatusCode >= http.StatusInternalServerError {
 			item.ServerErrorCount++
 		}
 		if memoryAccessLogHostIsIPLiteral(row.Host) {

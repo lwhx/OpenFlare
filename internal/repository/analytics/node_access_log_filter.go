@@ -9,7 +9,15 @@ import (
 	"time"
 )
 
-const nodeAccessLogFilterClauseCapacity = 6
+const (
+	nodeAccessLogFilterClauseCapacity = 6
+
+	nodeAccessLogSortDesc = "DESC"
+	nodeAccessLogSortAsc  = "ASC"
+	nodeAccessLogSortAscInput = "asc"
+
+	nodeAccessLogColumnRemoteAddr = "remote_addr"
+)
 
 // NodeAccessLogFilter scopes ClickHouse node access log queries.
 type NodeAccessLogFilter struct {
@@ -66,16 +74,16 @@ func combineNodeAccessLogSQLClauses(left string, right string) string {
 }
 
 func nodeAccessLogOrderClause(sortBy string, sortOrder string) string {
-	direction := "DESC"
-	if normalizeNodeAccessLogSortOrder(sortOrder) == "asc" {
-		direction = "ASC"
+	direction := nodeAccessLogSortDesc
+	if normalizeNodeAccessLogSortOrder(sortOrder) == nodeAccessLogSortAscInput {
+		direction = nodeAccessLogSortAsc
 	}
 	column := "logged_at"
 	switch strings.TrimSpace(sortBy) {
 	case "status_code":
 		column = "status_code"
-	case "remote_addr":
-		column = "remote_addr"
+	case nodeAccessLogColumnRemoteAddr:
+		column = nodeAccessLogColumnRemoteAddr
 	case "host":
 		column = "host"
 	case "path":
@@ -110,9 +118,9 @@ func nodeAccessLogHostIsIPLiteralExpr() string {
 }
 
 func nodeAccessLogBucketOrderClause(sortBy string, sortOrder string) string {
-	direction := "DESC"
-	if normalizeNodeAccessLogSortOrder(sortOrder) == "asc" {
-		direction = "ASC"
+	direction := nodeAccessLogSortDesc
+	if normalizeNodeAccessLogSortOrder(sortOrder) == nodeAccessLogSortAscInput {
+		direction = nodeAccessLogSortAsc
 	}
 	switch strings.TrimSpace(sortBy) {
 	case "request_count":
@@ -123,9 +131,9 @@ func nodeAccessLogBucketOrderClause(sortBy string, sortOrder string) string {
 }
 
 func nodeAccessLogIPSummaryOrderClause(sortBy string, sortOrder string) string {
-	direction := "DESC"
-	if normalizeNodeAccessLogSortOrder(sortOrder) == "asc" {
-		direction = "ASC"
+	direction := nodeAccessLogSortDesc
+	if normalizeNodeAccessLogSortOrder(sortOrder) == nodeAccessLogSortAscInput {
+		direction = nodeAccessLogSortAsc
 	}
 	column := "total_requests"
 	switch strings.TrimSpace(sortBy) {
@@ -133,7 +141,7 @@ func nodeAccessLogIPSummaryOrderClause(sortBy string, sortOrder string) string {
 		column = "recent_requests"
 	case "last_seen_at":
 		column = "last_seen_epoch"
-	case "remote_addr":
+	case nodeAccessLogColumnRemoteAddr:
 		column = "trimmed_remote_addr"
 	}
 	return column + " " + direction + ", last_seen_epoch DESC, trimmed_remote_addr ASC"

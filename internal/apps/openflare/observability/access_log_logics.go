@@ -26,10 +26,7 @@ const (
 	accessLogFieldRequestCount = "request_count"
 )
 
-var (
-	nodeAccessLogRetentionWindow = nodeAccessLogRetentionDays * 24 * time.Hour
-	defaultAccessLogQueryWindow  = defaultAccessLogQueryDays * 24 * time.Hour
-)
+var defaultAccessLogQueryWindow = defaultAccessLogQueryDays * 24 * time.Hour
 
 // AccessLogQuery filters access log list queries.
 type AccessLogQuery struct {
